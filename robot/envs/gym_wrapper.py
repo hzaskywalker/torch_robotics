@@ -4,10 +4,9 @@ from gym.spaces import Box
 from gym import Wrapper
 
 class CartPoleWrapper(Wrapper):
-    def __init__(self, env):
-        Wrapper.__init__(self, env)
-        self.env.reset()
-        self.env.action_space = Box(-10, 10, (1,))
+    def __init__(self, env:gym.Env):
+        Wrapper.__init__(self, env.unwrapped)
+        self.action_space = Box(-10, 10, (1,))
 
     def forward(self, s, a):
         """
@@ -16,6 +15,10 @@ class CartPoleWrapper(Wrapper):
         :return: t, reward, done
         """
         # calculate the next state given s and a
-        self.env.state = s
+        self.unwrapped.reset()
+        self.unwrapped.state = s
+        return self.step(a)
+
+    def step(self, a):
         self.unwrapped.force_mag = abs(np.clip(float(a), -10, 10))
-        return self.env.step(1 if a > 0 else 0)[:3]
+        return self.env.step(1 if a > 0 else 0)
