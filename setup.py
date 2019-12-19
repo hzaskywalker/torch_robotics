@@ -1,6 +1,6 @@
 from setuptools import setup
 
-install_requires = []
+install_requires = ['scipy', 'numpy']
 
 setup(name='robot',
       version='0.0.1',
