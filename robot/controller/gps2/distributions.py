@@ -10,13 +10,18 @@ class LinearGaussian:
 
     We use this to represent both the trajectory and the
     """
-    def __init__(self, W, b, sigma, inv_sigam=None, chol_sigma=None):
+    def __init__(self, W, b, sigma=None, inv_sigam=None, chol_sigma=None):
         self.W = W
         self.b = b
+        self.dY, self.dX = W.shape
+
+        if sigma is None:
+            # deterministic
+            sigma = np.zeros((self.dY, self.dY), dtype=np.float32)
+
         self.sigma = sigma
         self._inv_sigma = inv_sigam
         self._chol_sigma = chol_sigma
-        self.dY, self.dX = W.shape
 
     @property
     def chol_sigma(self):

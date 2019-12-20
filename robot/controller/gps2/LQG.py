@@ -34,6 +34,20 @@ def LQGforward(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], init
             _mu, _sigma = dynamics[t].multi(mu[t], sigma[t])
     return mu, sigma
 
+def LQGeval(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], initial: LinearGaussian, l_xuxu, l_xu):
+    """
+    We don't evaluate the entropy term.
+    As it deosn't affect the performance of the deterministic policy.
+    """
+    mu, sigma = LQGforward(trajs, dynamics, initial)
+    #print('initial', initial.b)
+    #print(mu, sigma)
+    cost = 0
+    for t in range(len(trajs)):
+        _mu, _sigma = mu[t], sigma[t]
+        cost += 0.5 * _mu.T.dot(l_xuxu[t]).dot(_mu) + l_xu[t].dot(_mu)
+    return cost
+
 
 def LQGbackward(dynamics: [LinearGaussian], l_xuxu, l_xu):
     """
@@ -60,7 +74,6 @@ def LQGbackward(dynamics: [LinearGaussian], l_xuxu, l_xu):
         if t < T - 1:
             Qtt += f_xu.T.dot(Vxx).dot(f_xu)
             Qt += f_xu.T.dot(Vx + Vxx.dot(f_b))
-
         Qtt = 0.5 * (Qtt + Qtt.T)
 
         Quu = Qtt[idx_u, idx_u]
