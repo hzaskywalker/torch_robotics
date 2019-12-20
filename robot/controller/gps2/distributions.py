@@ -62,27 +62,39 @@ class LinearGaussian:
         ])
         return L_xu_xu, L_xu
 
+
     def Elogp(self, mu, sigma):
         """
         NOTE: we always assuem that mu is the combination of u and x
         Thus we can estimate E_{xu~N(mu, sigma)}p(u|x)
         """
         logdet = 2 * sum(np.log(np.diag(self.chol_sigma)))
-        idx_x = slice(self.dX - self.dY)
-        idx_u = slice(self.dX - self.dY, self.dX + self.dY)
+        idx_x = slice(self.dX)
+        idx_u = slice(self.dX, self.dX + self.dY)
         inv_sigma = self.inv_sigma
 
-        bias = self.b + mu[idx_u] - self.W.dot(mu[idx_x])
-        return 0.5 * (
-                - logdet - self.dY * np.log(2*np.pi)
+        bias = self.b - mu[idx_u] + self.W.dot(mu[idx_x])
+        return -0.5 * (
+                + logdet + self.dY * np.log(2*np.pi)
                 + np.trace(sigma[idx_u, idx_u].dot(inv_sigma))
                 + np.trace(sigma[idx_x, idx_x].dot(self.W.T).dot(inv_sigma).dot(self.W))
                 - 2 * np.trace(sigma[idx_u, idx_x].dot(self.W.T).dot(inv_sigma))
-                + np.trace(bias.T.dot(inv_sigma).dot(bias))
+                + float(bias.T.dot(inv_sigma).dot(bias))
             )
+
+
+    def logp(self, x, u):
+        logdet = 2 * sum(np.log(np.diag(self.chol_sigma)))
+        mu = self.W.dot(x) + self.b
+
+        return -0.5 *(
+            logdet + self.dY * np.log(2 * np.pi)
+            + (u-mu).T.dot(self.inv_sigma).dot(u-mu)
+        )
 
     def multi(self, mu, sigma):
         return self.W.dot(mu) + self.b, self.W.dot(sigma).dot(self.W.T) + self.sigma
+
 
     def __str__(self):
         return f'W: {self.W}\nb: {self.b}\nsigma: {self.sigma}'
