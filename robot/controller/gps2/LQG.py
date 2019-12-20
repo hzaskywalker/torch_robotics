@@ -2,274 +2,158 @@
 https://github.com/anassinator/ilqr for comparision
 """
 import numpy as np
+from typing import List
 import scipy as sp
-from .utils import check_shape
 from scipy.linalg import LinAlgError
 import logging
+from .distributions import LinearGaussian
 
 LOGGER = logging.getLogger(__name__)
 
-class LinearGaussianPolicy:
+
+def LQGforward(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], initial: LinearGaussian):
+    T, dU, dX = len(trajs), trajs[0].dY, trajs[0].dX
+    # Allocate space.
+    sigma = np.zeros((T, dX + dU, dX + dU))
+    mu = np.zeros((T, dX + dU))
+
+    _sigma = initial.sigma
+    _mu = initial.b
+
+    for t in range(T):
+        K = trajs[t].W
+        u_mu, u_sigma = trajs[t].multi(_mu, _sigma)
+
+        sigma[t, :, :] = np.vstack([
+            np.hstack([_sigma, _sigma.dot(K.T)]),
+            np.hstack([K.dot(_sigma), u_sigma])
+        ])
+        mu[t, :] = np.hstack([_mu, u_mu])
+
+        if t < T - 1:
+            _mu, _sigma = dynamics[t].multi(mu[t], sigma[t])
+    return mu, sigma
+
+
+def LQGbackward(dynamics: [LinearGaussian], l_xuxu, l_xu):
     """
-    Time-varying linear Gaussian policy.
-    U = K*x + k + noise, where noise ~ N(0, chol_pol_covar)
-
-    pol_vovar = chol_pol_covar.dot(chol_pol_covar.T)
+    :param l_xuxu: (T, dU + dX, dU + dX)
+    :param l_xu: (T, dU + dX)
+    :return:
     """
-    def __init__(self, K, k, pol_covar, chol_pol_covar, inv_pol_covar):
-        # Assume K has the correct shape, and make sure others match.
-        self.T = K.shape[0]
-        self.dU = K.shape[1]
-        self.dX = K.shape[2]
+    T = len(dynamics)
+    dX = dynamics[0].b.shape[0]
+    dU = dynamics[0].W.shape[1] - dX
+    idx_x = slice(dX)
+    idx_u = slice(dX, dX + dU)
 
-        check_shape(k, (self.T, self.dU))
-        check_shape(pol_covar, (self.T, self.dU, self.dU))
-        check_shape(chol_pol_covar, (self.T, self.dU, self.dU))
-        check_shape(inv_pol_covar, (self.T, self.dU, self.dU))
+    # Compute state-action-state function at each time step.
+    Vxx, Vx = None, None
+    outs = []
+    for t in range(T - 1, -1, -1):
+        # Add in the cost.
+        f_xu = dynamics[t].W  # (X, X+U)
+        f_b = dynamics[t].b  # (X,)
 
-        self.K = K
-        self.k = k
-        self.pol_covar = pol_covar
-        self.chol_pol_covar = chol_pol_covar
-        self.inv_pol_covar = inv_pol_covar
+        Qtt = l_xuxu[t].copy()  # (X+U) x (X+U)
+        Qt = l_xu[t].copy()  # (X+U,)
+        if t < T - 1:
+            Qtt += f_xu.T.dot(Vxx).dot(f_xu)
+            Qt += f_xu.T.dot(Vx + Vxx.dot(f_b))
 
-    def act(self, x, obs, t, noise=None):
-        """
-        Return an action for a state.
-        Args:
-            x: State vector.
-            obs: Observation vector.
-            t: Time step.
-            noise: Action noise. This will be scaled by the variance.
-        """
-        u = self.K[t].dot(x) + self.k[t]
-        u += self.chol_pol_covar[t].T.dot(noise)
-        return u
+        Qtt = 0.5 * (Qtt + Qtt.T)
 
-    def nans_like(self):
-        """
-        Returns:
-            A new linear Gaussian policy object with the same dimensions
-            but all values filled with NaNs.
-        """
-        policy = LinearGaussianPolicy(
-            np.zeros_like(self.K), np.zeros_like(self.k),
-            np.zeros_like(self.pol_covar), np.zeros_like(self.chol_pol_covar),
-            np.zeros_like(self.inv_pol_covar)
-        )
-        policy.K.fill(np.nan)
-        policy.k.fill(np.nan)
-        policy.pol_covar.fill(np.nan)
-        policy.chol_pol_covar.fill(np.nan)
-        policy.inv_pol_covar.fill(np.nan)
-        return policy
+        Quu = Qtt[idx_u, idx_u]
+        try:
+            U = sp.linalg.cholesky(Quu)
+            L = U.T
+        except LinAlgError as e:
+            LOGGER.debug('LinAlgError: %s', e)
+            return None
+
+        def inv_Quu(x):
+            return sp.linalg.solve_triangular(
+                U, sp.linalg.solve_triangular(L, x, lower=True)
+            )
+
+        traj_sigma = inv_Quu(np.eye(dU))
+        k = -inv_Quu(Qt[idx_u])
+        K = -inv_Quu(Qtt[idx_u, idx_x])
+
+        Vxx = Qtt[idx_x, idx_x] + Qtt[idx_x, idx_u].dot(K)
+        Vx = Qt[idx_x] + Qtt[idx_x, idx_u].dot(k)
+        Vxx = 0.5 * (Vxx + Vxx.T)
+
+        outs.append(LinearGaussian(K, k, traj_sigma, inv_sigam=Quu))
+    return outs[::-1]
 
 
-class LQGSolver:
-    def __init__(self):
-        self._update_in_bwd_pass =True  # Whether or not to update the TVLG controller during the bwd pass.
-        self._del0 = 1e-4
+def soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], eta, delta=1e-4):
+    T = len(dynamics)
+    eta0 = eta
 
-        self._cons_per_step = False  # Whether or not to enforce separate KL constraints at each time step.
-        self._use_prev_distr = False  # Whether or not to measure expected KL under the previous traj distr.
+    while True:
+        _l_xuxu = []
+        _l_xu = []
 
-    def forward(self, traj_distr, dynamics, initial):
-        """
-        Perform LQR forward pass. Computes state-action marginals from
-        dynamics and policy.
-        Args:
-            traj_distr: A linear Gaussian policy object.
-            traj_info: A TrajectoryInfo object.
-        Returns:
-            mu: A T x dX mean action vector.
-            sigma: A T x dX x dX covariance matrix.
-        """
-        # Compute state-action marginals from specified conditional
-        # parameters and current traj_info.
-        T = traj_distr.T
-        dU = traj_distr.dU
-        dX = traj_distr.dX
+        for i in range(T):
+            _logp_xuxu, _logp_xu = prev_trajs[i].log_derivative()
+            _l_xuxu.append(l_xuxu[i]/eta + _logp_xuxu)
+            _l_xu.append(l_xu[i]/eta + _logp_xu)
 
-        # Constants.
-        idx_x = slice(dX)
+        policy = LQGbackward(dynamics, _l_xuxu, _l_xu)
+        if policy is not None:
+            return policy, eta
 
-        # Allocate space.
-        sigma = np.zeros((T, dX+dU, dX+dU))
-        mu = np.zeros((T, dX+dU))
+        old_eta = eta
+        eta = eta0 + delta
+        LOGGER.debug('Increasing eta: %f -> %f', old_eta, eta)
+        delta *= 2  # Increase del_ exponentially on failure.
 
-        # Pull out dynamics.
-        Fm = dynamics.Fm # scalar factor
-        fv = dynamics.fv #bias term
-        dyn_covar = dynamics.dyn_covar
+        if eta > 1e16:
+            raise ValueError('Failed to find PD solution even for very \
+                    large eta (check that dynamics and cost are \
+                    reasonably well conditioned)!')
 
-        # Set initial covariance (initial mu is always zero).
-        sigma[0, idx_x, idx_x] = initial.x0sigma
-        mu[0, idx_x] = initial.x0mu
 
-        for t in range(T):
-            sigma[t, :, :] = np.vstack([
-                np.hstack([
-                    sigma[t, idx_x, idx_x],
-                    sigma[t, idx_x, idx_x].dot(traj_distr.K[t, :, :].T)
-                ]),
-                np.hstack([
-                    traj_distr.K[t, :, :].dot(sigma[t, idx_x, idx_x]),
-                    traj_distr.K[t, :, :].dot(sigma[t, idx_x, idx_x]).dot(
-                        traj_distr.K[t, :, :].T
-                    ) + traj_distr.pol_covar[t, :, :]
-                ])
-            ])
-            mu[t, :] = np.hstack([
-                mu[t, idx_x],
-                traj_distr.K[t, :, :].dot(mu[t, idx_x]) + traj_distr.k[t, :]
-            ])
-            if t < T - 1:
-                # calculate the forward model
-                sigma[t+1, idx_x, idx_x] = \
-                    Fm[t, :, :].dot(sigma[t, :, :]).dot(Fm[t, :, :].T) + \
-                    dyn_covar[t, :, :]
-                mu[t+1, idx_x] = Fm[t, :, :].dot(mu[t, :]) + fv[t, :]
-        return mu, sigma
+def kl_divergence(p1: List[LinearGaussian], p2: List[LinearGaussian], dynamics, initial):
+    # calculate the KL divergence between two policy along the trajectory
+    mu, sigma = LQGforward(p1, dynamics, initial) # trajectory distribution
+    kl = 0
+    for t in range(len(p1)):
+        kl += p1[t].Elogp(mu[t], sigma[t]) - p2[t].Elogp(mu[t], sigma[t])
+    return kl
 
-    def augment(self, Cm, cv, traj_distr, eta, max_ent_traj):
-        multiplier = max_ent_traj
-        fCm, fcv = Cm / (eta + multiplier), cv / (eta + multiplier)
-        T, K, ipc, k = traj_distr.T, traj_distr.K, traj_distr.inv_pol_covar, traj_distr.k
 
-        # Add in the trajectory divergence term.
-        for t in range(T - 1, -1, -1):
-            fCm[t, :, :] += eta / (eta + multiplier) * np.vstack([
-                np.hstack([
-                    K[t, :, :].T.dot(ipc[t, :, :]).dot(K[t, :, :]),
-                    -K[t, :, :].T.dot(ipc[t, :, :])
-                ]),
-                np.hstack([
-                    -ipc[t, :, :].dot(K[t, :, :]), ipc[t, :, :]
-                ])
-            ])
-            fcv[t, :] += eta / (eta + multiplier) * np.hstack([
-                K[t, :, :].T.dot(ipc[t, :, :]).dot(k[t, :]),
-                -ipc[t, :, :].dot(k[t, :])
-            ])
+def KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: float,
+           eta, min_eta, max_eta,
+           max_iter, eta_delta):
+    initial = dynamics[0]
+    dynamics = dynamics[1:]
 
-        return fCm, fcv
+    def _conv_check(con, epsilon):
+        """Function that checks whether dual gradient descent has converged."""
+        return abs(con) < 0.1 * epsilon
 
-    def backward(self, traj_distr, dynamics, eta, cost_func):
-        """
-        Perform LQR backward pass. This computes a new linear Gaussian
-        policy object.
-        Args:
-            prev_traj_distr: A linear Gaussian policy object from
-                previous iteration.
-            dynamics: Dynamics, Fm.dot(mu) + fv
-            eta: Dual variable.
-            cost_func: Algorithm object needed to compute costs.
-        Returns:
-            traj_distr: A new linear Gaussian policy.
-            new_eta: The updated dual variable. Updates happen if the
-                Q-function is not PD.
-        """
-        # Constants.
-        T = traj_distr.T
-        dU = traj_distr.dU
-        dX = traj_distr.dX
+    while True:
+        new_policy, eta = soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs, eta, eta_delta)
+        kl_div = kl_divergence(new_policy, prev_trajs, dynamics, initial)
 
-        idx_x = slice(dX)
-        idx_u = slice(dX, dX + dU)
+        con = kl_div - epsilon
+        if _conv_check(con, epsilon):
+            break
 
-        # Pull out dynamics.
-        Fm = dynamics.Fm
-        fv = dynamics.fv
-
-        # Non-SPD correction terms.
-        del_ = self._del0
-        eta0 = eta
-
-        # Run dynamic programming.
-        fail = True
-        while fail:
-            fail = False  # Flip to true on non-symmetric PD.
-
-            # Allocate.
-            Vxx = np.zeros((T, dX, dX))
-            Vx = np.zeros((T, dX))
-            Qtt = np.zeros((T, dX + dU, dX + dU))
-            Qt = np.zeros((T, dX + dU))
-
-            fCm, fcv = cost_func(m, eta, augment=(not self._cons_per_step))
-
-            # Compute state-action-state function at each time step.
-            for t in range(T - 1, -1, -1):
-                # Add in the cost.
-                Qtt[t] = fCm[t, :, :]  # (X+U) x (X+U), l_{xu, xu}
-                Qt[t] = fcv[t, :]  # (X+U) x 1, l_{xu}
-
-                # Add in the value function from the next time step.
-                if t < T - 1:
-                    #if type(algorithm) == AlgorithmBADMM:
-                    #    multiplier = (pol_wt[t + 1] + eta) / (pol_wt[t] + eta)
-                    #else:
-                    # hza: update Q, the same as the paper
-                    multiplier = 1.0
-                    Qtt[t] += multiplier * \
-                              Fm[t, :, :].T.dot(Vxx[t + 1, :, :]).dot(Fm[t, :, :])
-                    Qt[t] += multiplier * \
-                             Fm[t, :, :].T.dot(Vx[t + 1, :] +
-                                               Vxx[t + 1, :, :].dot(fv[t, :]))
-
-                # Symmetrize quadratic component.
-                Qtt[t] = 0.5 * (Qtt[t] + Qtt[t].T)
-
-                inv_term = Qtt[t, idx_u, idx_u]
-                k_term = Qt[t, idx_u]
-                K_term = Qtt[t, idx_u, idx_x]
-
-                try:
-                    U = sp.linalg.cholesky(inv_term)
-                    L = U.T
-                except LinAlgError as e:
-                    # Error thrown when Qtt[idx_u, idx_u] is not
-                    # symmetric positive definite.
-                    LOGGER.debug('LinAlgError: %s', e)
-                    fail = t if self._cons_per_step else True
-                    break
-
-                # Store conditional covariance, inverse, and Cholesky.
-                traj_distr.inv_pol_covar[t, :, :] = inv_term
-                traj_distr.pol_covar[t, :, :] = sp.linalg.solve_triangular(
-                    U, sp.linalg.solve_triangular(L, np.eye(dU), lower=True)
-                )
-                traj_distr.chol_pol_covar[t, :, :] = sp.linalg.cholesky(
-                    traj_distr.pol_covar[t, :, :]
-                )
-
-                # Compute mean terms.
-                traj_distr.k[t, :] = -sp.linalg.solve_triangular(
-                    U, sp.linalg.solve_triangular(L, k_term, lower=True)
-                )
-                traj_distr.K[t, :, :] = -sp.linalg.solve_triangular(
-                    U, sp.linalg.solve_triangular(L, K_term, lower=True)
-                )
-
-                Vxx[t, :, :] = Qtt[t, idx_x, idx_x] + \
-                               Qtt[t, idx_x, idx_u].dot(traj_distr.K[t, :, :])
-                Vx[t, :] = Qt[t, idx_x] + \
-                           Qtt[t, idx_x, idx_u].dot(traj_distr.k[t, :])
-                Vxx[t, :, :] = 0.5 * (Vxx[t, :, :] + Vxx[t, :, :].T)
-
-            # Increment eta on non-SPD Q-function.
-            if fail:
-                old_eta = eta
-                eta = eta0 + del_
-                LOGGER.debug('Increasing eta: %f -> %f', old_eta, eta)
-                del_ *= 2  # Increase del_ exponentially on failure.
-
-                fail_check = (eta >= 1e16)
-
-                if fail_check:
-                    if np.any(np.isnan(Fm)) or np.any(np.isnan(fv)):
-                        raise ValueError('NaNs encountered in dynamics!')
-                    raise ValueError('Failed to find PD solution even for very \
-                            large eta (check that dynamics and cost are \
-                            reasonably well conditioned)!')
-        return traj_distr, eta
+        if con < 0:  # Eta was too big.
+            max_eta = eta
+            geom = np.sqrt(min_eta * max_eta)  # Geometric mean.
+            new_eta = max(geom, 0.1 * max_eta)
+            LOGGER.debug("KL: %f / %f, eta too big, new eta: %f",
+                         kl_div, epsilon, new_eta)
+        else:  # Eta was too small.
+            min_eta = eta
+            geom = np.sqrt(min_eta * max_eta)  # Geometric mean.
+            new_eta = min(geom, 10.0 * min_eta)
+            LOGGER.debug("KL: %f / %f, eta too small, new eta: %f",
+                         kl_div, epsilon, new_eta)
+        eta = new_eta
+    return new_policy, eta
