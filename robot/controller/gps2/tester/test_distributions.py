@@ -42,8 +42,9 @@ def test_kl():
     ])
     sigma = sigma.T.dot(sigma)
 
-    print(dist.Elogp(mu, sigma))
-    print(mc_kl(mu, sigma, dist, 10000000))
+    A = dist.Elogp(mu, sigma)
+    B = mc_kl(mu, sigma, dist, 100000)
+    assert np.abs(A-B)/A < 0.01
 
 
 if __name__ == '__main__':

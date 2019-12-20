@@ -34,23 +34,48 @@ def LQGforward(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], init
             _mu, _sigma = dynamics[t].multi(mu[t], sigma[t])
     return mu, sigma
 
-def LQGeval(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], initial: LinearGaussian, l_xuxu, l_xu):
-    """
-    We don't evaluate the entropy term.
-    As it deosn't affect the performance of the deterministic policy.
-    """
+
+def policy_entropy(policy: List[LinearGaussian], dynamics: List[LinearGaussian], initial:LinearGaussian):
+    idx_x = slice(policy[0].dX)
+    mu, sigma = LQGforward(policy, dynamics, initial)
+
+    #initial.W = initial.W * 0
+    #ent = initial.Elogp(mu[0, idx_x], sigma[0, idx_x, idx_x])
+    # NOTE: we ignore the entropy of the first item
+    ent = 0
+
+    for t in range(len(policy)):
+        ent += policy[t].Elogp(mu[t], sigma[t])
+    for t in range(len(policy) - 1):
+        _mu, _sigma = mu[t], sigma[t]
+
+        K = dynamics[t].W
+        u_mu, u_sigma = dynamics[t].multi(_mu, _sigma)
+
+        _sigma = np.vstack([
+            np.hstack([_sigma, _sigma.dot(K.T)]),
+            np.hstack([K.dot(_sigma), u_sigma])
+        ])
+        _mu = np.hstack([_mu, u_mu])
+        ent += dynamics[t].Elogp(_mu, _sigma)
+    return ent
+
+
+def LQGeval(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], initial: LinearGaussian, l_xuxu, l_xu, entropy=False):
     mu, sigma = LQGforward(trajs, dynamics, initial)
-    #print('initial', initial.b)
-    #print(mu, sigma)
     cost = 0
     for t in range(len(trajs)):
-        _mu, _sigma = mu[t], sigma[t]
-        cost += 0.5 * _mu.T.dot(l_xuxu[t]).dot(_mu) + l_xu[t].dot(_mu)
+        _mu = mu[t]
+        cost += 0.5 * _mu.T.dot(l_xuxu[t]).dot(_mu) + l_xu[t].dot(_mu) \
+                + 0.5 * np.trace(sigma[t].dot(l_xuxu[t]))
+    if entropy is True:
+        cost += policy_entropy(trajs, dynamics, initial)
     return cost
 
 
 def LQGbackward(dynamics: [LinearGaussian], l_xuxu, l_xu):
     """
+    :param dyanmics: linearize it at f_xu * xu + f_b
     :param l_xuxu: (T, dU + dX, dU + dX)
     :param l_xu: (T, dU + dX)
     :return:
@@ -101,7 +126,7 @@ def LQGbackward(dynamics: [LinearGaussian], l_xuxu, l_xu):
     return outs[::-1]
 
 
-def soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], eta, delta=1e-4):
+def soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_traj: List[LinearGaussian], eta, delta=1e-4):
     T = len(dynamics)
     eta0 = eta
 
@@ -110,7 +135,8 @@ def soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], eta, d
         _l_xu = []
 
         for i in range(T):
-            _logp_xuxu, _logp_xu = prev_trajs[i].log_derivative()
+            _logp_xuxu, _logp_xu = prev_traj[i].log_derivative()
+            assert _logp_xuxu.shape == l_xuxu[i].shape
             _l_xuxu.append(l_xuxu[i]/eta + _logp_xuxu)
             _l_xu.append(l_xu[i]/eta + _logp_xu)
 
