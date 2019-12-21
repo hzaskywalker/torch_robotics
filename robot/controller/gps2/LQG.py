@@ -58,13 +58,16 @@ def policy_entropy(policy: List[LinearGaussian], dynamics: List[LinearGaussian])
     return ent
 
 
-def LQGeval(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], l_xuxu, l_xu, entropy=False):
+def LQGeval(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], l_xuxu, l_xu, entropy=False, l_const=None, deterministic=0):
     mu, sigma = LQGforward(trajs, dynamics)
     cost = 0
+
     for t in range(len(trajs)):
         _mu = mu[t]
         cost += 0.5 * _mu.T.dot(l_xuxu[t]).dot(_mu) + l_xu[t].dot(_mu) \
-                + 0.5 * np.trace(sigma[t].dot(l_xuxu[t]))
+                + 0.5 * np.trace(sigma[t].dot(l_xuxu[t])) * (1-deterministic)
+        if l_const is not None:
+            cost += l_const[t]
     if entropy is True:
         cost += policy_entropy(trajs, dynamics)
     return cost
@@ -156,7 +159,7 @@ def kl_divergence(p1: List[LinearGaussian], p2: List[LinearGaussian], dynamics):
     # calculate the KL divergence between two policy along the trajectory
     mu, sigma = LQGforward(p1, dynamics) # trajectory distribution
     kl = 0
-    for t in range(len(p1)):
+    for t in range(len(p1)-1):
         kl += p1[t].Elogp(mu[t], sigma[t]) - p2[t].Elogp(mu[t], sigma[t])
     return kl
 
@@ -195,3 +198,8 @@ def KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: fl
         eta = new_eta
 
     return new_policy, eta
+
+def adjust_epsilon_rule(epsilon, l_old_old, l_new_old, l_new_new):
+    multi = (l_old_old - l_new_old)/(2 * max(1e-4, l_new_new - l_new_old) )
+    multi = max(0.1, min(5.0, multi))
+    return epsilon * multi

@@ -48,7 +48,9 @@ class Env:
         """
 
     def gen_target(self):
-        return np.random.random(size=(2,)) * np.sum(self.arm.L) * .75
+        out = np.random.random(size=(2,)) * np.sum(self.arm.L) * .75
+        assert (out ** 2).sum() < np.sum(self.arm.L) ** 2
+        return out
 
     def cost(self, x, u):
         """ the immediate state cost function """
@@ -67,14 +69,14 @@ class Env:
 
         # returned in an array for easy multiplication by time step
         #return l, l_x, l_xx, l_u, l_uu, l_ux
-        return l, np.concatenate((l_x, l_u)), np.vstack([
+        return l * self.dt, np.concatenate((l_x, l_u)) * self.dt, np.vstack([
             np.hstack(
                 [l_xx, l_ux.T],
             ),
             np.hstack(
                 [l_ux, l_uu]
             )
-        ])
+        ]) * self.dt
 
 
     def cost_final(self, x, target):
