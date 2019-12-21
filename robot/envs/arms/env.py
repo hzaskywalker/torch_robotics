@@ -179,8 +179,6 @@ class Env:
         # get the system state from the arm
         xnext = np.hstack([np.copy(self.arm.q),
                            np.copy(self.arm.dq)])
-        #xdot = ((xnext - x) / self.arm.dt).squeeze()
-        #return xdot, xnext
         return xnext
 
     def forward(self, x, u):

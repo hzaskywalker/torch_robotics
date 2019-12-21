@@ -12,10 +12,10 @@ def test_KL_ILQG():
     dX, dU = env.dof * 2, env.dof
 
     initial = gps2.LinearGaussian(
-        np.zeros((dX, dX + dU)), np.zeros((dX,)), np.eye(dX) * 0.01
+        np.zeros((dX, dX + dU)), np.zeros((dX,)), np.eye(dX) * 0.0, chol_sigma=np.zeros(dX)
     )
     target = env.gen_target()
-    gps2.LQR_control(env, initial, target, T=50, num_iters=100)
+    gps2.LQR_control(env, initial, target, T=50, num_iters=100, epsilon=10.)
 
 
 if __name__ == '__main__':
