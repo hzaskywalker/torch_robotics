@@ -46,7 +46,6 @@ def generate_dynamics():
     dynamics = []
     l_xuxu = []
     l_xu = []
-    initial = gps2.LinearGaussian(A[-1], B[-1], C[-1].T.dot(C[-1]))
     for i in range(T):
         dynamics.append(
             gps2.LinearGaussian(A[i], B[i], C[i].T.dot(C[i]))  # dynamics
@@ -54,7 +53,7 @@ def generate_dynamics():
         sig = np.random.normal(size=(7, 7))
         l_xuxu.append(sig.T.dot(sig))
         l_xu.append(np.random.normal(size=7))
-    return dynamics, initial, l_xuxu, l_xu
+    return dynamics, l_xuxu, l_xu
 
 
 def test_LQG2():
@@ -62,23 +61,23 @@ def test_LQG2():
     Test LQG under deterministic policy
     """
     for i in range(1000):
-        dynamics, initial, l_xuxu, l_xu = generate_dynamics()
+        dynamics, l_xuxu, l_xu = generate_dynamics()
         T = len(dynamics)
         traj = gps2.LQGbackward(dynamics, l_xuxu, l_xu)
-        a = gps2.LQGeval(traj, dynamics, initial, l_xuxu, l_xu)
+        a = gps2.LQGeval(traj, dynamics, l_xuxu, l_xu)
         step = np.random.choice([0.1, 0.01, 0.001])
         for i in range(T):
             traj[i].W += np.random.normal(size=traj[i].W.shape) * step
             traj[i].b += np.random.normal(size=traj[i].b.shape) * step
-        b = gps2.LQGeval(traj, dynamics, initial, l_xuxu, l_xu)
+        b = gps2.LQGeval(traj, dynamics, l_xuxu, l_xu)
         assert a < b, f"{a}, {b}"
 
 
 def test_soft_kl():
     for i in tqdm.trange(1000):
         eta = 1
-        dynamics, initial, l_xuxu, l_xu = generate_dynamics()
-        dX, dU = initial.dY, dynamics[0].dX - dynamics[0].dY
+        dynamics, l_xuxu, l_xu = generate_dynamics()
+        dX, dU = dynamics[0].dY, dynamics[0].dX - dynamics[0].dY
         T = len(dynamics)
         prev_traj: List[gps2.LinearGaussian] = gps2.LQGbackward(dynamics, l_xuxu, l_xu)
 
@@ -95,21 +94,21 @@ def test_soft_kl():
         #    gps2.LinearGaussian(np.zeros((dU, dX)), np.zeros((dU,)), np.eye(dU)) for i in range(T)
         #]
         #print('prev_traj score', gps2.LQGeval(prev_traj, dynamics, initial, l_xuxu, l_xu, entropy=True))
-        prev_traj_score = gps2.LQGeval(prev_traj, dynamics, initial, l_xuxu, l_xu, entropy=True)
+        prev_traj_score = gps2.LQGeval(prev_traj, dynamics, l_xuxu, l_xu, entropy=True)
         traj, _eta = gps2.soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_traj=prev_traj, eta=eta, delta=1e-4)
-        kl_div = gps2.kl_divergence(traj, prev_traj, dynamics, initial)
-        a = gps2.LQGeval(traj, dynamics, initial, l_xuxu, l_xu, entropy=False)
+        kl_div = gps2.kl_divergence(traj, prev_traj, dynamics)
+        a = gps2.LQGeval(traj, dynamics, l_xuxu, l_xu, entropy=False)
 
         traj2, _eta = gps2.soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_traj=prev_traj, eta=1000, delta=1e-4)
 
         final = a + eta * kl_div
-        final2 = gps2.LQGeval(traj2, dynamics, initial, l_xuxu, l_xu, entropy=False) +\
-                 1 *gps2.kl_divergence(traj2, prev_traj, dynamics, initial)
+        final2 = gps2.LQGeval(traj2, dynamics, l_xuxu, l_xu, entropy=False) +\
+                 1 *gps2.kl_divergence(traj2, prev_traj, dynamics)
         assert final < final2
 
 def test_kl_LQG():
     for i in range(10):
-        dynamics, initial, l_xuxu, l_xu = generate_dynamics()
+        dynamics, l_xuxu, l_xu = generate_dynamics()
 
         prev_traj = []
         for i in range(len(dynamics)):
@@ -120,10 +119,10 @@ def test_kl_LQG():
                 gps2.LinearGaussian(A, B, C.T.dot(C))
             )
 
-        traj2, eta = gps2.KL_LQG(dynamics, initial, l_xuxu, l_xu, prev_traj, 1, eta=1.)
+        traj2, eta = gps2.KL_LQG(dynamics, l_xuxu, l_xu, prev_traj, 1, eta=1.)
         #print('result eta', eta)
         #print('final kl', gps2.kl_divergence(traj2, prev_traj, dynamics, initial))
-        kl = gps2.kl_divergence(traj2, prev_traj, dynamics, initial)
+        kl = gps2.kl_divergence(traj2, prev_traj, dynamics)
         assert kl < 2 and kl > 0, f"{kl}"
 
 

@@ -41,8 +41,10 @@ class LinearGaussian:
             )
         return self._inv_sigma
 
-    def sample(self, x):
+    def sample(self, x=None):
         # sample condition on x
+        if x is None or self.W is None:
+            return self.b + self.chol_sigma.T.dot(np.random.normal(size=self.dY))
         return self.W.dot(x) + self.b + self.chol_sigma.T.dot(np.random.normal(size=self.dY))
 
     def log_derivative(self):

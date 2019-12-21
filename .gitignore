@@ -20,3 +20,6 @@
 *.code-workspace*
 2D_env
 *tmp_gps*
+
+*.so*
+*build

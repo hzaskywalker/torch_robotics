@@ -1,6 +1,3 @@
-"""
-https://github.com/anassinator/ilqr for comparision
-"""
 import numpy as np
 from typing import List
 import scipy as sp
@@ -11,14 +8,14 @@ from .distributions import LinearGaussian
 LOGGER = logging.getLogger(__name__)
 
 
-def LQGforward(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], initial: LinearGaussian):
+def LQGforward(trajs: List[LinearGaussian], dynamics: List[LinearGaussian]):
     T, dU, dX = len(trajs), trajs[0].dY, trajs[0].dX
     # Allocate space.
     sigma = np.zeros((T, dX + dU, dX + dU))
     mu = np.zeros((T, dX + dU))
 
-    _sigma = initial.sigma
-    _mu = initial.b
+    _sigma = dynamics[0].sigma
+    _mu = dynamics[0].b
 
     for t in range(T):
         K = trajs[t].W
@@ -31,13 +28,13 @@ def LQGforward(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], init
         mu[t, :] = np.hstack([_mu, u_mu])
 
         if t < T - 1:
-            _mu, _sigma = dynamics[t].multi(mu[t], sigma[t])
+            _mu, _sigma = dynamics[t+1].multi(mu[t], sigma[t])
     return mu, sigma
 
 
-def policy_entropy(policy: List[LinearGaussian], dynamics: List[LinearGaussian], initial:LinearGaussian):
+def policy_entropy(policy: List[LinearGaussian], dynamics: List[LinearGaussian]):
     idx_x = slice(policy[0].dX)
-    mu, sigma = LQGforward(policy, dynamics, initial)
+    mu, sigma = LQGforward(policy, dynamics)
 
     #initial.W = initial.W * 0
     #ent = initial.Elogp(mu[0, idx_x], sigma[0, idx_x, idx_x])
@@ -50,26 +47,26 @@ def policy_entropy(policy: List[LinearGaussian], dynamics: List[LinearGaussian],
         _mu, _sigma = mu[t], sigma[t]
 
         K = dynamics[t].W
-        u_mu, u_sigma = dynamics[t].multi(_mu, _sigma)
+        u_mu, u_sigma = dynamics[t+1].multi(_mu, _sigma)
 
         _sigma = np.vstack([
             np.hstack([_sigma, _sigma.dot(K.T)]),
             np.hstack([K.dot(_sigma), u_sigma])
         ])
         _mu = np.hstack([_mu, u_mu])
-        ent += dynamics[t].Elogp(_mu, _sigma)
+        ent += dynamics[t+1].Elogp(_mu, _sigma)
     return ent
 
 
-def LQGeval(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], initial: LinearGaussian, l_xuxu, l_xu, entropy=False):
-    mu, sigma = LQGforward(trajs, dynamics, initial)
+def LQGeval(trajs: List[LinearGaussian], dynamics: List[LinearGaussian], l_xuxu, l_xu, entropy=False):
+    mu, sigma = LQGforward(trajs, dynamics)
     cost = 0
     for t in range(len(trajs)):
         _mu = mu[t]
         cost += 0.5 * _mu.T.dot(l_xuxu[t]).dot(_mu) + l_xu[t].dot(_mu) \
                 + 0.5 * np.trace(sigma[t].dot(l_xuxu[t]))
     if entropy is True:
-        cost += policy_entropy(trajs, dynamics, initial)
+        cost += policy_entropy(trajs, dynamics)
     return cost
 
 
@@ -91,12 +88,12 @@ def LQGbackward(dynamics: [LinearGaussian], l_xuxu, l_xu):
     outs = []
     for t in range(T - 1, -1, -1):
         # Add in the cost.
-        f_xu = dynamics[t].W  # (X, X+U)
-        f_b = dynamics[t].b  # (X,)
-
         Qtt = l_xuxu[t].copy()  # (X+U) x (X+U)
         Qt = l_xu[t].copy()  # (X+U,)
+
         if t < T - 1:
+            f_xu = dynamics[t + 1].W  # (X, X+U)
+            f_b = dynamics[t + 1].b  # (X,)
             Qtt += f_xu.T.dot(Vxx).dot(f_xu)
             Qt += f_xu.T.dot(Vx + Vxx.dot(f_b))
         Qtt = 0.5 * (Qtt + Qtt.T)
@@ -155,16 +152,16 @@ def soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_traj: List[LinearGaussian], eta, de
                     reasonably well conditioned)!')
 
 
-def kl_divergence(p1: List[LinearGaussian], p2: List[LinearGaussian], dynamics, initial):
+def kl_divergence(p1: List[LinearGaussian], p2: List[LinearGaussian], dynamics):
     # calculate the KL divergence between two policy along the trajectory
-    mu, sigma = LQGforward(p1, dynamics, initial) # trajectory distribution
+    mu, sigma = LQGforward(p1, dynamics) # trajectory distribution
     kl = 0
     for t in range(len(p1)):
         kl += p1[t].Elogp(mu[t], sigma[t]) - p2[t].Elogp(mu[t], sigma[t])
     return kl
 
 
-def KL_LQG(dynamics, initial, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: float,
+def KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: float,
            eta=1., min_eta=1e-8, max_eta=1e16,
            max_iter=20, eta_delta=1e-4):
 
@@ -173,9 +170,11 @@ def KL_LQG(dynamics, initial, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], ep
         return abs(con) < 0.1 * epsilon
 
     assert max_iter > 0
+    new_policy = None
+
     for i in range(max_iter):
         new_policy, eta = soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs, eta, eta_delta)
-        kl_div = kl_divergence(new_policy, prev_trajs, dynamics, initial)
+        kl_div = kl_divergence(new_policy, prev_trajs, dynamics)
 
         con = kl_div - epsilon
         if _conv_check(con, epsilon):
@@ -196,3 +195,13 @@ def KL_LQG(dynamics, initial, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], ep
         eta = new_eta
 
     return new_policy, eta
+
+
+
+class LQGSolver:
+    def __init__(self, dynamics, l_xuxu, l_xu):
+        self.dynamics = dynamics
+        self.l_xuxu = l_xuxu
+        self.l_xu = l_xu
+        raise NotImplementedError
+
