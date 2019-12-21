@@ -101,16 +101,33 @@ def test_soft_kl():
         a = gps2.LQGeval(traj, dynamics, initial, l_xuxu, l_xu, entropy=False)
 
         traj2, _eta = gps2.soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_traj=prev_traj, eta=1000, delta=1e-4)
-        #print('kl', kl_div)
-        #print('now score', a)
-        #print('final score', final)
-        final = a+ eta * kl_div
+
+        final = a + eta * kl_div
         final2 = gps2.LQGeval(traj2, dynamics, initial, l_xuxu, l_xu, entropy=False) +\
                  1 *gps2.kl_divergence(traj2, prev_traj, dynamics, initial)
-        #print(prev_traj_score, final, final2)
-        #assert prev_traj_score < final
-        #exit(0)
         assert final < final2
 
+def test_kl_LQG():
+    for i in range(10):
+        dynamics, initial, l_xuxu, l_xu = generate_dynamics()
+
+        prev_traj = []
+        for i in range(len(dynamics)):
+            A = np.random.normal(size=(3, 4))
+            B = np.random.normal(size=(3,))
+            C = np.random.normal(size=(3, 3)) * 0.1
+            prev_traj.append(
+                gps2.LinearGaussian(A, B, C.T.dot(C))
+            )
+
+        traj2, eta = gps2.KL_LQG(dynamics, initial, l_xuxu, l_xu, prev_traj, 1, eta=1.)
+        #print('result eta', eta)
+        #print('final kl', gps2.kl_divergence(traj2, prev_traj, dynamics, initial))
+        kl = gps2.kl_divergence(traj2, prev_traj, dynamics, initial)
+        assert kl < 2 and kl > 0, f"{kl}"
+
+
+
 if __name__ == '__main__':
-    test_soft_kl()
+    #test_soft_kl()
+    test_kl_LQG()

@@ -164,17 +164,16 @@ def kl_divergence(p1: List[LinearGaussian], p2: List[LinearGaussian], dynamics, 
     return kl
 
 
-def KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: float,
-           eta, min_eta, max_eta,
-           max_iter, eta_delta):
-    initial = dynamics[0]
-    dynamics = dynamics[1:]
+def KL_LQG(dynamics, initial, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: float,
+           eta=1., min_eta=1e-8, max_eta=1e16,
+           max_iter=20, eta_delta=1e-4):
 
     def _conv_check(con, epsilon):
         """Function that checks whether dual gradient descent has converged."""
         return abs(con) < 0.1 * epsilon
 
-    while True:
+    assert max_iter > 0
+    for i in range(max_iter):
         new_policy, eta = soft_KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs, eta, eta_delta)
         kl_div = kl_divergence(new_policy, prev_trajs, dynamics, initial)
 
@@ -195,4 +194,5 @@ def KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: fl
             LOGGER.debug("KL: %f / %f, eta too small, new eta: %f",
                          kl_div, epsilon, new_eta)
         eta = new_eta
+
     return new_policy, eta
