@@ -36,7 +36,7 @@ class Arm(ArmBase):
         # the setup file to import the desired model and running
         # python setup.py build_ext -i
         # name the resulting .so file to match and go
-        arm_import_name = 'arms.three_link.py3LinkArm'
+        arm_import_name = 'robot.envs.arms.three_link.py3LinkArm'
         arm_import_name = (arm_import_name if self.options is None
                            else '_' + self.options)
         print(arm_import_name)

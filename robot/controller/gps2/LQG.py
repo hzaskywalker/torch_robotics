@@ -195,13 +195,3 @@ def KL_LQG(dynamics, l_xuxu, l_xu, prev_trajs: List[LinearGaussian], epsilon: fl
         eta = new_eta
 
     return new_policy, eta
-
-
-
-class LQGSolver:
-    def __init__(self, dynamics, l_xuxu, l_xu):
-        self.dynamics = dynamics
-        self.l_xuxu = l_xuxu
-        self.l_xu = l_xu
-        raise NotImplementedError
-

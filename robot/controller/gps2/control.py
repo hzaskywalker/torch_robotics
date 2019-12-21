@@ -65,28 +65,14 @@ def LQR_control(env, initial: LinearGaussian, target: np.ndarray, T, num_iters, 
             l_xuxu.append(_l_xuxu * env.dt)
             l_xu.append(_l_xu * env.dt)
 
-        #fake_policy = [LinearGaussian(np.zeros((dU, dX)), xu[i][1], np.zeros((dU, dU))) for i in range(T)]
-        #mu = LQGforward(fake_policy, dynamics)[0]
-        #print(xu[-1])
-        #print(mu[-1])
-        #exit(0)
         _, _final_l_x, _final_l_xx = env.cost_final(xu[-1][0], target)
         l_xuxu += [_final_l_xx]
         l_xu += [_final_l_x]
 
         for t in range(T):
-            # cost is 0.5 * (xu - ^xu)^T l_xuxu (xu - ^xu) + l_xu (xu - ^xu)
             _xu = np.concatenate(xu[t], axis=0)
             l_xu[t] -= _xu.T.dot(l_xuxu[t])
 
-        new_policy, eta = KL_LQG(dynamics, l_xuxu, l_xu, policy, epsilon=epsilon)
-
-
-        # Note we need to calculate optimal change to LQG return policy as g(x) = K (u-^u) + k (x-^x) + k
-        #for t in range(T):
-        #    x_t, u_t = xu[t]
-        #    new_policy[t].b = u_t + new_policy[t].b - new_policy[t].W.dot(x_t)
-
-        policy = new_policy
+        policy, eta = KL_LQG(dynamics, l_xuxu, l_xu, policy, epsilon=epsilon)
 
     return xu, cost
