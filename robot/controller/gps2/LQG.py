@@ -3,7 +3,7 @@ from typing import List
 import scipy as sp
 from scipy.linalg import LinAlgError
 import logging
-from .distributions import LinearGaussian
+from robot.utils.distributions import LinearGaussian
 
 LOGGER = logging.getLogger(__name__)
 

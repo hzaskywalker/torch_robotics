@@ -16,6 +16,7 @@ from .trainer import merge_training_output, AgentBase, train_loop, add_parser
 from . import models
 from .shortest_path import *
 from .packed_tensor import *
+from .distributions import LinearGaussian
 
 import torch
 import numpy as np
