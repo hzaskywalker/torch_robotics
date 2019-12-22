@@ -48,9 +48,10 @@ class GMMPrior:
         start = max(0, self.data.shape[0] - self.max_samples + 1)
         self.data = self.data[start:]
         K = int(max(2, min(self.max_clusters,
-                           np.floor(float(len(X)) / self.min_samples_per_cluster))))
+                           np.floor(float(len(self.data)) / self.min_samples_per_cluster))))
 
         #self.gmm.update(self.data, K)
+        print('fit gaussian...', len(self.data), K)
         self.gmm = GaussianMixture(K, max_iter=100)
         self.gmm.fit(self.data)
         self.N = len(self.data)

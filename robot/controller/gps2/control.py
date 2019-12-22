@@ -6,11 +6,11 @@ from robot.controller.gps2 import LinearGaussian, KL_LQG, LQGeval
 from robot.controller.gps2.LQG import LQGforward, adjust_epsilon_rule, kl_divergence
 from robot.envs.arms.env import Env
 
-def initial_policy(dX, dU, N):
+def initial_policy(dX, dU, N, std=0.1):
     policy = []
     for i in range(N):
         policy.append(
-            LinearGaussian(np.zeros((dU, dX)), np.zeros(dU), np.eye(dU) * 0.01)
+            LinearGaussian(np.zeros((dU, dX)), np.zeros(dU), np.eye(dU) * std)
         )
     return policy
 
