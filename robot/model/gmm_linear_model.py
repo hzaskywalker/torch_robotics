@@ -1,6 +1,5 @@
-""" This file defines linear regression with an arbitrary prior. """
+""" This file defines linear regression with an gaussian prior. """
 import numpy as np
-from .gmm import GMM
 from robot.utils.distributions import LinearGaussian
 from sklearn.mixture import GaussianMixture
 

@@ -11,12 +11,11 @@ def initial_policy(dX, dU, N):
     for i in range(N):
         policy.append(
             LinearGaussian(np.zeros((dU, dX)), np.zeros(dU), np.eye(dU) * 0.01)
-            #LinearGaussian(np.zeros((dU, dX)), np.zeros(dU), np.eye(dU) * 0.0, chol_sigma=np.zeros((dU, dU)))
         )
     return policy
 
 
-def rollout(policy, env: Env, start, target, T):
+def rollout(policy, env: Env, start, target, T, verbose=False):
     x = np.array(start)
     cost = 0
     xu = []
@@ -32,9 +31,10 @@ def rollout(policy, env: Env, start, target, T):
 
     final_cost = env.cost_final(x, target)[0]
 
-    print('start', env.arm.position(start)[:, -1])
-    print('reached', env.arm.position(x)[:, -1])
-    print('target', target)
+    if verbose:
+        print('start', env.arm.position(start)[:, -1])
+        print('reached', env.arm.position(x)[:, -1])
+        print('target', target)
 
     cost += final_cost
     return xu, cost
