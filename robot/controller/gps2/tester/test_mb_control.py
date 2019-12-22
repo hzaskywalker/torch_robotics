@@ -20,13 +20,14 @@ def test_KL_iLQG():
 
     T = 100 if name == 'arm2' else 150
     epsilon = 100 if name == 'arm2' else 1000.
-    samples = 4 if name == 'arm2' else 20
+    samples = 4 if name == 'arm2' else 8
+    initial_std = 2 if name == 'arm2' else 2.
 
     # many samples, and less priors can make the model work?
     model = GaussianLinearModel(regularization=1e-6, prior_strength=1, min_samples_per_cluster=40,
                                 max_clusters=50, max_samples=5 * samples * T)
 
-    solver = gps2.ILQGTrajOpt(env, initial, target, T, samples, model, epsilon=epsilon, use_model=True, initial_std=1.)
+    solver = gps2.ILQGTrajOpt(env, initial, target, T, samples, model, epsilon=epsilon, use_model=True, initial_std=initial_std)
     solver.run(200)
 
 
