@@ -1,70 +1,47 @@
-import numpy as np
-from mpi4py import MPI
+import torch
+import nn
 
-
-class _Normalizer:
+class Normalizer(nn.Module):
+    # torch version
     def __init__(self, size, eps=1e-2, default_clip_range=np.inf):
         self.size = size
         self.eps = eps
         self.default_clip_range = default_clip_range
         # some local information
-        self.local_sum = np.zeros(self.size, np.float32)
-        self.local_sumsq = np.zeros(self.size, np.float32)
-        self.local_count = np.zeros(1, np.float32)
-        # get the total sum sumsq and sum count
-        self.total_sum = np.zeros(self.size, np.float32)
-        self.total_sumsq = np.zeros(self.size, np.float32)
-        self.total_count = np.ones(1, np.float32)
+        self.sum = nn.Paramter(torch.zeros(self.size), requires_grad=False)
+        self.sumsq = nn.Paramter(torch.zeros(self.size), requires_grad=False)
+        self.count = nn.Paramter(torch.zeros(1), requires_grad=False)
+
         # get the mean and std
-        self.mean = np.zeros(self.size, np.float32)
-        self.std = np.ones(self.size, np.float32)
+        self.mean = nn.Paramter(torch.zeros(self.size), requires_grad=False)
+        self.std = nn.Paramter(torch.ones(self.size), requires_grad=False)
 
     # update the parameters of the normalizer
-    def update(self, v):
+    def update(self, v: torch.Tensor):
         v = v.reshape(-1, *self.size)
         # do the computing
 
-        self.local_sum += v.sum(axis=0)
-        self.local_sumsq += (np.square(v)).sum(axis=0)
-        self.local_count[0] += v.shape[0]
+        self.sum += v.sum(dim=0)
+        self.sumsq += (v**2).sum(dim=0)
+        self.count[0] += v.shape[0]
 
-    # sync the parameters across the cpus
-    def sync(self, local_sum, local_sumsq, local_count):
-        local_sum[...] = self._mpi_average(local_sum)
-        local_sumsq[...] = self._mpi_average(local_sumsq)
-        local_count[...] = self._mpi_average(local_count)
-        return local_sum, local_sumsq, local_count
+        self.recompute_stats()
+
 
     def recompute_stats(self):
-        local_count = self.local_count.copy()
-        local_sum = self.local_sum.copy()
-        local_sumsq = self.local_sumsq.copy()
-        # reset
-        self.local_count[...] = 0
-        self.local_sum[...] = 0
-        self.local_sumsq[...] = 0
-
-        # synrc the stats
-        sync_sum, sync_sumsq, sync_count = self.sync(
-            local_sum, local_sumsq, local_count)
-        # update the total stuff
-        self.total_sum += sync_sum
-        self.total_sumsq += sync_sumsq
-        self.total_count += sync_count
         # calculate the new mean and std
-        self.mean = self.total_sum / self.total_count
-        self.std = np.sqrt(np.maximum(np.square(self.eps), (self.total_sumsq /
-                                                            self.total_count) - np.square(self.total_sum / self.total_count)))
-
-    # average across the cpu's data
-    def _mpi_average(self, x):
-        buf = np.zeros_like(x)
-        MPI.COMM_WORLD.Allreduce(x, buf, op=MPI.SUM)
-        buf /= MPI.COMM_WORLD.Get_size()
-        return buf
+        self.mean[:] = self.sum / self.count
+        std = ((self.sumsq/self.count) - self.mean **2)
+        self.std[:] = std.clamp(self.eps**2, float('inf'))
 
     # normalize the observation
-    def normalize(self, v, clip_range=None):
+    def normalize(self, v: torch.Tensor, clip_range=None):
         if clip_range is None:
             clip_range = self.default_clip_range
-        return np.clip((v - self.mean) / (self.std), -clip_range, clip_range)
+        return ((v - self.mean)/self.std).clamp(-clip_range, clip_range)
+
+    def __call__(self, *args, **kwargs):
+        return self.normalize(*args, **kwargs)
+
+    def denormalize(self, v):
+        return v * self.std + self.mean

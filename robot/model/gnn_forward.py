@@ -9,6 +9,9 @@ from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_poo
 from torch_geometric.data import Data
 
 from robot.utils.models import fc
+from robot.utils.normalizer import Normalizer
+from robot.utils.trainer import AgentBase
+from robot.utils import  tocpu
 
 import numpy as np
 
@@ -142,6 +145,47 @@ class GNResidule(nn.Module):
         return self.decode(node, len(state))
 
 
-class Wrapper:
-    def __init__(self):
-        pass
+class ForwardAgent(AgentBase):
+    def __init__(self, lr, state_dim, action_dim, *args, **kwargs):
+        model = GNResidule(state_dim, action_dim, *args, **kwargs)
+        super(ForwardAgent, self).__init__(model, lr)
+
+        self.forward_model = model
+        self.s_norm = Normalizer(state_dim)
+        self.a_norm = Normalizer(action_dim)
+        self.d_norm = Normalizer(state_dim)
+
+    def diff(self, a, b):
+        # return the distance between a and b
+        raise NotImplementedError
+
+    def get_predict(self, s, a):
+        s = self.s_norm(s)
+        a = self.a_norm(a)
+        return self.d_norm.denormalize(self.forward_model(s, a))
+
+    def cuda(self):
+        AgentBase.cuda(self)
+        self.s_norm.cuda()
+        self.a_norm.cuda()
+        self.d_norm.cuda()
+
+    def update(self, s, a, t):
+        # predict t given s, and a
+        delta = self.diff(s, t)
+
+        if self.training:
+            self.optim.zero_grad()
+            self.s_norm.update(s)
+            self.a_norm.update(a)
+            self.d_norm.update(delta)
+
+        output = self.d_norm(self.get_predict(s, a))
+        loss = self.diff(output, t)
+
+        if self.training:
+            loss.backward()
+            self.optim.step()
+        return {
+            'loss': tocpu(loss)
+        }
