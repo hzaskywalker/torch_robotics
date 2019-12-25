@@ -11,7 +11,9 @@ from torch_geometric.data import Data
 from robot.utils.models import fc
 from robot.utils.normalizer import Normalizer
 from robot.utils.trainer import AgentBase
-from robot.utils import  tocpu
+from robot.utils.quaternion import qmul
+from robot.utils import tocpu
+from robot.utils import rot6d
 
 import numpy as np
 
@@ -145,9 +147,32 @@ class GNResidule(nn.Module):
         return self.decode(node, len(state))
 
 
+def add_state(state, delta):
+    return torch.cat([
+        state[..., :6] + delta[..., :6], # update coordinates
+        rot6d.rmul(state[..., 6:12], delta[..., 6:12]),
+        rot6d.rmul(state[..., 12:], delta[..., 12:]),
+    ], dim=-1)
+
+def del_state(state, target):
+    # state - target, in
+    return torch.cat([
+        state[..., :6] - target[..., :6], # update coordinates
+        rot6d.rmul(state[..., 6:12], rot6d.inv(target[..., 6:12])),
+        rot6d.rmul(state[..., 12:], rot6d.inv(target[..., 12:])) ], dim=-1)
+
+
+def dist(state, gt, w_x=1., w_w=1.):
+    return ((state[...,:6] - gt[...,:6])**2).sum(dim=-1) * w_x +\
+           rot6d.rdist(state[...,6:12], gt[..., 6:12]).sum(dim=-1) * w_w + \
+           rot6d.rdist(state[..., 6:12], gt[..., 6:12]).sum(dim=-1) * w_w
+
+
 class ForwardAgent(AgentBase):
     def __init__(self, lr, state_dim, action_dim, *args, **kwargs):
         model = GNResidule(state_dim, action_dim, *args, **kwargs)
+        assert state_dim == 4
+
         super(ForwardAgent, self).__init__(model, lr)
 
         self.forward_model = model
@@ -155,14 +180,14 @@ class ForwardAgent(AgentBase):
         self.a_norm = Normalizer(action_dim)
         self.d_norm = Normalizer(state_dim)
 
-    def diff(self, a, b):
-        # return the distance between a and b
-        raise NotImplementedError
-
-    def get_predict(self, s, a):
+    def get_predict(self, s, a, update=True):
         s = self.s_norm(s)
         a = self.a_norm(a)
-        return self.d_norm.denormalize(self.forward_model(s, a))
+        output = self.forward_model(s, a)
+        if update:
+            return add_state(s, self.d_norm.denormalize(output))
+        else:
+            return output
 
     def cuda(self):
         AgentBase.cuda(self)
@@ -172,7 +197,7 @@ class ForwardAgent(AgentBase):
 
     def update(self, s, a, t):
         # predict t given s, and a
-        delta = self.diff(s, t)
+        delta = del_state(t, s)
 
         if self.training:
             self.optim.zero_grad()
@@ -180,8 +205,8 @@ class ForwardAgent(AgentBase):
             self.a_norm.update(a)
             self.d_norm.update(delta)
 
-        output = self.d_norm(self.get_predict(s, a))
-        loss = self.diff(output, t)
+        output = self.get_predict(s, a, update=False)
+        loss = dist(output, delta)
 
         if self.training:
             loss.backward()
