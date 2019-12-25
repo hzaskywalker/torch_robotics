@@ -1,8 +1,11 @@
+import gym
 import importlib
 import numpy as np
 
-class Env:
+class Env(gym.Env):
     def __init__(self, name, dt=1e-2):
+        super(Env, self).__init__()
+
         if name[:4] == 'arm1':
             subfolder = 'one_link'
         if name[:4] == 'arm2':
@@ -19,33 +22,28 @@ class Env:
         self.arm = arm_module.Arm(dt=dt)
         self.dof = self.arm.DOF
 
-        """
-        x_bias = 0
-        y_bias = 2.
-        dist = .4
-        if self.arm.DOF == 2:
-            dist = .075
-            kp = 20  # position error gain on the PD controller
-            threshold = .01
-            y_bias = .35
-        elif self.arm.DOF == 3:
-            kp = 100
-            threshold = .02
-        else:
-            raise NotImplementedError
+        # suppose there is no encoding....
 
-        targets_x = [dist * np.cos(theta) + x_bias \
-                     for theta in np.linspace(0, np.pi * 2, 9)][:-1]
-        targets_y = [dist * np.sin(theta) + y_bias \
-                     for theta in np.linspace(0, np.pi * 2, 9)][:-1]
+        high = np.array([np.pi, np.pi, np.pi, 1.2, 1.2, 1.2])
+        low = -high
+        self.observation_space = gym.spaces.Box(low=low, high=high)
 
-        trajectory = np.ones((3 * len(targets_x) + 3, 2)) * np.nan
-        start = 0
-        for ii in range(start, len(targets_x)):
-            trajectory[ii * 3 + 1] = [0, y_bias]
-            trajectory[ii * 3 + 2] = [targets_x[ii], targets_y[ii]]
-        trajectory[-2] = [0, y_bias]
-        """
+        action = np.array([50, 50, 50])
+        self.action_space = gym.spaces.Box(low=-action, high=action)
+
+        self.state_dim = 3 + 3 + 6 + 6
+        self.action_dim = 1
+
+    def reset(self):
+        self.arm.reset()
+        xnext = np.hstack([np.copy(self.arm.q),
+                           np.copy(self.arm.dq)])
+        self.cur = xnext.copy()
+        return xnext
+
+    def step(self, u):
+        self.cur = self.plant_dynamics(self.cur, u)
+        return self.cur.copy(), 0, False, {}
 
     def gen_target(self):
         out = np.random.random(size=(2,)) * np.sum(self.arm.L) * .75
@@ -183,8 +181,63 @@ class Env:
                            np.copy(self.arm.dq)])
         return xnext
 
+
     def forward(self, x, u):
         return self.plant_dynamics(x, u)
+
+    def get_graph(self):
+        return np.array(
+            [
+                [0, 1, 2],
+                [1, 2, 3],
+            ]
+        )
+
+    def get_node_attr(self):
+        # since all links have the same mass, we
+        return np.array(
+            [
+                [1, 0], # ground
+                [0, 1], # object
+                [0, 1], # object
+                [0, 1], # object
+            ]
+        )
+
+    def get_edge_attr(self):
+        return np.array(
+            [
+                [0],  # the edge are the same
+                [0],  # the edge are the same
+                [0],  # the edge are the same
+            ]
+        )
+
+    def encode(self, x, dt=1e-4):
+        # return the x, w, dx and dw
+        w1 = x[:self.dof].copy()
+        p1 = self.arm.position(w1)
+
+        w2 = x[:self.dof] + x[self.dof:self.dof*2] * dt
+        p2 = self.arm.position(w2)
+
+        dw = (w2 - w1)/dt
+
+        state = np.zeros((p1.shape[1], 18))
+        state[:, :2] = p1.T
+        state[:, 3:5] = ((p2-p1)/dt).T
+
+        state[1:, 6:6+4] = np.stack((
+            np.cos(w1), -np.sin(w1),
+            np.sin(w1), np.cos(w1),
+        ), axis=1)
+
+        state[1:, 12:12+4] = np.stack((
+            np.cos(dw), -np.sin(dw),
+            np.sin(dw), np.cos(dw),
+        ), axis=1)
+
+        return state
 
 
 if __name__ == '__main__':

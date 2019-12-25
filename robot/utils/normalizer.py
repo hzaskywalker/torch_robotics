@@ -1,20 +1,21 @@
 import torch
-import nn
+from torch import nn
 
 class Normalizer(nn.Module):
     # torch version
-    def __init__(self, size, eps=1e-2, default_clip_range=np.inf):
+    def __init__(self, size, eps=1e-2, default_clip_range=float('inf')):
+        super(Normalizer, self).__init__()
         self.size = size
         self.eps = eps
         self.default_clip_range = default_clip_range
         # some local information
-        self.sum = nn.Paramter(torch.zeros(self.size), requires_grad=False)
-        self.sumsq = nn.Paramter(torch.zeros(self.size), requires_grad=False)
-        self.count = nn.Paramter(torch.zeros(1), requires_grad=False)
+        self.sum = nn.Parameter(torch.zeros(self.size), requires_grad=False)
+        self.sumsq = nn.Parameter(torch.zeros(self.size), requires_grad=False)
+        self.count = nn.Parameter(torch.zeros(1), requires_grad=False)
 
         # get the mean and std
-        self.mean = nn.Paramter(torch.zeros(self.size), requires_grad=False)
-        self.std = nn.Paramter(torch.ones(self.size), requires_grad=False)
+        self.mean = nn.Parameter(torch.zeros(self.size), requires_grad=False)
+        self.std = nn.Parameter(torch.ones(self.size), requires_grad=False)
 
     # update the parameters of the normalizer
     def update(self, v: torch.Tensor):
@@ -35,13 +36,13 @@ class Normalizer(nn.Module):
         self.std[:] = std.clamp(self.eps**2, float('inf'))
 
     # normalize the observation
-    def normalize(self, v: torch.Tensor, clip_range=None):
+    def norm(self, v: torch.Tensor, clip_range=None):
         if clip_range is None:
             clip_range = self.default_clip_range
         return ((v - self.mean)/self.std).clamp(-clip_range, clip_range)
 
     def __call__(self, *args, **kwargs):
-        return self.normalize(*args, **kwargs)
+        return self.norm(*args, **kwargs)
 
-    def denormalize(self, v):
+    def denorm(self, v):
         return v * self.std + self.mean

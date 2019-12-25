@@ -21,6 +21,7 @@ def rollout(policy, env: Env, start, target, T, verbose=False):
     xu = []
     for i in range(T):
         u = policy[i].sample(x)
+        print(u)
         xu.append([x, u])
 
         if i!= T-1:

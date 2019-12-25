@@ -217,7 +217,7 @@ class Arm(ArmBase):
         def x_constraint(q, xy):
             x = (self.L[0]*np.cos(q[0]) + self.L[1]*np.cos(q[0]+q[1]) +
                  self.L[2]*np.cos(np.sum(q))) - xy[0]
-            return x
+            return
 
         def y_constraint(q, xy):
             y = (self.L[0]*np.sin(q[0]) + self.L[1]*np.sin(q[0]+q[1]) +

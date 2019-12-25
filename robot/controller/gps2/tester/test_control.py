@@ -8,7 +8,7 @@ from robot.envs.arms.env import Env
 def test_KL_iLQG():
     name = 'arm3'
     env = Env(name)
-    np.random.seed(5)
+    np.random.seed(2)
 
     dX, dU = env.dof * 2, env.dof
 

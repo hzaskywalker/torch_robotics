@@ -1,9 +1,9 @@
 import torch
 import numpy as np
 
-def norm(a, p=2, dim=-1, eps=1e-14):
+def norm(a: torch.Tensor, p=2, dim=-1, eps=1e-14):
     #return a.renorm(p=p, dim=dim, maxnorm=eps)/eps
-    return a/a.norm(p=p, dim=dim).clamp(eps, float('inf'))
+    return a/a.norm(p=p, dim=dim, keepdim=True).clamp(eps, float('inf'))
 
 def rmat(a: torch.Tensor, row=3):
     assert a.shape[-1] == 6
