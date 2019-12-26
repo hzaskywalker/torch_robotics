@@ -92,6 +92,10 @@ def train_loop(agent, dataset, path,
     """
     assert resume_path is None
 
+    agent_path = os.path.join(path, 'agent')
+    if os.path.exists(agent_path):
+        return torch.load(agent_path)
+
     from . import Visualizer, togpu
     train_vis = Visualizer(path)
     valid_vis = Visualizer(os.path.join(path, 'valid'))
