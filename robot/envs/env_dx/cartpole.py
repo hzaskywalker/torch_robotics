@@ -45,14 +45,14 @@ class CartpoleDx(nn.Module):
         self.x_threshold = 2.4
         self.max_velocity = 10
 
-        self.dt = 0.05
+        self.dt = 0.02
 
         self.lower = -self.force_mag
         self.upper = self.force_mag
 
         # 0  1      2        3   4
         # x dx cos(th) sin(th) dth
-        self.goal_state = torch.Tensor(  [ 0.,  0.,  1., 0.,   0.])
+        self.goal_state = torch.Tensor([ 0.,  0.,  1., 0.,   0.])
         self.goal_weights = torch.Tensor([0.1, 0.1,  1., 1., 0.1])
         self.ctrl_penalty = 0.001
 
@@ -75,8 +75,10 @@ class CartpoleDx(nn.Module):
 
         u = torch.clamp(u[:,0], -self.force_mag, self.force_mag)
 
-        x, dx, cos_th, sin_th, dth = torch.unbind(state, dim=1)
-        th = torch.atan2(sin_th, cos_th)
+        #x, dx, cos_th, sin_th, dth = torch.unbind(state, dim=1)
+        #th = torch.atan2(sin_th, cos_th)
+        x, dx, th, dth = torch.unbind(state, dim=1)
+        sin_th, cos_th = torch.sin(th), torch.cos(th)
 
         cart_in = (u + polemass_length * dth**2 * sin_th) / total_mass
         th_acc = (gravity * sin_th - cos_th * cart_in) / \
@@ -89,18 +91,26 @@ class CartpoleDx(nn.Module):
         th = th + self.dt * dth
         dth = dth + self.dt * th_acc
 
+        sin_th, cos_th = torch.sin(th), torch.cos(th) # norm theta
+        th = torch.atan2(sin_th, cos_th)
         state = torch.stack((
-            x, dx, torch.cos(th), torch.sin(th), dth
+            #x, dx, torch.cos(th), torch.sin(th), dth
+             x, dx, th, dth
         ), 1)
 
-        return state
+        if not squeeze:
+            return state
+        else:
+            return state[0]
 
     def get_frame(self, state):
         state = util.get_data_maybe(state.view(-1))
         assert len(state) == 5
-        x, dx, cos_th, sin_th, dth = torch.unbind(state)
+        #x, dx, cos_th, sin_th, dth = torch.unbind(state)
+        x, dx, th, dth = torch.unbind(state, dim=1)
+        sin_th, cos_th = torch.sin(th), torch.cos(th)
         gravity, masscart, masspole, length = torch.unbind(self.params)
-        th = np.arctan2(sin_th, cos_th)
+        #th = np.arctan2(sin_th, cos_th)
         th_x = sin_th*length*2
         th_y = cos_th*length*2
         fig, ax = plt.subplots(figsize=(6,6))

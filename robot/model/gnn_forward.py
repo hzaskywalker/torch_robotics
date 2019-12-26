@@ -266,3 +266,4 @@ class ForwardAgent(AgentBase):
         return {
             'loss': tocpu(loss)
         }
+

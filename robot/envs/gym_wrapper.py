@@ -8,6 +8,10 @@ class CartPoleWrapper(Wrapper):
         Wrapper.__init__(self, env.unwrapped)
         self.action_space = Box(-10, 10, (1,))
 
+    def seed(self, seed=None):
+        self.env.seed(seed)
+        self.action_space.seed(seed)
+
     def forward(self, s, a):
         """
         :param s: state
