@@ -17,6 +17,9 @@ class ForwardControllerBase:
     def set_cost(self, cost):
         self.cost = cost
 
+    def reset(self):
+        raise NotImplementedError
+
     def __call__(self, x, cost, T):
         raise NotImplementedError
 
@@ -50,6 +53,11 @@ class GDController(ForwardControllerBase):
         """
         suppose x is batched
         """
+        if isinstance(x, np.ndarray):
+            x = torch.Tensor(x).to(self._device)
+        squeeze = (x.dim() == 1)
+        if squeeze:
+            x = x[None, :]
         #self.forward.reset() # do we need to reset the forward model?
         if self.actions is None:
             self.reset()
@@ -58,11 +66,14 @@ class GDController(ForwardControllerBase):
         for it in range(iters):
             self.optim.zero_grad()
             cost, _ = self.rollout(x, self.actions, self.it)
-            print(cost, _)
             cost.backward()
             self.optim.step()
         self.it += 1
-        return self.actions[0]
+        if not squeeze:
+            return self.actions[0]
+        else:
+            return self.actions[0, 0]
+
 
     @staticmethod
     def test():

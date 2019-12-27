@@ -22,6 +22,9 @@ class MLPForward(AgentBase):
         else:
             return output
 
+    def __call__(self, s, a):
+        return s + self.forward_model(s, a)
+
     def update(self, s, a, t):
         # predict t given s, and a
         delta = t - s

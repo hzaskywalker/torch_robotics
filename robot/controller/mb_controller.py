@@ -1,8 +1,11 @@
 # Wrapper of the model and model based controller
 import gym
+import os
 import tqdm
 from robot.model.framebuffer import TrajBuffer
-from robot.utils import rollout
+from robot.utils import rollout, AgentBase, tocpu, evaluate
+from robot.controller.forward_controller import ForwardControllerBase
+
 
 class MBController:
     """
@@ -13,13 +16,14 @@ class MBController:
             2. a framebuffer where we can use it to udpate the model
         controller:
             1. take model as a parameter and output the actions
-
-        main_loop function that will handle the training and model saving.
     """
     def __init__(self, model, controller, maxlen,
                  timestep=100, #max trajectory length
                  init_buffer_size=1000, init_train_step=100000,
-                 cache_path=None):
+                 cache_path=None, vis=None):
+        assert isinstance(model, AgentBase)
+        assert isinstance(controller, ForwardControllerBase)
+
         self.model = model
         self.controller = controller
         self.buffer = TrajBuffer(maxlen)
@@ -30,12 +34,17 @@ class MBController:
 
         self.timestep = timestep
         self.cache_path = cache_path
+        if self.cache_path is not None and not os.path.exists(self.cache_path):
+            os.makedirs(self.cache_path)
+        self.vis = vis
 
     def update_network(self, iters=1):
         output = None
         for i in range(iters):
             data = self.buffer.sample('train')
-            output = self.model.udpate(*data)
+            output = self.model.update(*data)
+            if self.vis is not None:
+                self.vis(output)
         return output
 
     def update_buffer(self, env, policy):
@@ -50,7 +59,7 @@ class MBController:
         return self.controller.reset()
 
     def __call__(self, x):
-        return self.controller(x)
+        return tocpu(self.controller(x))
 
     def init(self, env: gym.Env):
         if self.init_buffer_size > 0:
@@ -58,12 +67,19 @@ class MBController:
             def random_policy(*args, **kwargs):
                 return env.action_space.sample()
 
-            print('filling buffer...')
-            for _ in range(self.init_buffer_size):
-                self.update_buffer(env, random_policy)
+            # add cache mechanism
+            init_buffer_path = os.path.join(self.cache_path, 'init_buffer')
+            if self.cache_path is not None and os.path.exists(init_buffer_path):
+                self.buffer.load(init_buffer_path)
+            else:
+                print('filling buffer...')
+                for _ in tqdm.trange(self.init_buffer_size):
+                    self.update_buffer(env, random_policy)
+                if self.cache_path is not None:
+                    self.buffer.save(init_buffer_path)
 
             print('train network...')
-            for _ in range(self.init_train_step):
+            for _ in tqdm.trange(self.init_train_step):
                 self.update_network()
         return self.buffer, self.model
 
@@ -78,16 +94,21 @@ class MBController:
                 self.update_network()
         return self
 
+    def test(self, env, num_episode=10):
+        return evaluate(env, self, self.timestep, num_episode)
+
+
 def test_mb_controller():
     import torch
     import numpy as np
     from robot.envs import make
     from robot.model.mlp_forward import MLPForward
     from robot.controller.forward_controller import GDController
+    from robot.utils import Visualizer
     env = make("CartPole-v0")
-    timestep = 200
+    timestep = 100
 
-    model = MLPForward(0.001, env, num_layer=3, feature=256, batch_norm=False)
+    model = MLPForward(0.001, env, num_layer=3, feature=256, batch_norm=False).cuda()
 
     def cost(s, a, t, it):
         x, dx, th, dth = torch.unbind(t, dim=1)
@@ -99,8 +120,15 @@ def test_mb_controller():
                (torch.nn.functional.relu(-x_target - (-x)) ** 2).sum()
 
     controller = GDController(timestep, env.action_space, model, cost, lr=0.001)
-    mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep, init_buffer_size=20, init_train_step=100)
-    mb_controller.fit(env)
+    mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep,
+                                 init_buffer_size=200, init_train_step=10000,  cache_path='/tmp/xxx/', vis=Visualizer('/tmp/xxx/'))
+
+    mb_controller.init(env)
+    print('testing...')
+    print(mb_controller.test(env))
+
+    for i in range(20):
+        mb_controller.fit(env)
 
 
 

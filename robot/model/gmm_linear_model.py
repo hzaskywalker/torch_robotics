@@ -3,6 +3,7 @@ import numpy as np
 from robot.utils.distributions import LinearGaussian
 from sklearn.mixture import GaussianMixture
 
+
 def gauss_fit_joint_prior(X, mu_0, Psi, m, n_0, dX, sig_reg):
     """ Perform Gaussian fit to data with a prior. """
     """ see inverse wishart part of https://en.wikipedia.org/wiki/Multivariate_normal_distribution """
