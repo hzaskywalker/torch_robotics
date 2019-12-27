@@ -7,6 +7,11 @@ def evaluate(env: gym.Env, controller, timestep=200, num_episode=10):
     ans = []
     for _ in tqdm.trange(num_episode):
         state = env.reset()
+        try:
+            controller.reset()  # reset the controller if it has
+        except AttributeError:
+            pass
+
         total = 0
         for j in tqdm.trange(timestep):
             action = controller(state)

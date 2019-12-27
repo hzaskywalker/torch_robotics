@@ -121,14 +121,17 @@ def test_mb_controller():
 
     controller = GDController(timestep, env.action_space, model, cost, lr=0.001)
     mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep,
-                                 init_buffer_size=200, init_train_step=10000,  cache_path='/tmp/xxx/', vis=Visualizer('/tmp/xxx/'))
+                                 init_buffer_size=200, init_train_step=10000,  cache_path='/tmp/xxx/', vis=Visualizer('/tmp/xxx/history'))
 
     mb_controller.init(env)
     print('testing...')
     print(mb_controller.test(env))
 
-    for i in range(20):
+    for i in range(1000):
         mb_controller.fit(env)
+        if i % 10 == 0:
+            print('testing...')
+            print(mb_controller.test(env))
 
 
 
