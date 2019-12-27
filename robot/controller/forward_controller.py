@@ -40,7 +40,7 @@ class GDController(ForwardControllerBase):
             x = t
         return cost, x
 
-    def __call__(self, x, cost=None):
+    def __call__(self, x):
         """
         suppose x is batched
         """
@@ -66,25 +66,6 @@ class GDController(ForwardControllerBase):
         model = CartpoleDx()
         env = make('CartPole-v0')
         env.seed(0)
-
-        """
-        obs = env.reset()
-        u = env.action_space.sample()
-        u = -10
-
-        t = env.step(u)[0]
-        t = env.step(u)[0]
-        t = env.step(u)[0]
-        t = env.step(u)[0]
-        obs = torch.Tensor(obs)
-        u = torch.Tensor((u,))
-        obs = model(obs, u)
-        obs = model(obs, u)
-        obs = model(obs, u)
-        obs = model(obs, u)
-        print(obs, t)
-        exit(0)
-        """
 
         obs = env.reset()
         T = 100

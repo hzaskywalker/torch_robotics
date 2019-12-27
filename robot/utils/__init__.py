@@ -17,6 +17,7 @@ from . import models
 from .shortest_path import *
 from .packed_tensor import *
 from .distributions import LinearGaussian
+from .control_utils import *
 
 import torch
 import numpy as np
