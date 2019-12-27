@@ -11,12 +11,18 @@ class ForwardControllerBase:
         self.prev_actions = None
         self._device = device
 
+    def set_model(self, model):
+        self.forward = model
+
+    def set_cost(self, cost):
+        self.cost = cost
+
     def __call__(self, x, cost, T):
         raise NotImplementedError
 
 
 class GDController(ForwardControllerBase):
-    def __init__(self, T, action_space, forward, cost, optim_iter, optim_iter_init=None, lr=3., beta1=0.9, batch_size=1, device='cuda:0'):
+    def __init__(self, T, action_space, forward, cost, optim_iter=10, optim_iter_init=100, lr=3., beta1=0.9, batch_size=1, device='cuda:0'):
         # need to predefine time length
         super(GDController, self).__init__(action_space, forward, cost, device)
         self.T = T

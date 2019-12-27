@@ -101,7 +101,7 @@ class TrajBuffer:
 
         s = self.data[0][idx]
         a = self.data[1][idx]
-        t = self.data[2][idx + 1]
+        t = self.data[0][idx + 1]
         out = [s, a, t] + [self.data[i][idx] for i in range(2, len(self.data))]
         return [togpu(np.array(i)) for i in out]
 

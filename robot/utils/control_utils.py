@@ -37,4 +37,5 @@ def rollout(env, controller, x=None, timestep=200):
         x = env.step(u)[0]
 
     xs.append(x)
-    return xs, us
+    us.append(u)
+    return np.array(xs), np.array(us)
