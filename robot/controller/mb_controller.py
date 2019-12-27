@@ -99,9 +99,7 @@ def test_mb_controller():
                (torch.nn.functional.relu(-x_target - (-x)) ** 2).sum()
 
     controller = GDController(timestep, env.action_space, model, cost, lr=0.001)
-
     mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep, init_buffer_size=20, init_train_step=100)
-
     mb_controller.fit(env)
 
 
