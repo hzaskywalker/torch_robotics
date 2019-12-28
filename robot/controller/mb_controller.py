@@ -81,13 +81,14 @@ class MBController:
             print('train network...')
             for _ in tqdm.trange(self.init_train_step):
                 self.update_network()
+        self.init_flag = True
         return self.buffer, self.model
 
     def fit(self, env, num_iter=1, num_train=50):
         if not self.init_flag:
             self.init(env)
 
-        for _ in tqdm.trange(num_iter):
+        for _ in range(num_iter):
             self.reset()
             self.update_buffer(env, self)
             for _ in range(num_train):

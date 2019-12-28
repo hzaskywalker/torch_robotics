@@ -3,7 +3,7 @@ import tqdm
 import numpy as np
 
 
-def evaluate(env: gym.Env, controller, timestep=200, num_episode=10):
+def evaluate(env: gym.Env, controller, timestep=200, num_episode=10, use_tqdm=False):
     ans = []
     for _ in tqdm.trange(num_episode):
         state = env.reset()
@@ -13,7 +13,8 @@ def evaluate(env: gym.Env, controller, timestep=200, num_episode=10):
             pass
 
         total = 0
-        for j in tqdm.trange(timestep):
+        ran = range if not use_tqdm else tqdm.trange
+        for j in ran(timestep):
             action = controller(state)
             state, r, d, _ = env.step(action)
             total += r

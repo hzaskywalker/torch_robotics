@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from torch import nn
 from typing import Tuple
+from robot.controller.cem import CEM
 
 class ForwardControllerBase:
     def __init__(self, action_space, forward, cost, device='cuda:0'):
@@ -119,6 +120,20 @@ class GDController(ForwardControllerBase):
                 break
         print(x, rewards)
 
+
+class CEMController(ForwardControllerBase):
+    def __init__(self, timestep, action_space, forward_model, std, cost,
+                 iter_num, num_mutation, num_elite):
+        super(CEMController, self).__init__(action_space, forward_model, cost)
+        self.cem = CEM(eval_function=self.eval_function, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite, std=std)
+
+    def eval_function(self, x, action, start_it=0):
+        cost: torch.Tensor = 0
+        for it in range(len(action)):
+            t = self.forward(x, action[it])
+            cost = self.cost(x, action[it], t, it + start_it) + cost
+            x = t
+        return cost
 
 
 if __name__ == '__main__':

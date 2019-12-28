@@ -5,14 +5,12 @@ from ..utils import batched_index_select, togpu
 from .misc import evaluate
 
 
-class CEMController:
+class CEM:
     def __init__(self, iter_num, num_mutation, num_elite,
-                 eval_function=None, env:gym.Env=None,
-                 select_method='topk', std=0.2):
+                 eval_function=None, env:gym.Env=None, std=0.2):
         self.iter_num = iter_num
         self.num_mutation = num_mutation
         self.num_elite = num_elite
-        self.select_method = select_method
         self.std = std
 
         self.env = env
