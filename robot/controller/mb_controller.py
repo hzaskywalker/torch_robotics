@@ -59,7 +59,8 @@ class MBController:
         return self.controller.reset()
 
     def __call__(self, x):
-        return tocpu(self.controller(x))
+        out = tocpu(self.controller(x))
+        return out
 
     def init(self, env: gym.Env):
         if self.init_buffer_size > 0:
@@ -104,7 +105,7 @@ def test_mb_controller():
     import numpy as np
     from robot.envs import make
     from robot.model.mlp_forward import MLPForward
-    from robot.controller.forward_controller import GDController
+    from robot.controller.forward_controller import GDController, CEMController
     from robot.utils import Visualizer
     env = make("CartPole-v0")
     timestep = 100
@@ -115,12 +116,21 @@ def test_mb_controller():
         x, dx, th, dth = torch.unbind(t, dim=1)
         th_target = 20 / 360 * np.pi
         x_target = 2.2
-        return (torch.nn.functional.relu(th - th_target) ** 2).sum() + \
-               (torch.nn.functional.relu(-th_target - (-th)) ** 2).sum() + \
-               (torch.nn.functional.relu(x - x_target) ** 2).sum() + \
-               (torch.nn.functional.relu(-x_target - (-x)) ** 2).sum()
+        out = ((th - 0) ** 2) + ((th_target - 0) ** 2)  # this loss is much easier to optimize
+        return out
+        """
+        return (torch.nn.functional.relu(th - th_target) ** 2) + \
+               (torch.nn.functional.relu(-th_target - (-th)) ** 2) + \
+               (torch.nn.functional.relu(x - x_target) ** 2) + \
+               (torch.nn.functional.relu(-x_target - (-x)) ** 2)
+               """
 
-    controller = GDController(timestep, env.action_space, model, cost, lr=0.001)
+    #controller = GDController(timestep, env.action_space, model, cost, lr=0.001)
+
+    controller = CEMController(20, env.action_space, model,
+                               cost, std=float(env.action_space.high.max() / 3),
+                               iter_num=5, num_mutation=80, num_elite=8,
+                               mode='fix')
     mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep,
                                  init_buffer_size=200, init_train_step=10000,  cache_path='/tmp/xxx/', vis=Visualizer('/tmp/xxx/history'))
 

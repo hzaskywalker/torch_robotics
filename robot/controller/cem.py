@@ -38,6 +38,7 @@ class CEM:
             for idx in range(self.iter_num):
                 populations: torch.Tensor = self.sample(mean, std, self.num_mutation)  # sample from mean data, std data
                 reward = self.eval_function(scene, populations)
+
                 _, topk_idx = (-reward).topk(k=self.num_elite, dim=0)
                 elite = populations.index_select(0, topk_idx)
                 mean, std = self.fit(elite)

@@ -102,8 +102,14 @@ class TrajBuffer:
         s = self.data[0][idx]
         a = self.data[1][idx]
         t = self.data[0][np.array(idx) + 1]
-        out = [s, a, t] + [self.data[i][idx] for i in range(2, len(self.data))]
-        return [togpu(np.array(i)) for i in out]
+        try:
+            out = [s, a, t] + [self.data[i][idx] for i in range(2, len(self.data))]
+            return [togpu(np.array(i)) for i in out]
+        except Exception as e:
+            print(s)
+            print(a)
+            print(t)
+            raise e
 
 
 def test():

@@ -4,6 +4,7 @@ from torch import nn
 from typing import Tuple
 from robot.controller.cem import CEM
 
+
 class ForwardControllerBase:
     def __init__(self, action_space, forward, cost, device='cuda:0'):
         self.action_space = action_space
@@ -21,8 +22,20 @@ class ForwardControllerBase:
     def reset(self):
         raise NotImplementedError
 
-    def __call__(self, x, cost, T):
+    def control(self, x):
         raise NotImplementedError
+
+    def __call__(self, x):
+        if isinstance(x, np.ndarray):
+            x = torch.Tensor(x).to(self._device)
+        squeeze = (x.dim() == 1)
+        if squeeze:
+            x = x[None, :]
+        action = self.control(x)
+        if squeeze:
+            return action[0]
+        else:
+            return action
 
 
 class GDController(ForwardControllerBase):
@@ -50,19 +63,10 @@ class GDController(ForwardControllerBase):
             x = t
         return cost, x
 
-    def __call__(self, x):
+    def control(self, x):
         """
         suppose x is batched
         """
-        if isinstance(x, np.ndarray):
-            x = torch.Tensor(x).to(self._device)
-        squeeze = (x.dim() == 1)
-        if squeeze:
-            x = x[None, :]
-        #self.forward.reset() # do we need to reset the forward model?
-        if self.actions is None:
-            self.reset()
-
         iters = self.optim_iter if self.it > 0 else self.optim_iter_init
         for it in range(iters):
             self.optim.zero_grad()
@@ -70,10 +74,7 @@ class GDController(ForwardControllerBase):
             cost.backward()
             self.optim.step()
         self.it += 1
-        if not squeeze:
-            return self.actions[0]
-        else:
-            return self.actions[0, 0]
+        return self.actions[0]
 
 
     @staticmethod
@@ -122,19 +123,77 @@ class GDController(ForwardControllerBase):
 
 
 class CEMController(ForwardControllerBase):
-    def __init__(self, timestep, action_space, forward_model, std, cost,
-                 iter_num, num_mutation, num_elite):
-        super(CEMController, self).__init__(action_space, forward_model, cost)
+    def __init__(self, timestep, action_space, forward_model, cost, std,
+                 iter_num, num_mutation, num_elite, mode='fix', device='cuda:0'):
+        super(CEMController, self).__init__(action_space, forward_model, cost, device)
+        self.timestep = timestep
         self.cem = CEM(eval_function=self.eval_function, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite, std=std)
+        self.mode = mode
 
     def eval_function(self, x, action, start_it=0):
+        assert x.shape[0] == 1
+        x = x.expand(action.shape[0], *x.shape[1:])
         cost: torch.Tensor = 0
-        for it in range(len(action)):
-            t = self.forward(x, action[it])
-            cost = self.cost(x, action[it], t, it + start_it) + cost
+        for it in range(len(action[0])):
+            t = self.forward(x, action[:, it])
+
+            # batched cost function
+            cost = self.cost(x, action[:, it], t, it + start_it) + cost
             x = t
         return cost
 
+    def initial_action(self):
+        if self.mode == 'fix':
+            return torch.zeros((self.timestep, *self.action_space.shape), device=self._device)
+        else:
+            raise NotImplementedError
+
+    def reset(self):
+        pass
+
+    def control(self, x):
+        """
+        suppose x is batched
+        """
+        mean = self.initial_action()
+        out = self.cem(x, mean)
+        return out[0:1]
+
+
+    @staticmethod
+    def test():
+        from robot.envs.env_dx.cartpole import CartpoleDx
+        from robot.envs import make
+        from robot.utils import tocpu, evaluate
+        model = CartpoleDx()
+        env = make('CartPole-v0')
+        env.seed(0)
+
+        T = 100
+
+        def cost(s, a, t, it):
+            x, dx, th, dth = torch.unbind(t, dim=1)
+            th_target = 20/360 *np.pi
+            x_target = 2.2
+            """
+            out = (torch.nn.functional.relu(th - th_target) ** 2) + \
+                   (torch.nn.functional.relu(-th_target - (-th)) ** 2) + \
+                   (torch.nn.functional.relu(x - x_target) ** 2) + \
+                   (torch.nn.functional.relu(-x_target - (-x)) ** 2)
+                   """
+            out = ((th - 0) ** 2) + ((th_target - 0) ** 2) # this loss is much easier to optimize
+            return out
+
+        controller = CEMController(20, env.action_space, model,
+                                  cost, std=3.,
+                                  iter_num=5, num_mutation=100, num_elite=10,
+                                  mode='fix')
+
+        print('evaluating...')
+        print(evaluate(env, controller, timestep=T, use_tqdm=True))
+
+
 
 if __name__ == '__main__':
-    GDController.test()
+    #GDController.test()
+    CEMController.test()
