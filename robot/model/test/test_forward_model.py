@@ -2,7 +2,7 @@ import tqdm
 import torch
 import os
 from robot.envs.arms.env import Env
-from robot.model.gnn_forward import ForwardAgent, decode_state
+from robot.model.gnn_forward import GNNForwardAgent, decode_state
 import numpy as np
 from robot.utils import togpu, train_loop
 
@@ -79,7 +79,7 @@ def main():
 
     dataset = Dataset(env, num_trajs=1000)
 
-    agent = ForwardAgent(network, 0.0001, env, layers=3, mid_channels=256).cuda()
+    agent = GNNForwardAgent(network, 0.0001, env, layers=3, mid_channels=256).cuda()
 
     data = dataset.sample()
     agent.update(*data)

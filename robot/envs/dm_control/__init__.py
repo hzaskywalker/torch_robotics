@@ -4,7 +4,7 @@ from . import wrapper
 import hashlib
 from dm_control import suite
 
-def make(domain_name, task_name, task_kwargs=None, visualize_reward=False):
+def make(domain_name, task_name, task_kwargs=None, visualize_reward=False, mode=''):
     # register environment
     prehash_id = domain_name + task_name + str(task_kwargs) + str(visualize_reward)
     h = hashlib.md5(prehash_id.encode())
@@ -14,7 +14,7 @@ def make(domain_name, task_name, task_kwargs=None, visualize_reward=False):
     if gym_id not in gym_id_list:
         register(
             id=gym_id,
-            entry_point='robot.envs.dm_control.wrapper:DmControlWrapper',
+            entry_point='robot.envs.dm_control.wrapper:{}DmControlWrapper'.format(mode),
             kwargs={'domain_name': domain_name, 'task_name': task_name, 'task_kwargs': task_kwargs,
                     'visualize_reward': visualize_reward, 'render_mode_list': render_mode_list}
         )

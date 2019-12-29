@@ -2,7 +2,7 @@
 import gym
 import os
 import tqdm
-from robot.model.framebuffer import TrajBuffer
+from robot.utils.framebuffer import TrajBuffer
 from robot.utils import rollout, AgentBase, tocpu, evaluate
 from robot.controller.forward_controller import ForwardControllerBase
 
@@ -105,7 +105,7 @@ def test_mb_controller():
     import numpy as np
     from robot.envs import make
     from robot.model.mlp_forward import MLPForward
-    from robot.controller.forward_controller import GDController, CEMController
+    from robot.controller.forward_controller import CEMController
     from robot.utils import Visualizer
     env = make("CartPole-v0")
     timestep = 100

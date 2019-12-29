@@ -191,7 +191,7 @@ def decode_state(state):
     return state[..., :3], state[..., 3:6], state[..., 6:12], state[..., 12:18]
 
 
-class ForwardAgent(AgentBase):
+class GNNForwardAgent(AgentBase):
     def __init__(self, mode, lr, env,*args, **kwargs):
         state_dim = env.state_dim
         action_dim = env.action_dim
@@ -217,7 +217,7 @@ class ForwardAgent(AgentBase):
                 model = mlp(state_dim + action_dim, state_dim, **kwargs)
             model = Concat(model)
 
-        super(ForwardAgent, self).__init__(model, lr)
+        super(GNNForwardAgent, self).__init__(model, lr)
 
         self.forward_model = model
         self.s_norm = Normalizer((state_dim,))

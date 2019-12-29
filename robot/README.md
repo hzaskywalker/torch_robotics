@@ -29,6 +29,7 @@ It seems that we can get differentiable cost for all environments?
 Environment -> Model -> Controller
 
 
+## 一些乱七八糟的东西
 焦虑已经过分了。
 需要点别的东西来缓解一下的程度。
 来列下一月计划，只要不被傻逼事情打乱那应该是做得到的。
@@ -44,18 +45,32 @@ Environment -> Model -> Controller
 
 基本准则是sapien的task和我们的算法的不断迭代。时时刻刻push下Yiran，chutong和zhizuo。
 
+在每个周期内部： 
+
+### 准备阶段（一个半天）
+- 花时间写清楚要实现的目标。
+- 阅读对应的paper，并收集github。（以及最近的arxiv)
+- 根据目标实现/copy main函数。
+
+### 初步尝试（半天）
+- 实现并理清细节
+- 绘制表格
+- 根据初步反馈修正之前的目标。
+
+### 自由心证 (一天半)
+- 完成代码
+- 实验
+
+### 总结 （最后一天的下午到晚上）
+- 随便写个报告啥的。
+
+
+## 日程安排
 - 12.30 - 1.1: Graph Neural Network，熟悉dm control，完成基础实验，包括对应的control baseline（这个现在超简单）。
-
 - 1.2 - 1.4: PETS-CEM以及POLO，based on mbRL baseline。熟悉mujoco上的control task们。
-
 - 1-6 - 1-8: 尝试sapien dataset。
-
 - 1-9 - 1-11: 至少在这个时候能够在sapien上apply之前的model-based RL算法，同时调查multi-task RL的一些算法，以及baseline。
-
 - 1-13 - 1-15: energy-based method for forward model on previous environment，至少可以实现baseline。这个时候chutong应该能干点活了吧。
-
 - 1-16 - 1-18: RL based trajecotory optimization on previous model, with Chutong.
-
 - 1-20 - 1-22: RL based trajectory optimization, together with energy-based model, with chutong. 构建带contact的hand manipulation task。
-
 - 1-23 - 1-25: Contact Invariant Optimization, with neural network。
