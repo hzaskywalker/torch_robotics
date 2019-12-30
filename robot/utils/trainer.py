@@ -26,7 +26,7 @@ def calc_accuracy_recall(info, tp, fp, fn, tn):
     info['num_positive_ratio'] = (tp + fn)/total
     return info
 
-def merge_training_output(train_outputs):
+def merge_training_output(train_outputs, prefix=None):
     train_info = {i: np.mean([j[i] for j in train_outputs])
                   for i in train_outputs[0] if train_outputs[0][i].size == 1}
 
@@ -35,6 +35,9 @@ def merge_training_output(train_outputs):
         calc_accuracy_recall(train_info, *[train_info[key] for key in keys])
         for key in keys:
             del train_info[key]
+
+    if prefix is not None:
+        train_info = {f'{prefix}_{i}': v for i, v in train_info.items()}
 
     return train_info
 

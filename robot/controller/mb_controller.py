@@ -5,6 +5,7 @@ import tqdm
 from robot.utils.framebuffer import TrajBuffer
 from robot.utils import rollout, AgentBase, tocpu, evaluate
 from robot.controller.forward_controller import ForwardControllerBase
+from robot.utils.trainer import merge_training_output
 
 
 class MBController:
@@ -20,13 +21,15 @@ class MBController:
     def __init__(self, model, controller, maxlen,
                  timestep=100, #max trajectory length
                  init_buffer_size=1000, init_train_step=100000,
-                 cache_path=None, vis=None):
+                 cache_path=None, vis=None,
+                 batch_size = 200,
+                 valid_ratio=0.2, episode=None, valid_batch_num=0):
         assert isinstance(model, AgentBase)
-        assert isinstance(controller, ForwardControllerBase)
+        assert isinstance(controller, ForwardControllerBase) or controller is None
 
         self.model = model
         self.controller = controller
-        self.buffer = TrajBuffer(maxlen)
+        self.buffer = TrajBuffer(maxlen, batch_size=batch_size, valid_ratio=valid_ratio)
 
         self.init_flag = False
         self.init_buffer_size = init_buffer_size
@@ -36,16 +39,42 @@ class MBController:
         self.cache_path = cache_path
         if self.cache_path is not None and not os.path.exists(self.cache_path):
             os.makedirs(self.cache_path)
-        self.vis = vis
 
-    def update_network(self, iters=1):
-        output = None
-        for i in range(iters):
-            data = self.buffer.sample('train')
-            output = self.model.update(*data)
-            if self.vis is not None:
-                self.vis(output)
+        self.vis = vis
+        self.train_iter = 0
+        self.episode = episode
+        self.valid_batch_num = valid_batch_num
+
+        self._outputs = []
+
+    def update_network(self):
+        data = self.buffer.sample('train')
+        output = self.model.update(*data)
+        self._outputs.append(output)
+        self.train_iter += 1
+
+        if self.episode is not None and self.train_iter % self.episode == 0:
+            self.after_epoch()
         return output
+
+    def after_epoch(self):
+        self.model.eval()
+
+        dic = merge_training_output(self._outputs, 'train')
+        self._outputs = [] #clear
+
+        if self.valid_batch_num > 0:
+            outputs = []
+            for i in range(self.valid_batch_num):
+                outputs.append(self.model.update(*self.buffer.sample('valid')))
+            dic = {**merge_training_output(outputs, 'valid'), **dic}
+
+        if self.vis is not None:
+            self.vis(dic)
+        self.model.train()
+
+        # TODO: saving and visualization...
+        return dic
 
     def update_buffer(self, env, policy):
         s, a = rollout(env, policy, timestep=self.timestep)
@@ -69,7 +98,8 @@ class MBController:
                 return env.action_space.sample()
 
             # add cache mechanism
-            init_buffer_path = os.path.join(self.cache_path, 'init_buffer')
+            if self.cache_path is not None:
+                init_buffer_path = os.path.join(self.cache_path, 'init_buffer')
             if self.cache_path is not None and os.path.exists(init_buffer_path):
                 self.buffer.load(init_buffer_path)
             else:
