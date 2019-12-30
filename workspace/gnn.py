@@ -1,4 +1,7 @@
 import os
+import numpy as np
+from robot.utils import togpu
+import tqdm
 os.environ['MUJOCO_GL'] = "osmesa" # for headless rendering
 import gym
 import cv2
@@ -65,9 +68,30 @@ def test_graph_env():
             break
 
 
+def test_gnn_model():
+    env: gym.Env = make('Cheetah', mode='Graph')
+
+    agent = GNNForwardAgent(0.01, env).cuda()
+
+    s, a, t = [], [], []
+    x = env.reset()
+    for i in tqdm.trange(128):
+        _a = env.action_space.sample()
+        _t, _, _, _ = env.step(_a)
+        s.append(x)
+        a.append(_a)
+        t.append(_t)
+        x = _t
+    s = togpu(np.array(s))
+    a = togpu(np.array(a))
+    t = togpu(np.array(t))
+    for i in tqdm.trange(10000):
+        agent.update(s, a, t)
+
+
 def main():
     pass
 
 
 if __name__ == '__main__':
-    test_graph_env()
+    test_gnn_model()

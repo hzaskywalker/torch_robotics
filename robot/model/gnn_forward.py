@@ -42,9 +42,10 @@ def batch_graphs(batch_size, n, graph):
     """
     :return: graph, batch
     """
-    batch = torch.arange(batch_size)[:, None].expand(n).view(-1).contiguous()
-    graph = graph[None,:] + (torch.arange(batch_size)[:, None] * n)
-    graph = graph.permute(1, 0, 2).view(2, -1).contiguous()
+    batch = torch.arange(batch_size, device=graph.device)[:, None].expand(-1, n).reshape(-1)
+    graph = graph[None, :] + (torch.arange(batch_size, device=graph.device)[:, None, None] * n)
+
+    graph = graph.permute(1, 0, 2).reshape(2, -1)
     return graph, batch
 
 class Graph:
@@ -69,23 +70,24 @@ class Graph:
         g = None if self.g is None else self.g + other.g
         return Graph(self.node + other.node, self.edge + other.edge, self.graph, self.batch, g)
 
+    def __str__(self):
+        g = None if self.g is None else self.g.shape
+        return f"Node: {self.node.shape}\nEdge: {self.edge.shape}\nGraph: {self.graph}\ng: {g}"
+
 
 class GNBlock(nn.Module):
     def __init__(self, node_channels, edge_channels, layers, mid_channels, global_channels=None,
                  output_node_channels=None, output_edge_channels=None, output_global_channels=None):
         super(GNBlock, self).__init__()
-        if output_node_channels is None:
-            output_node_channels = node_channels
-        if output_edge_channels is None:
-            output_edge_channels = mid_channels
-        if output_global_channels is None:
-            output_global_channels = global_channels
+        if global_channels is None:
+            global_channels = 0
 
-        self.edge_mlp = mlp(global_channels + node_channels * 2 + edge_channels,
-                            output_edge_channels, mid_channels, layers, batch_norm=False)
-        self.node_mlp = mlp(global_channels + node_channels + edge_channels,
+        self.edge_feature_mlp = mlp(global_channels + node_channels * 2 + edge_channels,
+                            mid_channels, mid_channels, layers, batch_norm=False)
+
+        self.node_mlp = mlp(global_channels + node_channels + mid_channels,
                             output_node_channels, mid_channels, layers, batch_norm=False)
-
+        self.output_edge_mlp = fc(mid_channels, output_edge_channels)
 
         if output_global_channels is not None:
             self.global_mlp = mlp(global_channels + output_node_channels + output_edge_channels,
@@ -98,6 +100,7 @@ class GNBlock(nn.Module):
         edge = graph.edge
         edge_index = graph.graph
         g = graph.g
+        n = node.shape[0]
         batch = graph.batch
         rol, col = edge_index
 
@@ -106,21 +109,24 @@ class GNBlock(nn.Module):
             edge_batch = batch[rol]
             edge_inp.append(g[edge_batch])
         edge_inp = torch.cat(edge_inp, dim=1)
-        edge = self.edge_mlp(edge_inp)
+        edge = self.edge_feature_mlp(edge_inp)
 
 
-        node_inp = [node, scatter_('add', rol, edge, dim=0)]
+        node_inp = [node, scatter_('add', edge, rol, dim=0, dim_size=n)]
         if g is not None:
             node_inp.append(g[batch])
         node_inp = torch.cat(node_inp, dim=1)
         node = self.node_mlp(node_inp)
 
         if self.global_mlp is not None:
-            global_inp = [scatter_('add', batch, node, dim=0), scatter_('edge', batch[rol], edge, dim=0)]
+            batch_size = g.shape[0] if g is not None else batch.max() + 1
+            global_inp = [scatter_('add', node, batch, dim=0, dim_size=batch_size),
+                          scatter_('add', edge, batch[rol], dim=0, dim_size=batch_size)]
             if g is not None:
                 global_inp.append(global_inp)
-            g = self.global_mlp(torch.cat(global_inp), dim=1)
+            g = self.global_mlp(torch.cat(global_inp, dim=1))
 
+        edge = self.output_edge_mlp(edge)
         return Graph(node, edge, edge_index, batch, g)
 
 
@@ -134,9 +140,13 @@ class GNResidule(nn.Module):
         # repeat all edge index
         self.gn1 = GNBlock(node_dim, edge_dim, layers, mid_channels,
                            output_node_channels=mid_channels,
-                           output_edge_channels=mid_channels) # we don't use global now
+                           output_edge_channels=mid_channels,
+                           output_global_channels=mid_channels) # we don't use global now
         self.gn2 = GNBlock(node_dim + mid_channels, edge_dim + mid_channels, layers, mid_channels,
-                           output_node_channels=output_node_dim, output_edge_channels=output_edge_dim)
+                           global_channels=mid_channels,
+                           output_node_channels=output_node_dim,
+                           output_edge_channels=output_edge_dim,
+                           output_global_channels=None)
 
     def forward(self, graph):
         graph_mid = self.gn1(graph)
@@ -155,9 +165,10 @@ class GNNForwardAgent(AgentBase):
         self.state_format = env.state_format
 
         node_dim = self.state_format.d + self.node_attr.shape[-1]
-        edge_dim = env.observation_space.shape[-1] + self.edge_attr.shape[-1]
 
-        assert env.state_dim == 3 + 3 + 6 + 6
+        assert len(env.action_space.shape) == 1
+        edge_dim = 1 + self.edge_attr.shape[-1]
+
         model = GNResidule(node_dim, edge_dim, node_dim, 1, *args, **kwargs)
 
         super(GNNForwardAgent, self).__init__(model, lr)
@@ -179,7 +190,7 @@ class GNNForwardAgent(AgentBase):
         if isinstance(graph, np.ndarray):
             graph = torch.LongTensor(graph)
 
-        graph = torch.cat((graph, graph), dim=1)
+        graph = torch.cat((graph, torch.stack((graph[1], graph[0]))), dim=1)
         self.graph = graph
         self.node_attr = node_attr
 
@@ -198,10 +209,12 @@ class GNNForwardAgent(AgentBase):
         :param state: (batch, n, d_x)
         :param action: (batch, e, action)
         """
+        if len(action.shape) == 2:
+            action = action[:, :, None]
         batch_size = state.shape[0]
-        node = torch.cat((state, self.node_attr[None,:].expand(batch_size, -1, -1)), dim=2)
+        node = torch.cat((state, self.node_attr[None, :].expand(batch_size, -1, -1)), dim=2)
 
-        tmp = torch.zeros((action.shape[0], self.edge_attr.shape[0]//2, action.shape[-1])) # only half
+        tmp = torch.zeros((action.shape[0], self.edge_attr.shape[0]//2, action.shape[-1]), device=action.device) # only half
         tmp[:, self.action_list] = action
         edge = torch.cat((tmp, tmp), dim=1) # duplicate actions
         edge = torch.cat((edge, self.edge_attr[None,:].expand(batch_size, -1, -1)), dim=2)
@@ -217,6 +230,16 @@ class GNNForwardAgent(AgentBase):
         graph, batch = batch_graphs(batch_size, n, self.graph)
         return Graph(node, edge, graph, batch, g)
 
+    def decode_node(self, graph):
+        return graph.node.reshape(-1, self.n, graph.node.shape[-1])
+
+    def cuda(self, device='cuda:0'):
+        # make
+        self.edge_attr = self.edge_attr.to(device)
+        self.node_attr = self.node_attr.to(device)
+        self.graph = self.graph.to(device)
+        self.action_list = self.action_list.to(device)
+        return super(GNNForwardAgent, self).cuda()
 
     def update(self, s, a, t):
         # predict t given s, and a
@@ -232,7 +255,7 @@ class GNNForwardAgent(AgentBase):
         output = self.forward_model(graph)
 
         delta = self.state_format.delete(t_node, s_node)
-        loss = self.state_format.dist(output.node, delta).mean()
+        loss = self.state_format.dist(self.decode_node(output), delta).mean()
 
         if self.training:
             loss.backward()
