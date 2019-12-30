@@ -1,4 +1,7 @@
 from gym import core, spaces
+from robot.utils import rot6d
+import torch
+import  numpy as np
 import dm_control
 from dm_control import suite
 from dm_env import specs
@@ -128,12 +131,70 @@ class DmControlWrapper(gym.Env):
             self.viewer[mode] = DmControlViewer(self.pixels.shape[1], self.pixels.shape[0], self.render_mode_list[mode]['render_kwargs']['depth'])
         return self.viewer[mode]
 
+
+class StateFormat:
+    def __init__(self, n, d, dq):
+        self.n = n
+        self.d = d
+        self.dq = dq
+
+        self.x = slice(0, 3)
+        self.w = slice(3, 9)
+        self.dw = slice(9, 12)
+        self.dx = slice(12, 15)
+
+    def decode(self, data):
+        s, q = data[..., :-self.dq], data[..., -self.dq:]
+        s = s.reshape(*s.shape[:-1], self.n, self.d)
+        return s, q
+
+    def encode(self, s, q):
+        assert q.shape[-1] == self.dq
+        assert s.shape[-1] == self.d
+        s = s.reshape(*s.shape[:-2], -1)
+        if isinstance(s, torch.Tensor):
+            return torch.cat((s, q), dim=-1)
+        else:
+            return np.concatenate((s, q), axis=-1)
+
+    def add(self, a, b):
+        return torch.cat([
+            a[..., self.x] + b[..., self.x], # update coordinates
+            rot6d.rmul(a[..., self.w], b[..., self.w]),
+            a[..., self.dw] + b[..., self.dw],
+            a[..., self.dx] + b[..., self.dx],
+        ], dim=-1)
+
+
+    def delete(self, a, b):
+        return torch.cat([
+            a[..., self.x] - b[..., self.x], # update coordinates
+            rot6d.rmul(a[..., self.w], rot6d.inv(b[..., self.w])),
+            a[..., self.dw] - b[..., self.dw],
+            a[..., self.dx] - b[..., self.dx],
+            ], dim=-1)
+
+
+    def dist(self, state, gt):
+        return ((state[..., self.x] - gt[..., self.x])**2).sum(dim=-1) + \
+               rot6d.rdist(state[..., self.w], gt[..., self.w]) + \
+               ((state[..., self.dw] - gt[..., self.dw]) ** 2).sum(dim=-1) + \
+               ((state[..., self.dx] - gt[..., self.dx]) ** 2).sum(dim=-1)
+
+
 class GraphDmControlWrapper(DmControlWrapper):
     # pass
     def __init__(self, *args, **kwargs):
         super(GraphDmControlWrapper, self).__init__(*args, **kwargs)
 
         self.init()
+
+        n = len(self.dmcenv.physics.data.xpos)
+        d = 3 + 6 + 3 + 3
+        dq = len(self.dmcenv.physics.data.qpos) * 2
+        self.state_format = StateFormat(n, d, dq)
+        high = np.zeros((n*d+dq,)) +np.inf
+        self.observation_space = gym.spaces.Box(low=-high, high=high) # not information
 
     def onehot(self, x, m):
         if isinstance(x, int):
@@ -210,6 +271,7 @@ class GraphDmControlWrapper(DmControlWrapper):
             edge_actuator[jnt, -1] = 1
 
         self._edge = np.concatenate((self._edge, edge_actuator), axis=1)
+        self.act2jnt = act_jntid[:, 0].copy()
 
         #print('jnt dof parent', [model.dof_parentid[i] for i in model.jnt_dofadr]) I dont't know what's this
         #print('dof parentid', model.dof_parentid)
@@ -223,24 +285,36 @@ class GraphDmControlWrapper(DmControlWrapper):
     def get_graph(self):
         return self._graph
 
+    def get_edge_attr(self):
+        return self._edge
+
+    def get_node_attr(self):
+        return self._node
+
+    def action_to_edge(self):
+        # map action to edge
+        return self.act2jnt
+
+    def forward(self, x, u):
+        # the most import thing is to implement the forward function
+        raise NotImplementedError
 
     def getObservation(self):
-        print(self.timestep.observation)
-        #print(self.dmcenv)
-        #print(self.dmcenv.physics.named.data.xpos[:2])
         phy = self.dmcenv.physics
         name = phy.named.data.xpos.axes.row._names
-        print(phy.data.xpos[:])
-        print(phy.data.xquat[:])
-        print(phy.named.data.__dir__())
-        print(phy.named.data.ctrl)
 
         vel = np.zeros(6)
         vels = []
 
-        # it could be cvel actually, but why it's not?
         for i in range(len(name)):
             mjlib.mj_objectVelocity(phy.model.ptr, phy.data.ptr, 2, i, vel, False)
             vels.append(vel.copy())
-        print(vels[-1]) # first line-speed
-        return convertObservation(self.timestep.observation)
+
+        pos = phy.data.xpos[:]
+        angle = phy.data.xmat[:].reshape(-1, 3, 3)[:, :, :2].reshape(-1, 6)
+
+        return self.state_format.encode(
+            np.concatenate((pos, angle, np.stack(vels)), axis=-1),
+            np.concatenate((phy.data.qpos.copy(), phy.data.qvel.copy()))
+        )
+

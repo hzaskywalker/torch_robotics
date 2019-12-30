@@ -52,16 +52,17 @@ def test_graph_env():
     #import dm_control
     #env: gym.Env = make('Cheetah', mode='Graph')
     env: gym.Env = make('Cheetah', mode='Graph')
-    env.reset()
+    x = env.reset()
     while True:
         a = env.action_space.sample()
 
-        print('action', a)
         #img = env.render(mode='rgb_array') # or 'human
         #cv2.imwrite('x.jpg', img)
         #cv2.imshow('x.jgp', img)
         #cv2.waitKey(1)
-        env.step(a)
+        t, _, done, _ = env.step(a)
+        if done:
+            break
 
 
 def main():
