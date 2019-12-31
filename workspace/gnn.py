@@ -9,6 +9,7 @@ from robot.controller.mb_controller import MBController
 from robot.model.gnn_forward import GNNForwardAgent
 from robot.envs.dm_control import make as dm_make
 from robot.utils import Visualizer
+from robot.envs.dm_control.wrapper import GraphDmControlWrapper
 
 
 def make(env_name, mode='Graph'):
@@ -18,7 +19,8 @@ def make(env_name, mode='Graph'):
     task = {
         "Pendulum": "swingup",
         "Cheetah": "run",
-        "Humanoid": "run"
+        "Humanoid": "walk",
+        "Reacher": "easy",
     }
     return dm_make(env_name.lower(), task[env_name], mode=mode)
 
@@ -30,15 +32,8 @@ def visualize():
     pass
 
 
-def train():
-    """
-    :return: training the environment with the trajectory
-    """
-    pass
-
-
 def test_env_show():
-    env:gym.Env = make('Pendulum', mode='')
+    env:GraphDmControlWrapper = make('Pendulum', mode='')
     print(env.action_space, env.observation_space)
     env.reset()
     while True:
@@ -50,7 +45,7 @@ def test_env_show():
 
 
 def test_graph_env():
-    env: gym.Env = make('Cheetah', mode='Graph')
+    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
 
     x = env.reset()
     while True:
@@ -66,7 +61,7 @@ def test_graph_env():
 
 
 def test_gnn_model():
-    env: gym.Env = make('Cheetah', mode='Graph')
+    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
 
     agent = GNNForwardAgent(0.01, env).cuda()
 
@@ -86,11 +81,90 @@ def test_gnn_model():
         agent.update(s, a, t)
 
 
+def test_inverse_kinematics():
+    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
+
+    for i in range(100):
+        a = env.action_space.sample()
+        t = env.step(a)[0]
+
+    s, q = env.state_format.decode(t)
+    s2, q2 = env.state_format.decode(env.forward(q))
+    assert np.abs(q2 - q).sum() < 1e-12
+
+    env.reset()
+
+    qpos, err, iters, suc = env.inv_kinematics(s, u0=q, max_steps=100)[0:4]
+    print(q[:env.dq_pos])
+    print(qpos)
+    print(err, iters, suc)
+
+    xx = env.forward(qpos)
+    print((((env.forward(q[:env.dq_pos]) - env.forward(qpos))/np.abs(xx+1e-15))).max())
+    exit(0)
+
+
+def test_reset_geom1():
+    import cv2
+    env: GraphDmControlWrapper = make('Pendulum', mode='Graph')
+    env.reset()
+    img = env.render(mode='rgb_array')
+    cv2.imwrite('x.jpg', img)
+    cv2.waitKey(0)
+
+    print(env.dmcenv.physics.data.xpos)
+    env.dmcenv.physics.data.xpos[1] = [3, 0, 0 ]
+    env.dmcenv.physics.data.geom_xpos[1] = [3, 0, 0 ]
+    #print(env.dmcenv.physics.data.xpos)
+    #env.dmcenv.physics.forward()
+    print(env.dmcenv.physics.data.geom_xpos)
+    img2 = env.render(mode='rgb_array')
+    print(env.dmcenv.physics.data.xpos)
+    print(env.dmcenv.physics.data.geom_xpos)
+    cv2.imshow('y.jpg', np.concatenate((img, img2), axis=1))
+    cv2.waitKey(0)
+
+
+def test_geom():
+    import cv2
+    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
+    s, q = env.state_format.decode(env.reset())
+
+    g_pos, g_mat = env.recompute_geom(s)
+
+    assert ((g_pos - env.dmcenv.physics.data.geom_xpos)**2).sum() < 1e-10
+    a = g_mat
+    b = env.dmcenv.physics.data.geom_xmat
+    bb = b.copy()
+    bb[:, 3:] *= -1
+    d = np.minimum(((a-b)**2).sum(axis=1), ((a-bb)**2).sum(axis=1))
+    assert d.sum() < 1e-10
+
+def test_render():
+    import cv2
+    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
+
+    while True:
+        s, q = env.state_format.decode(env.reset())
+        img = env.render(mode='rgb_array')
+
+        env.reset()
+        for i in range(10):
+            a = env.action_space.sample()
+            env.step(a)
+        img2 = env.render(mode='rgb_array')
+
+        img3 = env.render_state(s)
+        cv2.imshow('x', np.concatenate((img, img2, img3), axis=1))
+        cv2.waitKey(0)
+
+
+
 def main():
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
 
-    env: gym.Env = make('Pendulum', mode='Graph')
+    env: GraphDmControlWrapper = make('Pendulum', mode='Graph')
 
     path = '/tmp/xxx'
     controller = None
@@ -105,4 +179,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    #main()
+    #test_vis()
+    #test_geom()
+    test_render()

@@ -11,6 +11,8 @@ from .viewer import DmControlViewer
 from dm_control.mujoco.wrapper.mjbindings import mjlib
 import numpy as np
 import sys
+import logging
+from robot.utils.quaternion import qmul, qrot
 
 
 class DmcDiscrete(gym.spaces.Discrete):
@@ -145,12 +147,12 @@ class StateFormat:
 
     def decode(self, data):
         s, q = data[..., :-self.dq], data[..., -self.dq:]
-        s = s.reshape(*s.shape[:-1], self.n, self.d)
+        s = s.reshape(*s.shape[:-1], self.n, -1)
         return s, q
 
     def encode(self, s, q):
         assert q.shape[-1] == self.dq
-        assert s.shape[-1] == self.d
+        #assert s.shape[-1] == self.d
         s = s.reshape(*s.shape[:-2], -1)
         if isinstance(s, torch.Tensor):
             return torch.cat((s, q), dim=-1)
@@ -191,8 +193,10 @@ class GraphDmControlWrapper(DmControlWrapper):
 
         n = len(self.dmcenv.physics.data.xpos)
         d = 3 + 6 + 3 + 3
-        dq = len(self.dmcenv.physics.data.qpos) * 2
+        dq = len(self.dmcenv.physics.data.qpos) + len(self.dmcenv.physics.data.qvel)
         self.state_format = StateFormat(n, d, dq)
+        self.dq = dq
+        self.dq_pos = len(self.dmcenv.physics.data.qpos)
         high = np.zeros((n*d+dq,)) +np.inf
         self.observation_space = gym.spaces.Box(low=-high, high=high) # not information
 
@@ -280,7 +284,7 @@ class GraphDmControlWrapper(DmControlWrapper):
         for idx in range(1, len(self._node)):
             if model.body_jntnum[idx] == 0:
                 # no joint, directly connected to the parent.
-                raise NotImplementedError
+                print("WARNING>>> no joint, no connection to the parent")
 
     def get_graph(self):
         return self._graph
@@ -299,7 +303,7 @@ class GraphDmControlWrapper(DmControlWrapper):
         # the most import thing is to implement the forward function
         raise NotImplementedError
 
-    def getObservation(self):
+    def getObservation(self, qua=False):
         phy = self.dmcenv.physics
         name = phy.named.data.xpos.axes.row._names
 
@@ -311,10 +315,163 @@ class GraphDmControlWrapper(DmControlWrapper):
             vels.append(vel.copy())
 
         pos = phy.data.xpos[:]
-        angle = phy.data.xmat[:].reshape(-1, 3, 3)[:, :, :2].reshape(-1, 6)
+        if not qua:
+            angle = phy.data.xmat[:].reshape(-1, 3, 3)[:, :, :2].reshape(-1, 6)
+        else:
+            angle = phy.data.xquat[:].copy()
 
         return self.state_format.encode(
             np.concatenate((pos, angle, np.stack(vels)), axis=-1),
             np.concatenate((phy.data.qpos.copy(), phy.data.qvel.copy()))
         )
 
+    def forward(self, u, qua=False):
+        phy = self.dmcenv.physics
+        np.copyto(phy.data.qpos, u[:self.dq_pos])
+        if u.shape[-1] >= self.dq:
+            np.copyto(phy.data.qvel, u[self.dq_pos:])
+        phy.forward()
+        return self.getObservation(qua)
+
+    def to_pos_quat(self, xpos):
+        dtype = self.dmcenv.physics.data.qpos.dtype
+        pos = xpos[:, :3].astype(dtype)
+        quat = rot6d.r2quat(xpos[:, 3:9]).astype(dtype)
+        return pos, quat
+
+    def recompute_geom(self, state):
+        pos, quat = self.to_pos_quat(state)
+        dtype = pos.dtype
+        pos = torch.Tensor(pos)
+        quat = torch.Tensor(quat)
+
+        geom_body = self.dmcenv.physics.model.geom_bodyid
+        geom_xpos, geom_xmat = [], []
+        for geom_id, body_id in enumerate(geom_body):
+            local_pos = self.dmcenv.physics.model.geom_pos[geom_id].copy()
+            local_quat = self.dmcenv.physics.model.geom_quat[geom_id].copy()
+            local_pos = torch.Tensor(local_pos)
+            local_quat = torch.Tensor(local_quat)
+
+            geom_pos = qrot(quat[body_id], local_pos) + pos[body_id]
+            geom_quat = qmul(quat[body_id], local_quat)
+            geom_xpos.append(geom_pos.detach().numpy())
+
+            mat = np.zeros((9,), dtype)
+            mjlib.mju_quat2Mat(mat, geom_quat.detach().numpy().astype(dtype))
+            geom_xmat.append(mat)
+
+        geom_xpos = np.array(geom_xpos, dtype=dtype)
+        geom_xmat = np.array(geom_xmat, dtype=dtype)
+        return geom_xpos, geom_xmat
+
+    def render_state(self, state, mode='rgb_array'):
+        # pass
+        geom_xpos, geom_xmat = self.recompute_geom(state)
+        np.copyto(self.dmcenv.physics.data.geom_xpos, geom_xpos)
+        np.copyto(self.dmcenv.physics.data.geom_xmat, geom_xmat)
+        return self.render(mode)
+
+
+    def inv_kinematics(self, xpos, u0=None, max_steps=100, rot_weight=1., tol=1e-14,
+                        regularization_threshold = 0.1,
+                        regularization_strength = 3e-2,
+                        max_update_norm=2.0,
+                        progress_thresh=20.0,):
+        #from scipy.optimize import fmin_l_bfgs_b
+        #x0 = np.zeros((self.dq//2,), dtype=np.float32)
+        from .inverse_kinematics import nullspace_method
+
+
+        physics = self.dmcenv.physics
+        dtype = physics.data.qpos.dtype
+
+        target_pos = xpos[:, :3].astype(dtype)
+        target_quat = rot6d.r2quat(xpos[:, 3:9]).astype(dtype)
+
+        n = target_pos.shape[0]
+        jac = np.empty((n, 6, physics.model.nv), dtype=dtype)
+        err = np.empty((n, 6), dtype=dtype)
+        jac_pos, jac_rot = jac[:, :3], jac[:, 3:]
+        err_pos, err_rot = err[:, :3], err[:, 3:]
+
+        body_xquat = np.empty((n, 4), dtype=dtype)
+        neg_body_xquat = np.empty((n, 4), dtype=dtype)
+        err_rot_quat = np.empty((n, 4), dtype=dtype)
+
+
+        update_nv = np.zeros(physics.model.nv, dtype=dtype)
+        mjlib.mj_fwdPosition(physics.model.ptr, physics.data.ptr)
+
+
+        body_xpos = physics.data.xpos
+        body_xmat = physics.data.xmat
+
+        dof_indices = slice(None)  # Update all DOFs.
+
+        success = False
+        steps = 0
+
+        for steps in range(max_steps):
+
+            err_norm = 0.0
+
+            err_pos[:] = target_pos - body_xpos
+            for i in range(n):
+                err_norm += np.linalg.norm(err_pos[i])
+
+            # Rotational error.
+            for i in range(n):
+                mjlib.mju_mat2Quat(body_xquat[i], body_xmat[i])
+                mjlib.mju_negQuat(neg_body_xquat[i], body_xquat[i])
+                mjlib.mju_mulQuat(err_rot_quat[i], target_quat[i], neg_body_xquat[i])
+                mjlib.mju_quat2Vel(err_rot[i], err_rot_quat[i], 1)
+                err_norm += np.linalg.norm(err_rot[i]) * rot_weight
+            err_norm /= 2 * n
+
+            if err_norm < tol:
+                logging.debug('Converged after %i steps: err_norm=%3g', steps, err_norm)
+                success = True
+                break
+            else:
+                # TODO(b/112141670): Generalize this to other entities besides sites.
+                for i in range(n):
+                    mjlib.mj_jac(
+                        physics.model.ptr, physics.data.ptr, jac_pos[i], jac_rot[i], np.zeros((3,), dtype=dtype), i)#body_xpos[i], i)
+                        #physics.model.ptr, physics.data.ptr, jac_pos[i], jac_rot[i], body_xpos[i], i)
+
+                jac_joints = jac[:, :, dof_indices]
+
+                # TODO(b/112141592): This does not take joint limits into consideration.
+                reg_strength = (
+                    regularization_strength if err_norm > regularization_threshold
+                    else 0.0)
+                update_joints = nullspace_method(
+                    jac_joints.mean(axis=0), err.mean(axis=0), regularization_strength=reg_strength)
+
+                update_norm = np.linalg.norm(update_joints)
+
+                # Check whether we are still making enough progress, and halt if not.
+                progress_criterion = err_norm / update_norm
+                if progress_criterion > progress_thresh:
+                    logging.debug('Step %2i: err_norm / update_norm (%3g) > '
+                                  'tolerance (%3g). Halting due to insufficient progress',
+                                  steps, progress_criterion, progress_thresh)
+                    break
+
+                if update_norm > max_update_norm:
+                    update_joints *= max_update_norm / update_norm
+
+                update_nv[dof_indices] = update_joints
+
+                # Update `physics.qpos`, taking quaternions into account.
+                mjlib.mj_integratePos(physics.model.ptr, physics.data.qpos, update_nv, 1)
+
+                # Compute the new Cartesian position of the site.
+                mjlib.mj_fwdPosition(physics.model.ptr, physics.data.ptr)
+                logging.debug('Step %2i: err_norm=%-10.3g update_norm=%-10.3g',
+                              steps, err_norm, update_norm)
+
+
+        qpos = physics.data.qpos.copy()
+        return qpos, err_norm, steps, success

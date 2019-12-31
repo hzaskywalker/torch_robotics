@@ -155,7 +155,7 @@ class GNResidule(nn.Module):
 
 # 先不加normalizer 试试吧。
 #class GraphNormalizer:
-#    def __init__(self, state_dim, action_dim, g_dim=None):
+#   def __init__(self, state_dim, action_dim, g_dim=None):
 #        pass
 
 

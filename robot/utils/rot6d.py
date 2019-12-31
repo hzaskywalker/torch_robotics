@@ -37,6 +37,23 @@ def rdist(predict, target):
     b = (R-torch.matmul(R_gt, i1))**2
     return torch.min(a.sum(dim=(-2, -1)), b.sum(dim=(-2, -1)))
 
+def r2quat(r: torch.Tensor):
+    is_np = isinstance(r, np.ndarray)
+    if is_np:
+        r = torch.Tensor(r)
+
+    m = rmat(r)
+    w = (1. + m[..., 0, 0] + m[..., 1, 1] + m[..., 2, 2]) ** 0.5 / 2.
+    w4 = 4. * w
+    x = (m[..., 2, 1] - m[..., 1, 2])/w4
+    y = (m[..., 0, 2] - m[..., 2, 0])/w4
+    z = (m[..., 1, 0] - m[..., 0, 1])/w4
+    if isinstance(r, torch.Tensor):
+        out = torch.stack((w, x, y, z), dim=-1)
+
+    if is_np:
+        out = out.detach().numpy()
+    return out
 
 def inv(a):
     d = a.dim()

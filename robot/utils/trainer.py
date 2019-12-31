@@ -87,7 +87,8 @@ class AgentBase:
 
 def train_loop(agent, dataset, path,
                num_iters, num_valid_iters, eval_episode,
-               resume_path=None, train_vis_fn=[], valid_vis_fn=None, save_per_epsiode=False):
+               resume_path=None, train_vis_fn=[], valid_vis_fn=None,
+               save_per_epsiode=False):
     """
     Example:
         def fn(train_info, train_outputs, data, output):

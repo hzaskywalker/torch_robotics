@@ -22,7 +22,7 @@ class MBController:
                  timestep=100, #max trajectory length
                  init_buffer_size=1000, init_train_step=100000,
                  cache_path=None, vis=None,
-                 batch_size = 200,
+                 batch_size=200,
                  valid_ratio=0.2, episode=None, valid_batch_num=0):
         assert isinstance(model, AgentBase)
         assert isinstance(controller, ForwardControllerBase) or controller is None
@@ -71,9 +71,10 @@ class MBController:
 
         if self.vis is not None:
             self.vis(dic)
-        self.model.train()
 
-        # TODO: saving and visualization...
+        # TODO: visualization...
+
+        self.model.train()
         return dic
 
     def update_buffer(self, env, policy):
@@ -148,12 +149,6 @@ def test_mb_controller():
         x_target = 2.2
         out = ((th - 0) ** 2) + ((th_target - 0) ** 2)  # this loss is much easier to optimize
         return out
-        """
-        return (torch.nn.functional.relu(th - th_target) ** 2) + \
-               (torch.nn.functional.relu(-th_target - (-th)) ** 2) + \
-               (torch.nn.functional.relu(x - x_target) ** 2) + \
-               (torch.nn.functional.relu(-x_target - (-x)) ** 2)
-               """
 
     #controller = GDController(timestep, env.action_space, model, cost, lr=0.001)
 
