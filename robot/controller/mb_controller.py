@@ -3,6 +3,7 @@ import gym
 import os
 import tqdm
 from robot.utils.framebuffer import TrajBuffer
+import torch
 from robot.utils import rollout, AgentBase, tocpu, evaluate
 from robot.controller.forward_controller import ForwardControllerBase
 from robot.utils.trainer import merge_training_output
@@ -19,15 +20,26 @@ class MBController:
             1. take model as a parameter and output the actions
     """
     def __init__(self, model, controller, maxlen,
-                 timestep=100, #max trajectory length
+                 timestep=100,  #max trajectory length
+                 load=False,
                  init_buffer_size=1000, init_train_step=100000,
                  cache_path=None, vis=None,
                  batch_size=200,
-                 valid_ratio=0.2, episode=None, valid_batch_num=0):
+                 valid_ratio=0.2,
+                 iters_per_epoch=None,
+                 valid_batch_num=0):
         assert isinstance(model, AgentBase)
         assert isinstance(controller, ForwardControllerBase) or controller is None
 
-        self.model = model
+        if cache_path is None or not os.path.exists(os.path.join(cache_path, 'agent')) or not load:
+            self.loaded_model = False
+            self.model = model
+        else:
+            tmp_model = torch.load(os.path.join(cache_path, 'agent'))
+            self.loaded_model = True
+            assert type(tmp_model) == type(model)
+            self.model = tmp_model
+
         self.controller = controller
         self.buffer = TrajBuffer(maxlen, batch_size=batch_size, valid_ratio=valid_ratio)
 
@@ -42,37 +54,45 @@ class MBController:
 
         self.vis = vis
         self.train_iter = 0
-        self.episode = episode
+        self.iters_per_epoch = iters_per_epoch
         self.valid_batch_num = valid_batch_num
 
         self._outputs = []
 
-    def update_network(self):
+    def update_network(self, env=None):
         data = self.buffer.sample('train')
         output = self.model.update(*data)
         self._outputs.append(output)
         self.train_iter += 1
 
-        if self.episode is not None and self.train_iter % self.episode == 0:
-            self.after_epoch()
+        if self.iters_per_epoch is not None and self.train_iter % self.iters_per_epoch == 0:
+            self.after_epoch(data, output, env)
         return output
 
-    def after_epoch(self):
+    def after_epoch(self, data, output, env=None):
         self.model.eval()
 
         dic = merge_training_output(self._outputs, 'train')
         self._outputs = [] #clear
 
+        #for fn in train_vis_fn:
+        #    fn(train_info, train_outputs, data, output)
+        if 'visualize' in self.model.__dir__():
+            self.model.visualize('train', data, dic, env)
+
         if self.valid_batch_num > 0:
             outputs = []
             for i in range(self.valid_batch_num):
-                outputs.append(self.model.update(*self.buffer.sample('valid')))
+                data = self.buffer.sample('valid')
+                outputs.append(self.model.update(*data))
             dic = {**merge_training_output(outputs, 'valid'), **dic}
+            if 'visualize' in self.model.__dir__():
+                self.model.visualize('valid', data, dic, env)
 
         if self.vis is not None:
             self.vis(dic)
 
-        # TODO: visualization...
+        self.model.save(self.cache_path)
 
         self.model.train()
         return dic
@@ -111,8 +131,9 @@ class MBController:
                     self.buffer.save(init_buffer_path)
 
             print('train network...')
-            for _ in tqdm.trange(self.init_train_step):
-                self.update_network()
+            if not self.loaded_model:
+                for _ in tqdm.trange(self.init_train_step):
+                    self.update_network(env)
         self.init_flag = True
         return self.buffer, self.model
 
@@ -124,7 +145,7 @@ class MBController:
             self.reset()
             self.update_buffer(env, self)
             for _ in range(num_train):
-                self.update_network()
+                self.update_network(env)
         return self
 
     def test(self, env, num_episode=10):
@@ -149,8 +170,6 @@ def test_mb_controller():
         x_target = 2.2
         out = ((th - 0) ** 2) + ((th_target - 0) ** 2)  # this loss is much easier to optimize
         return out
-
-    #controller = GDController(timestep, env.action_space, model, cost, lr=0.001)
 
     controller = CEMController(20, env.action_space, model,
                                cost, std=float(env.action_space.high.max() / 3),

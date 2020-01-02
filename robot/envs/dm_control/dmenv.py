@@ -178,6 +178,7 @@ class StateFormat:
 
 
     def dist(self, state, gt):
+        assert state.shape == gt.shape, f"state.shape {state.shape} gt.shape {gt.shape}"
         return ((state[..., self.x] - gt[..., self.x])**2).sum(dim=-1) + \
                rot6d.rdist(state[..., self.w], gt[..., self.w]) + \
                ((state[..., self.dw] - gt[..., self.dw]) ** 2).sum(dim=-1) + \
@@ -336,8 +337,14 @@ class GraphDmControlWrapper(DmControlWrapper):
     def to_pos_quat(self, xpos):
         dtype = self.dmcenv.physics.data.qpos.dtype
         pos = xpos[:, :3].astype(dtype)
-        quat = rot6d.r2quat(xpos[:, 3:9]).astype(dtype)
-        return pos, quat
+        #quat = rot6d.r2quat(xpos[:, 3:9]).astype(dtype)
+        quat = []
+        for i in xpos:
+            q = np.zeros((4,), dtype=dtype)
+            m = rot6d.rmat(torch.Tensor(i[3:9])).detach().numpy().astype(dtype)
+            mjlib.mju_mat2Quat(q, m.reshape(-1))
+            quat.append(q)
+        return pos, np.stack(quat)
 
     def recompute_geom(self, state):
         pos, quat = self.to_pos_quat(state)

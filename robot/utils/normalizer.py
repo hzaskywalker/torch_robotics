@@ -19,6 +19,7 @@ class Normalizer(nn.Module):
 
     # update the parameters of the normalizer
     def update(self, v: torch.Tensor):
+        assert v.shape[-len(self.size):] == self.size
         v = v.reshape(-1, *self.size)
         # do the computing
 

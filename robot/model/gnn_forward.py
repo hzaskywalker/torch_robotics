@@ -1,6 +1,5 @@
 # Baisic GNN forward engine
 # The code containts some model similar to ``Graph Networks as Learnable Physics Engines for Inference and Control''
-
 from typing import Any
 import torch
 import torch.nn as nn
@@ -12,9 +11,7 @@ from torch_geometric.data import Data
 from robot.utils.models import fc
 from robot.utils.normalizer import Normalizer
 from robot.utils.trainer import AgentBase
-from robot.utils.quaternion import qmul
 from robot.utils import tocpu
-from robot.utils import rot6d
 
 import numpy as np
 
@@ -135,15 +132,16 @@ class GNResidule(nn.Module):
     Forward model for fixed model.
     The graph is always predefined.
     """
-    def __init__(self, node_dim, edge_dim, output_node_dim, output_edge_dim, layers=3, mid_channels=256):
+    def __init__(self, node_dim, edge_dim, output_node_dim, output_edge_dim, layers=3, mid_channels=256, use_global=False):
         super(GNResidule, self).__init__()
         # repeat all edge index
+        global_channels = mid_channels if use_global else None
         self.gn1 = GNBlock(node_dim, edge_dim, layers, mid_channels,
                            output_node_channels=mid_channels,
                            output_edge_channels=mid_channels,
-                           output_global_channels=mid_channels) # we don't use global now
+                           output_global_channels=global_channels) # we don't use global now
         self.gn2 = GNBlock(node_dim + mid_channels, edge_dim + mid_channels, layers, mid_channels,
-                           global_channels=mid_channels,
+                           global_channels=global_channels,
                            output_node_channels=output_node_dim,
                            output_edge_channels=output_edge_dim,
                            output_global_channels=None)
@@ -153,14 +151,32 @@ class GNResidule(nn.Module):
         output = self.gn2(graph.cat(graph_mid))
         return output
 
-# 先不加normalizer 试试吧。
-#class GraphNormalizer:
-#   def __init__(self, state_dim, action_dim, g_dim=None):
-#        pass
+class GraphNormalizer(nn.Module):
+    """
+    Normalize the whole graph
+    """
+    def __init__(self, state_dim, edge_dim, g_dim=None):
+        super(GraphNormalizer, self).__init__()
+        self.node: Normalizer = Normalizer((state_dim,))
+        self.edge: Normalizer = Normalizer((edge_dim,))
+        if g_dim is not None:
+            self.g = Normalizer((g_dim,))
+        else:
+            self.g = None
+
+    def __call__(self, G):
+        g = self.g(G.g) if self.g is not None else G.g
+        return Graph(self.node(G.node), self.edge(G.edge), G.graph, G.batch, g)
+
+    def update(self, G):
+        self.node.update(G.node)
+        self.edge.update(G.edge)
+        if self.g is not None:
+            self.g.update(G.g)
 
 
 class GNNForwardAgent(AgentBase):
-    def __init__(self, lr, env, *args, **kwargs):
+    def __init__(self, lr, env, normalize=False, *args, **kwargs):
         self.init_graph(env)
         self.state_format = env.state_format
 
@@ -169,7 +185,13 @@ class GNNForwardAgent(AgentBase):
         assert len(env.action_space.shape) == 1
         edge_dim = 1 + self.edge_attr.shape[-1]
 
-        model = GNResidule(node_dim, edge_dim, node_dim, 1, *args, **kwargs)
+        if normalize:
+            self.inp_norm = GraphNormalizer(node_dim, edge_dim) # normalize graph
+            self.oup_norm = Normalizer((self.state_format.d,)) # normalize output
+        else:
+            self.inp_norm = self.oup_norm = None
+
+        model = GNResidule(node_dim, edge_dim, self.state_format.d, 1, *args, **kwargs)
 
         super(GNNForwardAgent, self).__init__(model, lr)
 
@@ -239,12 +261,17 @@ class GNNForwardAgent(AgentBase):
         self.node_attr = self.node_attr.to(device)
         self.graph = self.graph.to(device)
         self.action_list = self.action_list.to(device)
+
+        if self.inp_norm is not None:
+            self.inp_norm.cuda()
+        if self.oup_norm is not None:
+            self.oup_norm.cuda()
+
         return super(GNNForwardAgent, self).cuda()
 
     def update(self, s, a, t):
         # predict t given s, and a
         # support that s is encoded by state_format
-
         if self.training:
             self.optim.zero_grad()
 
@@ -252,19 +279,69 @@ class GNNForwardAgent(AgentBase):
         t_node, _ = self.state_format.decode(t)
 
         graph = self.build_graph(s_node, a)
-        output = self.forward_model(graph)
-
         delta = self.state_format.delete(t_node, s_node)
-        loss = self.state_format.dist(self.decode_node(output), delta).mean()
+
+        if self.inp_norm is not None:
+            graph = self.inp_norm(graph)
+        if self.oup_norm is not None:
+            delta = self.oup_norm(delta)
+
+        output = self.decode_node(self.forward_model(graph))
+        loss = self.state_format.dist(output, delta).mean()
 
         if self.training:
+            if self.inp_norm is not None:
+                self.inp_norm.update(graph)
+            if self.oup_norm is not None:
+                self.oup_norm.update(delta)
+
             loss.backward()
             self.optim.step()
 
             self.step += 1
             if self.step % 50000 == 0:
                 self.lr_scheduler.step()
+
         return {
-            'loss': tocpu(loss)
+            'loss': tocpu(loss),
+            'st_distance': tocpu(self.state_format.dist(s_node, t_node).mean()),
         }
 
+    def get_predict(self, s, a):
+        s_node, _ = self.state_format.decode(s)
+        graph = self.build_graph(s_node, a)
+        if self.inp_norm is not None:
+            graph = self.inp_norm(graph)
+        delta = self.decode_node(self.forward_model(graph))
+
+        if self.oup_norm is not None:
+            print(self.oup_norm.size, delta.shape)
+            delta = self.oup_norm.denorm(delta)
+        return self.state_format.add(s_node, delta)
+
+
+    def visualize(self, prefix, data, dic, env, **kwargs):
+        s, a, t = data
+        predict = self.get_predict(s, a)
+        t_node, _ = self.state_format.decode(t)
+
+        imgs = []
+        idx = 0
+        for a, b in zip(t_node, predict):
+            imgs.append(
+                np.concatenate((env.render_state(tocpu(a)), env.render_state(tocpu(b))), axis=1)
+            )
+            idx += 1
+            if idx > 10:
+                break
+        img = np.array(imgs)
+        dic['{}_img'.format(prefix)] = img
+
+    def __call__(self, s, a):
+        with torch.no_grad():
+            return self.get_predict(s, a)
+
+    def rollout(self, s, a):
+        for a in a.shape[0]:
+            s = self(s, a)
+        return s

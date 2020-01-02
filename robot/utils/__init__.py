@@ -4,7 +4,6 @@ from .tags import *
 from .seed import seed
 from .set_logger import set_logger, info
 from .timer import Timer
-from .disk_cache import Cache
 from .tensorboard import Visualizer
 from .pca import pca
 from .arm_utils import play
@@ -18,6 +17,7 @@ from .shortest_path import *
 from .packed_tensor import *
 from .distributions import LinearGaussian
 from .control_utils import *
+from .decorators import *
 
 import torch
 import numpy as np

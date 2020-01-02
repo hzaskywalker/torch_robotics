@@ -9,7 +9,7 @@ from robot.controller.mb_controller import MBController
 from robot.model.gnn_forward import GNNForwardAgent
 from robot.envs.dm_control import make as dm_make
 from robot.utils import Visualizer
-from robot.envs.dm_control.wrapper import GraphDmControlWrapper
+from robot.envs.dm_control.dmenv import GraphDmControlWrapper
 
 
 def make(env_name, mode='Graph'):
@@ -140,6 +140,7 @@ def test_geom():
     d = np.minimum(((a-b)**2).sum(axis=1), ((a-bb)**2).sum(axis=1))
     assert d.sum() < 1e-10
 
+
 def test_render():
     import cv2
     env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
@@ -162,24 +163,27 @@ def test_render():
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--task', default='Pendulum', type=str)
+    parser.add_argument('--path', default='/tmp/xxx', type=str)
+    parser.add_argument('--norm', default=0, type=int)
     args = parser.parse_args()
 
-    env: GraphDmControlWrapper = make('Pendulum', mode='Graph')
+    env: GraphDmControlWrapper = make(args.task, mode='Graph')
 
-    path = '/tmp/xxx'
+    path = args.path
     controller = None
-    agent = GNNForwardAgent(0.01, env).cuda()
+    agent = GNNForwardAgent(1e-4, env, normalize=args.norm, use_global=True).cuda()
 
-    model = MBController(agent, controller, 100,
+    model = MBController(agent, controller, int(1e6),
                          init_buffer_size=1000, init_train_step=1000000,
-                         valid_ratio=0.2, episode=20, valid_batch_num=3, cache_path=path,
+                         valid_ratio=0.2, iters_per_epoch=1000, valid_batch_num=10, cache_path=path,
                          vis=Visualizer(os.path.join(path, 'history')))
     model.init(env)
 
 
 
 if __name__ == '__main__':
-    #main()
     #test_vis()
     #test_geom()
-    test_render()
+    #test_render()
+    main()

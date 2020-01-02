@@ -24,7 +24,7 @@ def evaluate(env: gym.Env, controller, timestep=200, num_episode=10, use_tqdm=Fa
     return np.mean(ans)
 
 
-def rollout(env, controller, x=None, timestep=200):
+def rollout(env, controller=None, x=None, timestep=200):
     if x is not None:
         x = env.reset(x)
     else:
@@ -34,6 +34,11 @@ def rollout(env, controller, x=None, timestep=200):
         controller.reset() # reset the controller if it has
     except AttributeError:
         pass
+
+    if controller is None:
+        def random_policy(*args, **kwargs):
+            return env.action_space.sample()
+        controller = random_policy
 
     xs, us = [], []
     for i in range(timestep):
