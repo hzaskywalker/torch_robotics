@@ -269,6 +269,10 @@ class GNNForwardAgent(AgentBase):
 
         return super(GNNForwardAgent, self).cuda()
 
+    def add_noise(self, graph):
+        # TODO: Need to add noise.
+        return graph
+
     def update(self, s, a, t):
         # predict t given s, and a
         # support that s is encoded by state_format
@@ -308,21 +312,27 @@ class GNNForwardAgent(AgentBase):
         }
 
     def get_predict(self, s, a):
-        s_node, _ = self.state_format.decode(s)
+        if len(s.shape) == 2:
+            s_node, xx = self.state_format.decode(s)
+        else:
+            s_node = s
+            xx = None
         graph = self.build_graph(s_node, a)
         if self.inp_norm is not None:
             graph = self.inp_norm(graph)
         delta = self.decode_node(self.forward_model(graph))
 
         if self.oup_norm is not None:
-            print(self.oup_norm.size, delta.shape)
             delta = self.oup_norm.denorm(delta)
-        return self.state_format.add(s_node, delta)
+        out = self.state_format.add(s_node, delta)
+        if xx is not None:
+            out = self.state_format.encode(out, xx)
+        return out
 
 
     def visualize(self, prefix, data, dic, env, **kwargs):
         s, a, t = data
-        predict = self.get_predict(s, a)
+        predict = self.state_format.decode(self.get_predict(s, a))[0]
         t_node, _ = self.state_format.decode(t)
 
         imgs = []
@@ -342,6 +352,6 @@ class GNNForwardAgent(AgentBase):
             return self.get_predict(s, a)
 
     def rollout(self, s, a):
-        for a in a.shape[0]:
-            s = self(s, a)
+        for i in range(a.shape[1]):
+            s = self(s, a[:, i])
         return s

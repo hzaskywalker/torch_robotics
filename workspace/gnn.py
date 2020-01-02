@@ -174,10 +174,19 @@ def main():
     controller = None
     agent = GNNForwardAgent(1e-4, env, normalize=args.norm, use_global=True).cuda()
 
+    from robot.forward_tester import ForwardModelTester, DATASET
+    tester = ForwardModelTester(env, DATASET[args.task], num_traj=100, timestep=100)
+
+    def test_it(self, dict):
+        dict['eval1'] = tester.test(self.model, t=1)
+        dict['eval20'] = tester.test(self.model, t=20)
+        dict['video'] = tester.render(self.model, 100)
+
     model = MBController(agent, controller, int(1e6),
                          init_buffer_size=1000, init_train_step=1000000,
                          valid_ratio=0.2, iters_per_epoch=1000, valid_batch_num=10, cache_path=path,
-                         vis=Visualizer(os.path.join(path, 'history')))
+                         vis=Visualizer(os.path.join(path, 'history')), hook=[test_it],
+                         data_path='/tmp/pendulum')
     model.init(env)
 
 

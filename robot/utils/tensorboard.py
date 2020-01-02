@@ -1,6 +1,7 @@
 import os
 from tensorboardX import SummaryWriter
 import numpy as np
+from types import GeneratorType
 
 
 def read_tensorboard(dirs, key='is_success'):
@@ -95,14 +96,18 @@ class Visualizer(object):
                 self.dfs('{}/{}'.format(prefix, i), outputs[i])
         else:
             if not isinstance(outputs, tuple):
-                outputs = np.array(outputs)
-                if len(outputs.shape) == 4:
-                    #print(prefix, outputs.shape)
-                    self.tb.add_image(prefix, outputs)
+                if not isinstance(outputs, GeneratorType):
+                    outputs = np.array(outputs)
+                    if len(outputs.shape) == 4:
+                        #print(prefix, outputs.shape)
+                        self.tb.add_image(prefix, outputs)
+                    else:
+                        self.tb.add_scalar(prefix, outputs)
+                        if self.file is not None:
+                            self.file.write(str(self.tb.step) + ' ' + prefix + ' ' + str(outputs) + '\n')
                 else:
-                    self.tb.add_scalar(prefix, outputs)
-                    if self.file is not None:
-                        self.file.write(str(self.tb.step) + ' ' + prefix + ' ' + str(outputs) + '\n')
+                    from .utils import write_video
+                    write_video(outputs, os.path.join(self.path, prefix.replace('/', '_'))+'.avi')
             else:
                 self.tb.add_embedding(prefix, outputs)
 

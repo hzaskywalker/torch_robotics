@@ -1,5 +1,5 @@
 from .device import MI, MO, device
-from .utils import batched_index_select, save, resume, resume_if_exists, dict2field
+from .utils import batched_index_select, save, resume, resume_if_exists, dict2field, write_video
 from .tags import *
 from .seed import seed
 from .set_logger import set_logger, info

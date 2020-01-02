@@ -23,13 +23,20 @@ class MBController:
                  timestep=100,  #max trajectory length
                  load=False,
                  init_buffer_size=1000, init_train_step=100000,
-                 cache_path=None, vis=None,
+                 cache_path=None,
+                 data_path=None,
+                 vis=None,
                  batch_size=200,
                  valid_ratio=0.2,
                  iters_per_epoch=None,
-                 valid_batch_num=0):
+                 valid_batch_num=0,
+                 hook=[]):
         assert isinstance(model, AgentBase)
         assert isinstance(controller, ForwardControllerBase) or controller is None
+
+        if data_path is None:
+            data_path = cache_path
+        self.data_path = data_path
 
         if cache_path is None or not os.path.exists(os.path.join(cache_path, 'agent')) or not load:
             self.loaded_model = False
@@ -58,6 +65,7 @@ class MBController:
         self.valid_batch_num = valid_batch_num
 
         self._outputs = []
+        self.hook = hook
 
     def update_network(self, env=None):
         data = self.buffer.sample('train')
@@ -89,6 +97,9 @@ class MBController:
             if 'visualize' in self.model.__dir__():
                 self.model.visualize('valid', data, dic, env)
 
+        for fn in self.hook:
+            fn(self, dic)
+
         if self.vis is not None:
             self.vis(dic)
 
@@ -119,9 +130,10 @@ class MBController:
                 return env.action_space.sample()
 
             # add cache mechanism
-            if self.cache_path is not None:
-                init_buffer_path = os.path.join(self.cache_path, 'init_buffer')
-            if self.cache_path is not None and os.path.exists(init_buffer_path):
+            if self.data_path is not None:
+                init_buffer_path = os.path.join(self.data_path, 'init_buffer')
+
+            if self.data_path is not None and os.path.exists(init_buffer_path):
                 self.buffer.load(init_buffer_path)
             else:
                 print('filling buffer...')
@@ -175,8 +187,10 @@ def test_mb_controller():
                                cost, std=float(env.action_space.high.max() / 3),
                                iter_num=5, num_mutation=80, num_elite=8,
                                mode='fix')
+
     mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep,
-                                 init_buffer_size=200, init_train_step=10000,  cache_path='/tmp/xxx/', vis=Visualizer('/tmp/xxx/history'))
+                                 init_buffer_size=200, init_train_step=10000,  cache_path='/tmp/xxx/',
+                                 vis=Visualizer('/tmp/xxx/history'))
 
     mb_controller.init(env)
     print('testing...')

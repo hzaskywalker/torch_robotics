@@ -147,3 +147,20 @@ def dict2field(d):
         if isinstance(val, dict):
             out[key] = dict2field(val)
     return out
+
+
+def write_video(gen, path=None):
+    out = None
+    for img in gen:
+        if path is not None:
+            if out is None:
+                out = cv2.VideoWriter(
+                    path, cv2.VideoWriter_fourcc(*'XVID'), 20.0, (img.shape[1], img.shape[0]))
+            out.write(img)
+        else:
+            cv2.imshow('x', img)
+            key = cv2.waitKey(1)
+            if key == ord('q'):
+                break
+    if out is not None:
+        out.release()

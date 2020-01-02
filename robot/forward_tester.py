@@ -14,6 +14,7 @@ class ForwardModelTester:
     def __init__(self, env, path=None, num_traj=100, timestep=1000):
         self.path = path
         self.state_format = env.state_format
+        self.render_state = env.render_state
 
         @cache(self.path)
         def collect_data(env, num_traj, timestep):
@@ -29,7 +30,9 @@ class ForwardModelTester:
         S, A, T = [], [], []
         for s, a in self.trajs:
             S.append(s[:-t])
-            A.append(a[:-t])
+
+            action = np.stack([a[i:-t+i] for i in range(t)], axis=1)
+            A.append(action)
             T.append(s[t:])
         return np.concatenate(S), np.concatenate(A), np.concatenate(T)
 
@@ -60,9 +63,25 @@ class ForwardModelTester:
         s_pre = self.dist(s, t).mean(dim=(0, 1))
         return (d_pre/s_pre.clamp(1e-6, float('inf'))).mean()
 
-    def test(self, agent, visualize=False):
-        f = as_input(2)(batch_runner(128, show=False)(agent))
-        s, a, t = self.make_test_data()
+    def render(self, agent, t=20):
+        s = np.array(self.trajs[0][0][0])
+        a = np.array(self.trajs[0][1][:t])
+        ag = as_input(2)(agent)
+
+        idx = 0
+        yield np.concatenate(
+            (self.render_state(self.state_format.decode(s)[0]),
+             self.render_state(self.state_format.decode(self.trajs[0][0][idx])[0])), axis=0)
+        for i in a:
+            s = ag(s, i)
+            idx += 1
+            yield np.concatenate(
+                (self.render_state(self.state_format.decode(s)[0]),
+                 self.render_state(self.state_format.decode(self.trajs[0][0][idx])[0])), axis=0)
+
+    def test(self, agent, t=1):
+        f = as_input(2)(batch_runner(128, show=False)(agent.rollout))
+        s, a, t = self.make_test_data(t)
         predict = f(s, a)
         return self.eval(s, t, predict)
 
@@ -79,7 +98,11 @@ def test():
     model_path = '/tmp/pendulum/agent'
     agent = torch.load(model_path)
 
-    print(tester.test(agent))
+    f = tester.render(agent, t=100)
+    #for t in [1, 10, 100]:
+    #    print(t, tester.test(agent, t=t))
+    from robot.utils import write_video
+    write_video(f, 'xx.avi')
 
 if __name__ == '__main__':
     test()
