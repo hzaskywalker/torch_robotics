@@ -148,8 +148,8 @@ class EnBNNAgent(AgentBase):
         inp = self.state_prior.encode(s)
         inp = self.obs_norm(inp)
         a = self.action_norm(a)
-        mean, std = self.forward_model(inp, a)
-        return self.state_prior.add(s, mean), std
+        mean, log_var = self.forward_model(inp, a)
+        return self.state_prior.add(s, mean), log_var
 
     def rollout(self, s, a):
         # s (inp_dim)
@@ -161,8 +161,8 @@ class EnBNNAgent(AgentBase):
         rewards = []
         for i in range(a.shape[1]):
             act = a[None, :, i].expand(self.ensemble_size, -1, -1)
-            mean, std = self.get_predict(s, act)
-            t = torch.rand_like(std) * std + mean # sample
+            mean, log_var = self.get_predict(s, act)
+            t = torch.randn_like(log_var) * torch.exp(log_var/2) + mean # sample
             outs.append(t)
             rewards.append(self.state_prior.cost(s, act, t))
             s = t
@@ -171,16 +171,17 @@ class EnBNNAgent(AgentBase):
     def update(self, s, a, t):
         if self.training:
             self.optim.zero_grad()
-            self.obs_norm.fit(s)
+            self.obs_norm.fit(self.state_prior.encode(s))
             self.action_norm.fit(a)
 
-        output = self.get_predict(s, a)
-        loss = self.state_prior.dist(output, t)
+        mean, log_var = self.get_predict(s, a)
+
+        inv_var = torch.exp(-log_var)
+        loss = ((mean - t.detach()[None,:]) ** 2) * inv_var + log_var
+        loss = loss.mean(dim=(-2, -1)).sum(dim=0) # sum across different models
 
         loss += self.var_reg * self.forward_model.var_reg()
         loss += self.forward_model.decay(self.weight_decay)
-
-        loss = loss.mean(dim=(-1, -2))
 
         if self.training:
             loss.backward()

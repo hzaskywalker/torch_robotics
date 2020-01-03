@@ -20,7 +20,7 @@ class ForwardModelTester:
         def collect_data(env, num_traj, timestep):
             trajs = []
             for i in range(num_traj):
-                trajs.append(rollout(env, timestep=timestep))
+                trajs.append(rollout(env, timestep=timestep)[:2])
             return trajs
 
         self.trajs = collect_data(env, num_traj, timestep)

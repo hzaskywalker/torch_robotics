@@ -120,10 +120,14 @@ class MBController:
         self.model.train()
         return dic
 
-    def update_buffer(self, env, policy, num_traj):
-        for i in range(num_traj):
-            s, a = rollout(env, policy, timestep=self.timestep)
+    def update_buffer(self, env, policy, num_traj, progress=False, progress_rollout=False):
+        ran = tqdm.trange if progress else range
+        total = 0
+        for i in ran(num_traj):
+            s, a, r = rollout(env, policy, timestep=self.timestep, use_tqdm=progress_rollout)
             self.buffer.update(s, a)
+            total += r.sum()
+        return total/num_traj # return average reward during update buffer
 
 
     # init and fit
@@ -152,58 +156,18 @@ class MBController:
         self.init_flag = True
         return self.buffer, self.model
 
-    def fit(self, env, num_iter=1, num_traj=1, num_train=50):
+    def fit(self, env, num_traj=1, num_train=50,
+                progress_bufffer_update=False, progress_rollout=False):
         if not self.init_flag:
             self.init(env)
 
-        for _ in range(num_iter):
-            self.reset()
-            self.update_buffer(env, self, num_traj)
-            self.update_network(env, num_train)
-        return self
+        self.reset()
+        avg_reward = self.update_buffer(env, self, num_traj, progress_bufffer_update, progress_rollout)
+        self.update_network(env, num_train)
+        return {
+            'avg_reward': avg_reward
+        }
 
     def test(self, env, num_episode=10, use_tqdm=False, print_reward=False):
         return evaluate(env, self, self.timestep, num_episode, use_tqdm=use_tqdm, print_reward=print_reward)
 
-def test_mb_controller():
-    import torch
-    import numpy as np
-    from robot.envs import make
-    from robot.model.mlp_forward import MLPForward
-    from robot.controller.forward_controller import CEMController
-    from robot.utils import Visualizer
-    env = make("CartPole-v0")
-    timestep = 100
-
-    model = MLPForward(0.001, env, num_layer=3, feature=256, batch_norm=False).cuda()
-
-    def cost(s, a, t, it):
-        x, dx, th, dth = torch.unbind(t, dim=1)
-        th_target = 20 / 360 * np.pi
-        x_target = 2.2
-        out = ((th - 0) ** 2) + ((th_target - 0) ** 2)  # this loss is much easier to optimize
-        return out
-
-    controller = CEMController(20, env.action_space, model,
-                               cost, std=float(env.action_space.high.max() / 3),
-                               iter_num=5, num_mutation=80, num_elite=8,
-                               mode='fix')
-
-    mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep,
-                                 init_buffer_size=200, init_train_step=10000, path='/tmp/xxx/',
-                                 vis=Visualizer('/tmp/xxx/history'))
-
-    mb_controller.init(env)
-    print('testing...')
-    print(mb_controller.test(env))
-
-    for i in range(1000):
-        mb_controller.fit(env)
-        if i % 10 == 0:
-            print('testing...')
-            print(mb_controller.test(env))
-
-
-
-if __name__ == '__main__':
-    test_mb_controller()

@@ -25,7 +25,7 @@ def evaluate(env: gym.Env, controller, timestep=200, num_episode=10, use_tqdm=Fa
     return np.mean(ans)
 
 
-def rollout(env, controller=None, x=None, timestep=200):
+def rollout(env, controller=None, x=None, timestep=200, use_tqdm=False):
     if x is not None:
         x = env.reset(x)
     else:
@@ -41,13 +41,16 @@ def rollout(env, controller=None, x=None, timestep=200):
             return env.action_space.sample()
         controller = random_policy
 
-    xs, us = [], []
-    for i in range(timestep):
+    xs, us, rs = [], [], []
+    ran = tqdm.trange if use_tqdm else range
+    for _ in ran(timestep):
         u = controller(x)
         xs.append(x)
         us.append(u)
-        x = env.step(u)[0]
+        x, r = env.step(u)[:2]
+
+        rs.append(r)
 
     xs.append(x)
     us.append(u)
-    return np.array(xs), np.array(us)
+    return np.array(xs), np.array(us), np.array(rs)

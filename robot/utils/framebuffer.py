@@ -122,13 +122,13 @@ class TrajBuffer:
                 idxs = np.random.permutation(idxs)
 
                 batch_size = self.batch_size
-                num_batch = len(idxs) // batch_size
+                num_batch = (len(idxs) + batch_size - 1)// batch_size
 
                 for j in range(num_batch):
                     idx = idxs[j*batch_size:(j+1)*batch_size]
                     s = self.data[0][idx]
                     a = self.data[1][idx]
-                    t = self.data[0+1][idx + 1]
+                    t = self.data[0][idx + 1]
                     yield togpu(s), togpu(a), togpu(t)
 
 

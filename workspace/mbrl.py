@@ -1,3 +1,4 @@
+import tqdm
 from robot.envs.gym import make
 from robot.model.gt_model import GTModel
 from robot.model.ensemble_nn import EnBNNAgent
@@ -62,7 +63,7 @@ def test_cartpole():
         var_reg=0.01,
         ensemble_size=5,
         num_layers=4,
-        mid_channels=500
+        mid_channels=500,
     ).cuda()
 
 
@@ -93,11 +94,11 @@ def test_cartpole():
         model,
         controller,
         maxlen=int(1e6),
-        timestep=state_prior.TASK_HORIZON,
+        timestep=int(state_prior.TASK_HORIZON),
         load=False,
-        init_buffer_size=3,
-        init_train_step=1,
-        path=None,
+        init_buffer_size=1,
+        init_train_step=5,
+        path='/tmp/xxx',
         data_path=None,
         batch_size=32,
         valid_ratio=0.2,
@@ -106,7 +107,9 @@ def test_cartpole():
         data_sampler='fix'
     )
 
-    mb_controller.test(env, use_tqdm=True)
+    mb_controller.init(env)
+    for _ in range(100):
+        print(mb_controller.fit(env, progress_bufffer_update=False, progress_rollout=True))
 
 if __name__ == '__main__':
     #test_env()
