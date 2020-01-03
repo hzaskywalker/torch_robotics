@@ -141,8 +141,7 @@ class MBController:
                 self.buffer.load(init_buffer_path)
             else:
                 print('filling buffer...')
-                for _ in tqdm.trange(self.init_buffer_size):
-                    self.update_buffer(env, random_policy)
+                self.update_buffer(env, random_policy, self.init_buffer_size)
                 if self.path is not None:
                     self.buffer.save(init_buffer_path)
 

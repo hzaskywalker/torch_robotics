@@ -78,7 +78,7 @@ def test(envs, model, nstack, render=False, viewer=None):
         return np.sum(np.array(mb_rewards)) / np.sum(np.array(mb_dones))
 
 
-def make_generator(batch_size, *args):
+def batch_gen(batch_size, *args):
     assert type(batch_size) == int
     length = len(args[0])
     l = 0

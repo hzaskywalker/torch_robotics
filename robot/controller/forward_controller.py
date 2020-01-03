@@ -124,10 +124,10 @@ class GDController(ForwardControllerBase):
 
 class CEMController(ForwardControllerBase):
     def __init__(self, timestep, action_space, forward_model, cost, std,
-                 iter_num, num_mutation, num_elite, mode='fix', device='cuda:0'):
+                 iter_num, num_mutation, num_elite, mode='fix', device='cuda:0', *args, **kwargs):
         super(CEMController, self).__init__(action_space, forward_model, cost, device)
         self.timestep = timestep
-        self.cem = CEM(eval_function=self.eval_function, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite, std=std)
+        self.cem = CEM(eval_function=self.eval_function, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite, std=std, *args, **kwargs)
         self.mode = mode
 
     def eval_function(self, x, action, start_it=0):
@@ -167,7 +167,7 @@ class CEMController(ForwardControllerBase):
         env = make('CartPole-v0')
         env.seed(0)
 
-        T = 100
+        T = 200
 
         def cost(s, a, t, it):
             x, dx, th, dth = torch.unbind(t, dim=1)

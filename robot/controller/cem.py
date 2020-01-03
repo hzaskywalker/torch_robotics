@@ -1,45 +1,50 @@
 # controller for forward dynamics
-import gym
+import numpy as np
 import torch
-from ..utils import batched_index_select, togpu
-from .misc import evaluate
+import scipy.stats as stats
 
 
 class CEM:
-    def __init__(self, iter_num, num_mutation, num_elite,
-                 eval_function=None, env:gym.Env=None, std=0.2):
+    def __init__(self, eval_function, iter_num, num_mutation, num_elite, std=0.2,
+                 alpha=0., upper_bound=None, lower_bound=None, trunc_norm=False):
+        self.eval_function = eval_function
+
         self.iter_num = iter_num
         self.num_mutation = num_mutation
         self.num_elite = num_elite
-        self.std = std
+        self.std = std # initial std
 
-        self.env = env
-        self.eval_function = eval_function
-        if eval_function is None:
-            self.eval_function = lambda state, actions: evaluate(env, state, actions)
+        self.alpha = alpha
+        self.trunc_norm = trunc_norm
+        if upper_bound is not None:
+            upper_bound = torch.Tensor(upper_bound)
+        if lower_bound is not None:
+            lower_bound = torch.Tensor(lower_bound)
 
+        self.upper_bound = upper_bound
+        self.lower_bound = lower_bound
 
-    def sample(self, mean, std, amounts):
-        action = torch.distributions.Normal(
-            loc=mean, scale=std).sample(sample_shape=(amounts,))
-        return action
+    def __call__(self, scene, mean=None, std=None):
+        shape = (self.num_mutation,) + tuple(mean.shape)
+        self.sampler = np.random.normal if not self.trunc_norm else stats.truncnorm(-2, 2).rvs
 
-    def fit(self, actions):
-        return actions.mean(dim=0), actions.std(dim=0)
-
-    def __call__(self, scene, mean=None, horizon=None):
         # initial: batch, dim, time_step
-        if mean is None:
-            assert horizon is not None and self.env is not None
-            mean = togpu([self.env.action_space.sample() for i in range(horizon)])
-
         with torch.no_grad():
-            std = mean * 0 + self.std
+            if std is None:
+                std = mean * 0 + self.std
             for idx in range(self.iter_num):
-                populations: torch.Tensor = self.sample(mean, std, self.num_mutation)  # sample from mean data, std data
+                _std = std
+                if self.upper_bound is not None and self.upper_bound is not None:
+                    lb_dist = mean - torch.Tensor(self.lower_bound).to(mean.deivce)
+                    ub_dist = -mean + torch.Tensor(self.upper_bound).to(mean.deivce)
+                    _std = torch.min((torch.min(lb_dist, ub_dist)/2) ** 2, std)
+
+                populations = torch.Tensor(self.sampler(size=shape)).to(mean.device) * _std[None, :] + mean[None, :]
                 reward = self.eval_function(scene, populations)
 
                 _, topk_idx = (-reward).topk(k=self.num_elite, dim=0)
                 elite = populations.index_select(0, topk_idx)
-                mean, std = self.fit(elite)
+
+                mean = mean * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
+                std = std * self.alpha + elite.std(dim=0) * (1 - self.alpha)
         return mean

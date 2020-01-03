@@ -118,11 +118,15 @@ class EnBNNAgent(AgentBase):
     def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01, epoch_range=12,
                  ensemble_size=5,
                  *args, **kwargs):
+        state_prior = env.state_prior
+
+        inp_dim = state_prior.inp_dim
         obs_dim = env.observation_space.shape[0]
         action_dim = env.action_space.shape[0]
-        self.forward_model = EnBNN(ensemble_size, obs_dim + action_dim, obs_dim, *args, **kwargs)
 
-        self.obs_norm: Normalizer = Normalizer((obs_dim,))
+        self.forward_model = EnBNN(ensemble_size, inp_dim + action_dim, obs_dim, *args, **kwargs)
+
+        self.obs_norm: Normalizer = Normalizer((inp_dim,))
         self.action_norm: Normalizer = Normalizer((action_dim,))
 
         super(EnBNNAgent, self).__init__(lr, self.forward_model)

@@ -3,7 +3,6 @@ import argparse
 import numpy as np
 from robot.utils import togpu
 import tqdm
-os.environ['MUJOCO_GL'] = "osmesa" # for headless rendering
 import gym
 from robot.controller.mb_controller import MBController
 from robot.model.gnn_forward import GNNForwardAgent
