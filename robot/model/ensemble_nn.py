@@ -5,30 +5,33 @@ from robot.utils import AgentBase
 import numpy as np
 import torch.nn.functional as F
 from robot.utils.normalizer import Normalizer
-from robot.utils import tocpu, togpu
+from robot.utils import as_input
 
 
 def swish(x):
     return x * torch.sigmoid(x)
 
+from scipy.stats import truncnorm
+truncnorm = truncnorm(-2, 2)
 
 def truncated_normal(size, std):
-    import tensorflow as tf
+    # import tensorflow as tf
     # We use TF to implement initialization function for neural network weight because:
     # 1. Pytorch doesn't support truncated normal
     # 2. This specific type of initialization is important for rapid progress early in training in cartpole
 
     # Do not allow tf to use gpu memory unnecessarily
-    cfg = tf.ConfigProto()
-    cfg.gpu_options.allow_growth = True
+    #cfg = tf.ConfigProto()
+    #cfg.gpu_options.allow_growth = True
 
-    sess = tf.Session(config=cfg)
-    val = sess.run(tf.truncated_normal(shape=size, stddev=std))
+    #sess = tf.Session(config=cfg)
+    #val = sess.run(tf.truncated_normal(shape=size, stddev=std))
 
     # Close the session and free resources
-    sess.close()
+    #sess.close()
+    trunc = truncnorm.rvs(size=size) * std
 
-    return torch.tensor(val, dtype=torch.float32)
+    return torch.tensor(trunc, dtype=torch.float32)
 
 
 class ensemble_fc(nn.Module):
@@ -60,7 +63,7 @@ def ensemble_mlp(ensemble_size, in_features, out_features, num_layers, mid_chann
         for i in range(num_layers-2):
             layers.append(ensemble_fc(ensemble_size, mid_channels, mid_channels, swish=True))
         layers.append(ensemble_fc(ensemble_size, mid_channels, out_features))
-    return nn.Sequential(layers)
+    return nn.Sequential(*layers)
 
 
 class GaussianLayer(nn.Module):
@@ -91,15 +94,15 @@ class EnBNN(nn.Module):
     def __init__(self, ensemble_size, in_features, out_features, num_layers, mid_channels):
         super(EnBNN, self).__init__()
         self.ensemble_size = ensemble_size
-        self.mlp = ensemble_mlp(ensemble_size, in_features, out_features, num_layers, mid_channels)
-        self.gaussian = GaussianLayer(out_features)
+        self.mlp = ensemble_mlp(ensemble_size, in_features, out_features * 2, num_layers, mid_channels)
+        self.gaussian = GaussianLayer(out_features * 2)
 
     def forward(self, obs, action):
         # obs (ensemble, batch, dim_obs) or (batch, dim_obs)
         # action (ensemble, batch, action)
         inp = torch.cat((obs, action), dim=-1)
         if inp.shape == 2:
-            inp = inp[None, :, :].expand(self.ensemble_size, -1)
+            inp = inp[None, :, :].expand(self.ensemble_size, -1, -1)
         return self.gaussian(self.mlp(inp))
 
     def var_reg(self):
@@ -115,9 +118,8 @@ class EnBNN(nn.Module):
 
 
 class EnBNNAgent(AgentBase):
-    def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01, epoch_range=12,
-                 ensemble_size=5,
-                 *args, **kwargs):
+    def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01,
+                 ensemble_size=5, *args, **kwargs):
         state_prior = env.state_prior
 
         inp_dim = state_prior.inp_dim
@@ -129,23 +131,42 @@ class EnBNNAgent(AgentBase):
         self.obs_norm: Normalizer = Normalizer((inp_dim,))
         self.action_norm: Normalizer = Normalizer((action_dim,))
 
-        super(EnBNNAgent, self).__init__(lr, self.forward_model)
+        super(EnBNNAgent, self).__init__(self.forward_model, lr)
         self.weight_decay = weight_decay
         self.var_reg = var_reg
 
         self.state_prior = env.state_prior # which is actually a config file of the environment
-        self.epoch_range = epoch_range
         self.batch_size = 32
+        self.ensemble_size = ensemble_size
 
     def cuda(self):
         self.obs_norm.cuda()
         self.action_norm.cuda()
-        return self.cuda()
+        return super(EnBNNAgent, self).cuda()
 
     def get_predict(self, s, a):
-        s = self.obs_norm(self.state_prior.encode(s))
+        inp = self.state_prior.encode(s)
+        inp = self.obs_norm(inp)
         a = self.action_norm(a)
-        return self.state_prior.add(s, self.forward_model(s, a))
+        mean, std = self.forward_model(inp, a)
+        return self.state_prior.add(s, mean), std
+
+    def rollout(self, s, a):
+        # s (inp_dim)
+        # a (pop, T, acts)
+        if len(s.shape) == 1:
+            s = s[None, :].expand(a.shape[0], -1)
+        s = s[None, :].expand(self.ensemble_size, -1, -1)
+        outs = []
+        rewards = []
+        for i in range(a.shape[1]):
+            act = a[None, :, i].expand(self.ensemble_size, -1, -1)
+            mean, std = self.get_predict(s, act)
+            t = torch.rand_like(std) * std + mean # sample
+            outs.append(t)
+            rewards.append(self.state_prior.cost(s, act, t))
+            s = t
+        return torch.stack(outs, dim=2), torch.stack(rewards, dim=1).mean(dim=(0,1)) # get the reward amont time and B
 
     def update(self, s, a, t):
         if self.training:

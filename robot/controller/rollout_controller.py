@@ -5,11 +5,11 @@ import torch
 from .cem import CEM
 
 class RolloutCEM:
-    def __init__(self, rollout, action_space, horizon, replan_period=1, device='cpu',
+    def __init__(self, model, action_space, horizon, replan_period=1, device='cuda:0',
                  *args, **kwargs):
-        self.rollout = rollout
+        assert 'rollout' in model.__dir__()
+        self.model = model
         self.action_space = action_space
-        self.rollout = rollout
         self.optimizer = CEM(self.cost, *args, **kwargs)
 
         self.horizon = horizon
@@ -17,15 +17,15 @@ class RolloutCEM:
         self.init_var = torch.tensor((action_space.high - action_space.low)/16, device=device, dtype=torch.float)
 
     def cost(self, x, a):
-        x = x[None,:].expand(a.shape[0], -1)
-        return self.rollout(x, a)[1] # ignore the cost and only use the reward
+        x = x[None, :].expand(a.shape[0], -1)
+        return self.model.rollout(x, a)[1] # ignore the cost and only use the reward
 
     def init_actions(self, horizon):
-        return torch.tensor([self.action_space.sample() for _ in range(horizon)],
+        return torch.tensor([(self.action_space.high + self.action_space.low) * 0.5 for _ in range(horizon)],
                             dtype=torch.float, device=self.init_var.device)
 
-    def set_model(self, *args, **kwargs):
-        pass
+    def set_model(self, model):
+        self.model = model
 
     def reset(self):
         # random sample may be not good

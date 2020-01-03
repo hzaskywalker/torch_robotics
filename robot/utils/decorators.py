@@ -1,25 +1,35 @@
 import torch
+import inspect
 import os
 import numpy as np
 
 class as_input:
-    def __init__(self, dim=2):
+    def __init__(self, dim=2, device='cuda:0', batch_dim=0):
         self.dim = dim
+        self.device = device
+        self.batch_dim = batch_dim
 
     def __call__(self, f):
+        self.start = 1 if inspect.getfullargspec(f).args[0] == 'self' else 0
         def wrapped_f(*args):
-            is_single = len(args[0].shape) < self.dim
-            is_np = isinstance(args[0], np.ndarray)
+            is_single = len(args[self.start].shape) < self.dim
+            is_np = isinstance(args[self.start], np.ndarray)
 
             if is_np:
-                args = [torch.Tensor(i).cuda() for i in args]
+                args = args[:self.start] + tuple(torch.Tensor(i).to(self.device) for i in args[self.start:])
             if is_single:
-                args = [i[None,:] for i in args]
+                args = args[:self.start] + tuple(i.unsqueeze(0) for i in args[self.start:])
             out = f(*args)
-            if is_np:
-                out = out.detach().cpu().numpy()
-            if is_single:
-                out = out[0]
+            if not isinstance(out, tuple):
+                if is_np:
+                    out = out.detach().cpu().numpy()
+                if is_single:
+                    out = out[0]
+            else:
+                if is_np:
+                    out = tuple(i.detach().cpu().numpy() for i in out)
+                if is_single:
+                    out = tuple(i.squeeze(self.batch_dim) for i in out)
             return out
         return wrapped_f
 

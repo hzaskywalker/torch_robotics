@@ -8,11 +8,8 @@ class StatePrior:
     def decode(self, x):
         raise NotImplementedError
 
-    def delete(self, t, s):
-        return t - s
-
-    def dist(self, s, t):
-        return ((t - s) ** 2).sum(dim=-1)
+    def add(self, s, d):
+        return s + d
 
     def cost(self, s, a, t, it=None):
         raise NotImplementedError
@@ -24,21 +21,21 @@ class CartPolePrior(StatePrior):
 
     def __init__(self):
         super(CartPolePrior, self).__init__()
-        self.inp_dim = 6
-        self.oup_dim = 5
+        self.inp_dim = 5
+        self.oup_dim = 4
         self.ee_sub = torch.tensor([0.0, 0.6], dtype=torch.float)
         self.TASK_HORIZON = 200
 
     def encode(self, obs):
         if isinstance(obs, np.ndarray):
-            return np.concatenate([np.sin(obs[:, 1:2]), np.cos(obs[:, 1:2]), obs[:, :1], obs[:, 2:]], axis=1)
+            return np.concatenate([np.sin(obs[..., 1:2]), np.cos(obs[..., 1:2]), obs[..., :1], obs[..., 2:]], axis=1)
         elif isinstance(obs, torch.Tensor):
             return torch.cat([
-                obs[:, 1:2].sin(),
-                obs[:, 1:2].cos(),
-                obs[:, :1],
-                obs[:, 2:]
-            ], dim=1)
+                obs[..., 1:2].sin(),
+                obs[..., 1:2].cos(),
+                obs[..., :1],
+                obs[..., 2:]
+            ], dim=-1)
 
 
     def obs_cost_fn(self, obs):
@@ -46,22 +43,22 @@ class CartPolePrior(StatePrior):
         ee_pos -= self.ee_sub.to(obs.device)
         ee_pos = ee_pos ** 2
 
-        ee_pos = - ee_pos.sum(dim=1)
+        ee_pos = - ee_pos.sum(dim=-1)
 
         return - (ee_pos / (0.6 ** 2)).exp()
 
     def ac_cost_fn(self, acs):
-        return 0.01 * (acs ** 2).sum(dim=1)
+        return 0.01 * (acs ** 2).sum(dim=-1)
 
     def cost(self, s, a, t, it=None):
         return self.obs_cost_fn(t) + self.ac_cost_fn(a)
 
     def _get_ee_pos(self, obs):
-        x0, theta = obs[:, :1], obs[:, 1:2]
+        x0, theta = obs[..., :1], obs[..., 1:2]
 
         return torch.cat([
             x0 - 0.6 * theta.sin(), -0.6 * theta.cos()
-        ], dim=1)
+        ], dim=-1)
 
 PRIORS = {
     'MBRLCartpole-v0': CartPolePrior(),
