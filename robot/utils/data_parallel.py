@@ -61,6 +61,7 @@ class DataParallel:
         from robot.utils.utils import batch_gen
         n = min(len(args[0]), self.n)
         batch_size = (len(args[0]) + n-1)//n
+        n = (len(args[0]) + batch_size - 1)//batch_size
         is_single_input = len(args) == 1
         for i, args in enumerate(batch_gen(batch_size, *args)):
             if is_single_input:

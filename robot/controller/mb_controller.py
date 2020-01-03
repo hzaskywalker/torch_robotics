@@ -32,7 +32,7 @@ class MBController:
                  valid_batch_num=0,
                  hook=[], data_sampler='random'):
         assert isinstance(model, AgentBase)
-        assert isinstance(controller, ForwardControllerBase) or controller is None
+        #assert isinstance(controller, ForwardControllerBase) or controller is None
 
         if data_path is None:
             data_path = path
@@ -162,8 +162,8 @@ class MBController:
             self.update_network(env, num_train)
         return self
 
-    def test(self, env, num_episode=10):
-        return evaluate(env, self, self.timestep, num_episode)
+    def test(self, env, num_episode=10, use_tqdm=False, print_reward=False):
+        return evaluate(env, self, self.timestep, num_episode, use_tqdm=use_tqdm, print_reward=print_reward)
 
 def test_mb_controller():
     import torch

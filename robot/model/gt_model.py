@@ -55,10 +55,11 @@ class Rollout:
 
 
 class GTModel(AgentBase):
-    def __init__(self, make, env_name):
-        self.rollout = DataParallel(10, make, env_name)
+    def __init__(self, make, env_name, num_process=10):
+        assert num_process >= 1
+        self.rollout = DataParallel(num_process, Rollout, make, env_name)
 
-    def update(self):
+    def update(self, *args, **kwargs):
         pass
 
     def cuda(self):
@@ -74,6 +75,7 @@ class GTModel(AgentBase):
         # transform to numpy
         is_np = not isinstance(s, torch.Tensor)
         if not is_np:
+            _d = s.device
             s = s.cpu().detach().numpy()
             a = a.cpu().detach().numpy()
 
@@ -86,8 +88,8 @@ class GTModel(AgentBase):
         outs, rewards = self.rollout(np.array(s), np.array(a))
 
         if not is_np:
-            outs = torch.Tensor(outs).cuda()
-            rewards = torch.Tensor(rewards).cuda()
+            outs = torch.Tensor(outs).to(_d)
+            rewards = torch.Tensor(rewards).to(_d)
         if not is_batch:
             outs = outs[0]
             rewards = rewards[0]

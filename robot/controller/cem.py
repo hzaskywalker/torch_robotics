@@ -35,8 +35,8 @@ class CEM:
             for idx in range(self.iter_num):
                 _std = std
                 if self.upper_bound is not None and self.upper_bound is not None:
-                    lb_dist = mean - torch.Tensor(self.lower_bound).to(mean.deivce)
-                    ub_dist = -mean + torch.Tensor(self.upper_bound).to(mean.deivce)
+                    lb_dist = mean - self.lower_bound.to(mean.device)
+                    ub_dist = -mean + self.upper_bound.to(mean.device)
                     _std = torch.min((torch.min(lb_dist, ub_dist)/2) ** 2, std)
 
                 populations = torch.Tensor(self.sampler(size=shape)).to(mean.device) * _std[None, :] + mean[None, :]

@@ -3,14 +3,12 @@ import tqdm
 import numpy as np
 
 
-def evaluate(env: gym.Env, controller, timestep=200, num_episode=10, use_tqdm=False):
+def evaluate(env: gym.Env, controller, timestep=200, num_episode=10, use_tqdm=False, print_reward=False):
     ans = []
     for _ in tqdm.trange(num_episode):
         state = env.reset()
-        try:
+        if 'reset' in controller.__dir__():
             controller.reset()  # reset the controller if it has
-        except AttributeError:
-            pass
 
         total = 0
         ran = range if not use_tqdm else tqdm.trange
@@ -21,6 +19,9 @@ def evaluate(env: gym.Env, controller, timestep=200, num_episode=10, use_tqdm=Fa
             if d:
                 break
         ans.append(total)
+        if print_reward:
+            print(ans[-1])
+
     return np.mean(ans)
 
 
