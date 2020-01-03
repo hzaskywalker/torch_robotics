@@ -82,8 +82,8 @@ class MBController:
 
 
     # update part
-    def update_network(self, env=None, num_train=50):
-        for data in self.buffer.make_sampler(self.data_sampler, 'train', num_train):
+    def update_network(self, env=None, num_train=50, progress=False):
+        for data in self.buffer.make_sampler(self.data_sampler, 'train', num_train, use_tqdm=progress):
             output = self.model.update(*data)
             self._outputs.append(output)
             self.train_iter += 1
@@ -149,21 +149,26 @@ class MBController:
                 if self.path is not None:
                     self.buffer.save(init_buffer_path)
 
+
             print('train network...')
             if not self.loaded_model:
-                for _ in tqdm.trange(self.init_train_step):
-                    self.update_network(env)
+                self.update_network(env, self.init_train_step, progress=True)
+
         self.init_flag = True
         return self.buffer, self.model
 
     def fit(self, env, num_traj=1, num_train=50,
-                progress_bufffer_update=False, progress_rollout=False):
+                progress_buffer_update=False, progress_rollout=False, progress_train=False):
         if not self.init_flag:
             self.init(env)
 
         self.reset()
-        avg_reward = self.update_buffer(env, self, num_traj, progress_bufffer_update, progress_rollout)
-        self.update_network(env, num_train)
+        if progress_buffer_update or progress_rollout:
+            print('update buffer...')
+        avg_reward = self.update_buffer(env, self, num_traj, progress_buffer_update, progress_rollout)
+        if progress_train:
+            print('training...')
+        self.update_network(env, num_train, progress=progress_train)
         return {
             'avg_reward': avg_reward
         }

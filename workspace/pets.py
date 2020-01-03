@@ -4,6 +4,7 @@ from robot.model.gt_model import GTModel
 from robot.model.ensemble_nn import EnBNNAgent
 from robot.controller.rollout_controller import RolloutCEM
 from robot.controller.mb_controller import MBController
+from robot.utils import Visualizer
 
 def test_env():
     print('loading...')
@@ -84,8 +85,8 @@ def test_cartpole():
         action_space=env.action_space,
         horizon=25,
         iter_num=5,
-        num_mutation=100,
-        num_elite=10,
+        num_mutation=400,
+        num_elite=40,
         alpha=0.1,
         trunc_norm=True,
     )
@@ -101,15 +102,16 @@ def test_cartpole():
         path='/tmp/xxx',
         data_path=None,
         batch_size=32,
-        valid_ratio=0.2,
+        valid_ratio=0.1,
         iters_per_epoch=500,
         valid_batch_num=1,
-        data_sampler='fix'
+        data_sampler='fix',
+        vis = Visualizer('/tmp/xxx/history')
     )
 
     mb_controller.init(env)
     for _ in range(100):
-        print(mb_controller.fit(env, progress_bufffer_update=False, progress_rollout=True))
+        print(mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True, progress_train=True, num_train=5))
 
 if __name__ == '__main__':
     #test_env()

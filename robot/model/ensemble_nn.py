@@ -15,22 +15,7 @@ from scipy.stats import truncnorm
 truncnorm = truncnorm(-2, 2)
 
 def truncated_normal(size, std):
-    # import tensorflow as tf
-    # We use TF to implement initialization function for neural network weight because:
-    # 1. Pytorch doesn't support truncated normal
-    # 2. This specific type of initialization is important for rapid progress early in training in cartpole
-
-    # Do not allow tf to use gpu memory unnecessarily
-    #cfg = tf.ConfigProto()
-    #cfg.gpu_options.allow_growth = True
-
-    #sess = tf.Session(config=cfg)
-    #val = sess.run(tf.truncated_normal(shape=size, stddev=std))
-
-    # Close the session and free resources
-    #sess.close()
     trunc = truncnorm.rvs(size=size) * std
-
     return torch.tensor(trunc, dtype=torch.float32)
 
 

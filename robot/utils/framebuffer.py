@@ -2,6 +2,7 @@
 What a framebuffer should support:
     1. init with random trajectories
 """
+import tqdm
 import torch
 import numpy as np
 from robot.utils import togpu
@@ -54,7 +55,8 @@ class TrajBuffer:
         self.valid = CircleBuffer(maxlen)
         self.cur = 0
         self.valid_ratio = valid_ratio
-        self.batch_size = 200
+        self.batch_size = batch_size
+
 
     def update(self, s, a, *args):
         # everytime we will add a trajectory
@@ -83,11 +85,11 @@ class TrajBuffer:
     def save(self, path):
         if path is not None:
             print('saving...', path)
-            torch.save([self.data, self.train, self.valid, self.cur, self.batch_size, self.valid_ratio], path)
+            torch.save([self.data, self.train, self.valid, self.cur, self.valid_ratio], path)
 
     def load(self, path):
         if path is not None:
-            self.data, self.train, self.valid, self.cur, self.batch_size, self.valid_ratio = torch.load(path)
+            self.data, self.train, self.valid, self.cur, self.valid_ratio = torch.load(path)
             self.maxlen = self.train.maxlen
 
     def sample(self, mode='train', batch_size=None):
@@ -111,12 +113,13 @@ class TrajBuffer:
             print(t)
             raise e
 
-    def make_sampler(self, sample_method, mode, n):
+    def make_sampler(self, sample_method, mode, n, use_tqdm=False):
+        ran = tqdm.trange if use_tqdm else range
         if sample_method == 'random':
-            for i in range(n):
+            for i in ran(n):
                 yield self.sample(mode)
         else:
-            for i in range(n):
+            for i in ran(n):
                 # num_epoch
                 idxs = self.train.show()
                 idxs = np.random.permutation(idxs)
@@ -124,7 +127,7 @@ class TrajBuffer:
                 batch_size = self.batch_size
                 num_batch = (len(idxs) + batch_size - 1)// batch_size
 
-                for j in range(num_batch):
+                for j in ran(num_batch):
                     idx = idxs[j*batch_size:(j+1)*batch_size]
                     s = self.data[0][idx]
                     a = self.data[1][idx]
