@@ -23,26 +23,28 @@ class MBController:
                  timestep=100,  #max trajectory length
                  load=False,
                  init_buffer_size=1000, init_train_step=100000,
-                 cache_path=None,
+                 path=None,
                  data_path=None,
                  vis=None,
                  batch_size=200,
                  valid_ratio=0.2,
                  iters_per_epoch=None,
                  valid_batch_num=0,
-                 hook=[]):
+                 hook=[], data_sampler='random'):
         assert isinstance(model, AgentBase)
         assert isinstance(controller, ForwardControllerBase) or controller is None
 
         if data_path is None:
-            data_path = cache_path
+            data_path = path
         self.data_path = data_path
 
-        if cache_path is None or not os.path.exists(os.path.join(cache_path, 'agent')) or not load:
+        self.data_sampler = data_sampler
+
+        if path is None or not os.path.exists(os.path.join(path, 'agent')) or not load:
             self.loaded_model = False
             self.model = model
         else:
-            tmp_model = torch.load(os.path.join(cache_path, 'agent'))
+            tmp_model = torch.load(os.path.join(path, 'agent'))
             self.loaded_model = True
             assert type(tmp_model) == type(model)
             self.model = tmp_model
@@ -55,9 +57,9 @@ class MBController:
         self.init_train_step = init_train_step
 
         self.timestep = timestep
-        self.cache_path = cache_path
-        if self.cache_path is not None and not os.path.exists(self.cache_path):
-            os.makedirs(self.cache_path)
+        self.path = path
+        if self.path is not None and not os.path.exists(self.path):
+            os.makedirs(self.path)
 
         self.vis = vis
         self.train_iter = 0
@@ -67,15 +69,27 @@ class MBController:
         self._outputs = []
         self.hook = hook
 
-    def update_network(self, env=None):
-        data = self.buffer.sample('train')
-        output = self.model.update(*data)
-        self._outputs.append(output)
-        self.train_iter += 1
+    # controller part
+    def reset(self, cost=None):
+        self.controller.set_model(self.model)
+        if cost is not None:
+            self.controller.set_cost(cost)
+        return self.controller.reset()
 
-        if self.iters_per_epoch is not None and self.train_iter % self.iters_per_epoch == 0:
-            self.after_epoch(data, output, env)
-        return output
+    def __call__(self, x):
+        out = tocpu(self.controller(x))
+        return out
+
+
+    # update part
+    def update_network(self, env=None, num_train=50):
+        for data in self.buffer.make_sampler(self.data_sampler, 'train', num_train):
+            output = self.model.update(*data)
+            self._outputs.append(output)
+            self.train_iter += 1
+
+            if self.iters_per_epoch is not None and self.train_iter % self.iters_per_epoch == 0:
+                self.after_epoch(data, output, env)
 
     def after_epoch(self, data, output, env=None):
         self.model.eval()
@@ -90,8 +104,7 @@ class MBController:
 
         if self.valid_batch_num > 0:
             outputs = []
-            for i in range(self.valid_batch_num):
-                data = self.buffer.sample('valid')
+            for data in self.buffer.make_sampler('random', 'valid', self.valid_batch_num):
                 outputs.append(self.model.update(*data))
             dic = {**merge_training_output(outputs, 'valid'), **dic}
             if 'visualize' in self.model.__dir__():
@@ -103,26 +116,17 @@ class MBController:
         if self.vis is not None:
             self.vis(dic)
 
-        self.model.save(self.cache_path)
-
+        self.model.save(self.path)
         self.model.train()
         return dic
 
-    def update_buffer(self, env, policy):
-        s, a = rollout(env, policy, timestep=self.timestep)
-        self.buffer.update(s, a)
+    def update_buffer(self, env, policy, num_traj):
+        for i in range(num_traj):
+            s, a = rollout(env, policy, timestep=self.timestep)
+            self.buffer.update(s, a)
 
-    # controller part
-    def reset(self, cost=None):
-        self.controller.set_model(self.model)
-        if cost is not None:
-            self.controller.set_cost(cost)
-        return self.controller.reset()
 
-    def __call__(self, x):
-        out = tocpu(self.controller(x))
-        return out
-
+    # init and fit
     def init(self, env: gym.Env):
         if self.init_buffer_size > 0:
             print('init....')
@@ -139,7 +143,7 @@ class MBController:
                 print('filling buffer...')
                 for _ in tqdm.trange(self.init_buffer_size):
                     self.update_buffer(env, random_policy)
-                if self.cache_path is not None:
+                if self.path is not None:
                     self.buffer.save(init_buffer_path)
 
             print('train network...')
@@ -149,20 +153,18 @@ class MBController:
         self.init_flag = True
         return self.buffer, self.model
 
-    def fit(self, env, num_iter=1, num_train=50):
+    def fit(self, env, num_iter=1, num_traj=1, num_train=50):
         if not self.init_flag:
             self.init(env)
 
         for _ in range(num_iter):
             self.reset()
-            self.update_buffer(env, self)
-            for _ in range(num_train):
-                self.update_network(env)
+            self.update_buffer(env, self, num_traj)
+            self.update_network(env, num_train)
         return self
 
     def test(self, env, num_episode=10):
         return evaluate(env, self, self.timestep, num_episode)
-
 
 def test_mb_controller():
     import torch
@@ -189,7 +191,7 @@ def test_mb_controller():
                                mode='fix')
 
     mb_controller = MBController(model, controller, maxlen=int(1e6), timestep=timestep,
-                                 init_buffer_size=200, init_train_step=10000,  cache_path='/tmp/xxx/',
+                                 init_buffer_size=200, init_train_step=10000, path='/tmp/xxx/',
                                  vis=Visualizer('/tmp/xxx/history'))
 
     mb_controller.init(env)

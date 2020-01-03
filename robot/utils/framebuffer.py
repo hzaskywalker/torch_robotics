@@ -111,6 +111,27 @@ class TrajBuffer:
             print(t)
             raise e
 
+    def make_sampler(self, sample_method, mode, n):
+        if sample_method == 'random':
+            for i in range(n):
+                yield self.sample(mode)
+        else:
+            for i in range(n):
+                # num_epoch
+                idxs = self.train.show()
+                idxs = np.random.permutation(idxs)
+
+                batch_size = self.batch_size
+                num_batch = len(idxs) // batch_size
+
+                for j in range(num_batch):
+                    idx = idxs[j*batch_size:(j+1)*batch_size]
+                    s = self.data[0][idx]
+                    a = self.data[1][idx]
+                    t = self.data[0+1][idx + 1]
+                    yield togpu(s), togpu(a), togpu(t)
+
+
 
 def test():
     buffer = TrajBuffer(100, 0.2)

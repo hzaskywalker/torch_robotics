@@ -134,7 +134,7 @@ class DmControlWrapper(gym.Env):
         return self.viewer[mode]
 
 
-class StateFormat:
+class StatePrior:
     def __init__(self, n, d, dq):
         self.n = n
         self.d = d
@@ -195,7 +195,7 @@ class GraphDmControlWrapper(DmControlWrapper):
         n = len(self.dmcenv.physics.data.xpos)
         d = 3 + 6 + 3 + 3
         dq = len(self.dmcenv.physics.data.qpos) + len(self.dmcenv.physics.data.qvel)
-        self.state_format = StateFormat(n, d, dq)
+        self.state_prior = StatePrior(n, d, dq)
         self.dq = dq
         self.dq_pos = len(self.dmcenv.physics.data.qpos)
         high = np.zeros((n*d+dq,)) +np.inf
@@ -321,7 +321,7 @@ class GraphDmControlWrapper(DmControlWrapper):
         else:
             angle = phy.data.xquat[:].copy()
 
-        return self.state_format.encode(
+        return self.state_prior.encode(
             np.concatenate((pos, angle, np.stack(vels)), axis=-1),
             np.concatenate((phy.data.qpos.copy(), phy.data.qvel.copy()))
         )

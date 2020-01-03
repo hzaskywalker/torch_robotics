@@ -9,7 +9,7 @@ from robot.controller.mb_controller import MBController
 from robot.model.gnn_forward import GNNForwardAgent
 from robot.envs.dm_control import make as dm_make
 from robot.utils import Visualizer
-from robot.envs.dm_control.dmenv import GraphDmControlWrapper
+from robot.envs.dm_control.dm_env import GraphDmControlWrapper
 
 
 def make(env_name, mode='Graph'):
@@ -88,8 +88,8 @@ def test_inverse_kinematics():
         a = env.action_space.sample()
         t = env.step(a)[0]
 
-    s, q = env.state_format.decode(t)
-    s2, q2 = env.state_format.decode(env.forward(q))
+    s, q = env.state_prior.decode(t)
+    s2, q2 = env.state_prior.decode(env.forward(q))
     assert np.abs(q2 - q).sum() < 1e-12
 
     env.reset()
@@ -128,7 +128,7 @@ def test_reset_geom1():
 def test_geom():
     import cv2
     env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
-    s, q = env.state_format.decode(env.reset())
+    s, q = env.state_prior.decode(env.reset())
 
     g_pos, g_mat = env.recompute_geom(s)
 
@@ -146,7 +146,7 @@ def test_render():
     env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
 
     while True:
-        s, q = env.state_format.decode(env.reset())
+        s, q = env.state_prior.decode(env.reset())
         img = env.render(mode='rgb_array')
 
         env.reset()
@@ -184,7 +184,7 @@ def main():
 
     model = MBController(agent, controller, int(1e6),
                          init_buffer_size=1000, init_train_step=1000000,
-                         valid_ratio=0.2, iters_per_epoch=1000, valid_batch_num=10, cache_path=path,
+                         valid_ratio=0.2, iters_per_epoch=1000, valid_batch_num=10, path=path,
                          vis=Visualizer(os.path.join(path, 'history')), hook=[test_it],
                          data_path='/tmp/pendulum')
     model.init(env)

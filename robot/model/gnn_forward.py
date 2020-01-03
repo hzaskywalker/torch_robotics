@@ -178,20 +178,20 @@ class GraphNormalizer(nn.Module):
 class GNNForwardAgent(AgentBase):
     def __init__(self, lr, env, normalize=False, *args, **kwargs):
         self.init_graph(env)
-        self.state_format = env.state_format
+        self.state_prior = env.state_info
 
-        node_dim = self.state_format.d + self.node_attr.shape[-1]
+        node_dim = self.state_prior.d + self.node_attr.shape[-1]
 
         assert len(env.action_space.shape) == 1
         edge_dim = 1 + self.edge_attr.shape[-1]
 
         if normalize:
             self.inp_norm = GraphNormalizer(node_dim, edge_dim) # normalize graph
-            self.oup_norm = Normalizer((self.state_format.d,)) # normalize output
+            self.oup_norm = Normalizer((self.state_prior.d,)) # normalize output
         else:
             self.inp_norm = self.oup_norm = None
 
-        model = GNResidule(node_dim, edge_dim, self.state_format.d, 1, *args, **kwargs)
+        model = GNResidule(node_dim, edge_dim, self.state_prior.d, 1, *args, **kwargs)
 
         super(GNNForwardAgent, self).__init__(model, lr)
 
@@ -279,11 +279,11 @@ class GNNForwardAgent(AgentBase):
         if self.training:
             self.optim.zero_grad()
 
-        s_node, _ = self.state_format.decode(s)
-        t_node, _ = self.state_format.decode(t)
+        s_node, _ = self.state_prior.decode(s)
+        t_node, _ = self.state_prior.decode(t)
 
         graph = self.build_graph(s_node, a)
-        delta = self.state_format.delete(t_node, s_node)
+        delta = self.state_prior.delete(t_node, s_node)
 
         if self.inp_norm is not None:
             graph = self.inp_norm(graph)
@@ -291,7 +291,7 @@ class GNNForwardAgent(AgentBase):
             delta = self.oup_norm(delta)
 
         output = self.decode_node(self.forward_model(graph))
-        loss = self.state_format.dist(output, delta).mean()
+        loss = self.state_prior.dist(output, delta).mean()
 
         if self.training:
             if self.inp_norm is not None:
@@ -308,12 +308,12 @@ class GNNForwardAgent(AgentBase):
 
         return {
             'loss': tocpu(loss),
-            'st_distance': tocpu(self.state_format.dist(s_node, t_node).mean()),
+            'st_distance': tocpu(self.state_prior.dist(s_node, t_node).mean()),
         }
 
     def get_predict(self, s, a):
         if len(s.shape) == 2:
-            s_node, xx = self.state_format.decode(s)
+            s_node, xx = self.state_prior.decode(s)
         else:
             s_node = s
             xx = None
@@ -324,16 +324,16 @@ class GNNForwardAgent(AgentBase):
 
         if self.oup_norm is not None:
             delta = self.oup_norm.denorm(delta)
-        out = self.state_format.add(s_node, delta)
+        out = self.state_prior.add(s_node, delta)
         if xx is not None:
-            out = self.state_format.encode(out, xx)
+            out = self.state_prior.encode(out, xx)
         return out
 
 
     def visualize(self, prefix, data, dic, env, **kwargs):
         s, a, t = data
-        predict = self.state_format.decode(self.get_predict(s, a))[0]
-        t_node, _ = self.state_format.decode(t)
+        predict = self.state_prior.decode(self.get_predict(s, a))[0]
+        t_node, _ = self.state_prior.decode(t)
 
         imgs = []
         idx = 0

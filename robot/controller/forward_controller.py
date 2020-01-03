@@ -136,8 +136,6 @@ class CEMController(ForwardControllerBase):
         cost: torch.Tensor = 0
         for it in range(len(action[0])):
             t = self.forward(x, action[:, it])
-
-            # batched cost function
             cost = self.cost(x, action[:, it], t, it + start_it) + cost
             x = t
         return cost
