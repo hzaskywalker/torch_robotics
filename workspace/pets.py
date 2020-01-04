@@ -53,7 +53,7 @@ def test_env():
 
 def load_parameters(model: EnBNNAgent):
     import torch
-    xx = torch.load('/home/hza/handful-of-trials-pytorch/model_cheetah.t')
+    xx = torch.load('/home/hza/handful-of-trials-pytorch/xx')
     idx = 0
     for i in model.forward_model.parameters():
         while xx[idx].shape[-1] == 24: #6:
@@ -143,7 +143,8 @@ def test_halfcheetah():
         ensemble_size=5,
         num_layers=5,
         mid_channels=200,
-        normalizer=False,
+        normalizer=True,
+        npart=20,
     ).cuda()
 
     controller = RolloutCEM(
@@ -160,7 +161,9 @@ def test_halfcheetah():
     )
 
     if False:
-        load_parameters(model)
+        import torch
+        with torch.no_grad():
+            load_parameters(model)
 
         """
         obs = env.reset()
@@ -192,15 +195,12 @@ def test_halfcheetah():
         vis = Visualizer('/tmp/halfcheetah/history')
     )
 
-    #mb_controller.test(env, use_tqdm=True, print_reward=True)
-    #exit(0)
-
     mb_controller.init(env)
     for it in range(200):
         print(it, mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True,
                                     progress_train=True, num_train=5))
 
 if __name__ == '__main__':
-    test_cartpole()
+    #test_cartpole()
     #test_env()
-    #test_halfcheetah()
+    test_halfcheetah()

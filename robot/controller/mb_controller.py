@@ -84,12 +84,7 @@ class MBController:
     # update part
     def update_network(self, env=None, num_train=50, progress=False):
         if 'fit_normalizer' in self.model.__dir__():
-            #TODO: very very ugly
-            if self.model.normalizer:
-                print('fitting...')
-                data_gen = self.buffer.make_sampler(self.data_sampler, 'train', 1, use_tqdm=False)
-                self.model.fit_normalizer(data_gen)
-                print('training...')
+            self.model.fit_normalizer(self.buffer)
 
         for data in self.buffer.make_sampler(self.data_sampler, 'train', num_train, use_tqdm=progress):
             output = self.model.update(*data)

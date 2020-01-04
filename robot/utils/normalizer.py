@@ -44,7 +44,7 @@ class Normalizer(nn.Module):
         # calculate the new mean and std
         self.mean[:] = self.sum / self.count
         std = ((self.sumsq/self.count) - self.mean **2)
-        self.std[:] = std.clamp(self.eps**2, float('inf'))
+        self.std[:] = torch.sqrt(std.clamp(self.eps**2, float('inf')))
 
     # normalize the observation
     def norm(self, v: torch.Tensor, clip_range=None):

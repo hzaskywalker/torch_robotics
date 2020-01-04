@@ -161,20 +161,24 @@ class EnBNNAgent(AgentBase):
                 s = t
             return torch.stack(outs, dim=2), rewards.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
-    def fit_normalizer(self, data_gen):
-        # very strange function
-        idx = 0
-        for s, a, _ in data_gen:
-            s = self.state_prior.encode(s)
-            if idx == 0:
-                self.obs_norm.fit(s)
-                self.action_norm.fit(a)
-                idx = 1
-            else:
-                self.obs_norm.update(s)
-                self.action_norm.update(a)
-        print('normalizer')
-        print(self.obs_norm.mean, self.obs_norm.std, self.obs_norm.count)
+    def fit_normalizer(self, buffer):
+        # TODO: very very ugly
+        if self.normalizer:
+            print('fit normalizer...')
+            data_gen = buffer.make_sampler('fix', 'train', 1, use_tqdm=False)
+            # very strange function
+            idx = 0
+            for s, a, _ in data_gen:
+                s = self.state_prior.encode(s)
+                if idx == 0:
+                    self.obs_norm.fit(s)
+                    self.action_norm.fit(a)
+                    idx = 1
+                else:
+                    self.obs_norm.update(s)
+                    self.action_norm.update(a)
+            print('normalizer')
+            print(self.obs_norm.mean, self.obs_norm.std, self.obs_norm.count)
 
     def update(self, s, a, t):
         if self.training:
