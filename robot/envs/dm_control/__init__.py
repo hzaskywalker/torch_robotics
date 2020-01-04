@@ -1,7 +1,7 @@
 from gym.envs.registration import register
 import gym
 import os
-os.environ['MUJOCO_GL'] = "osmesa" # for headless rendering
+#os.environ['MUJOCO_GL'] = "osmesa" # for headless rendering
 from . import dm_env
 import hashlib
 
