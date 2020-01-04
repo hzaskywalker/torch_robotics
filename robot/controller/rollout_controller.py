@@ -15,10 +15,15 @@ class RolloutCEM:
         self.horizon = horizon
         self.replan_period = replan_period
         self.init_var = torch.tensor((action_space.high - action_space.low)/16, device=device, dtype=torch.float)
+        self.device = device
 
     def cost(self, x, a):
         x = x[None, :].expand(a.shape[0], -1)
-        return self.model.rollout(x, a)[1] # ignore the cost and only use the reward
+        out = self.model.rollout(x, a)[1] # ignore the cost and only use the reward
+        if not isinstance(out, torch.Tensor):
+            out = torch.Tensor(out).to(self.device)
+        return out
+
 
     def init_actions(self, horizon):
         return torch.tensor([(self.action_space.high + self.action_space.low) * 0.5 for _ in range(horizon)],

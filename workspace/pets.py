@@ -8,23 +8,22 @@ from robot.utils import Visualizer
 
 def test_env():
     print('loading...')
-    env_name = 'MBRLCartpole-v0'
+    env_name = 'MBRLHalfCheetah-v0'
     env = make(env_name)
     state_prior = env.state_prior
 
-    rollout_model = GTModel(make, env_name, num_process=40)
+    rollout_model = GTModel(make, env_name, num_process=20)
 
     controller = RolloutCEM(
         model=rollout_model,
         action_space=env.action_space,
         horizon=25,
         iter_num=5,
-        num_mutation=100,
-        num_elite=10,
+        num_mutation=500,
+        num_elite=50,
         alpha=0.1,
         trunc_norm=True,
-        #lower_bound = env.action_space.low,
-        #upper_bound =env.action_space.high,
+        device='cpu'
     )
 
     mb_controller = MBController(
@@ -48,8 +47,25 @@ def test_env():
     print('acc:', mb_controller.test(env, use_tqdm=True, print_reward=True))
 
 
-#def test_cartpole():
-#    pass
+def load_parameters(model: EnBNNAgent):
+    import torch
+    xx = torch.load('/home/hza/handful-of-trials-pytorch/model.t')
+    idx = 0
+    for i in model.forward_model.parameters():
+        while xx[idx].shape[-1] == 6:
+            idx += 1
+        print(i.shape, xx[idx].shape)
+        i[:] = xx[idx][:]
+        idx += 1
+    mu = xx[-4]
+    var = xx[-3]
+
+    model.obs_norm.mean[:] = mu[0, :5]
+    model.obs_norm.std[:] = var[0, :5]
+
+    model.action_norm.mean[:] = mu[0, -1]
+    model.action_norm.std[:] = var[0, -1]
+
 
 def test_cartpole():
     print('loading...')
@@ -67,19 +83,6 @@ def test_cartpole():
         mid_channels=500,
     ).cuda()
 
-
-    #obs = env.reset()[None,:].repeat(5, axis=0)
-    #action = env.action_space.sample()[None,:].repeat(5, axis=0)
-    #print('OUTPUT', [i.shape for i in model.get_predict(obs, action)])
-    #exit(0)
-    """
-    import torch
-    obs = torch.Tensor(env.reset()).to('cuda:0')
-    act = torch.Tensor([[env.action_space.sample() for j in range(10)] for i in range(3)]).to('cuda:0')
-    for i in model.rollout(obs, act):
-        print(i.shape)
-    exit(0)
-    """
     controller = RolloutCEM(
         model=model,
         action_space=env.action_space,
@@ -108,11 +111,66 @@ def test_cartpole():
         data_sampler='fix',
         vis = Visualizer('/tmp/xxx/history')
     )
+    #mb_controller.test(env, use_tqdm=True, print_reward=True)
+    #exit(0)
 
     mb_controller.init(env)
     for _ in range(100):
         print(mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True, progress_train=True, num_train=5))
 
+
+def test_halfcheetah():
+    print('loading...')
+    env_name = 'MBRLHalfCheetah-v0'
+    env = make(env_name)
+    state_prior = env.state_prior
+    #print(env.observation_space)
+    #print(state_prior.inp_dim, env.action_space)
+
+    model = EnBNNAgent(
+        lr=0.001,
+        env=env,
+        weight_decay=[0.000025, 0.00005, 0.000075, 0.000075, 0.0001],
+        var_reg=0.01,
+        ensemble_size=5,
+        num_layers=5,
+        mid_channels=200,
+    ).cuda()
+
+    controller = RolloutCEM(
+        model=model,
+        action_space=env.action_space,
+        horizon=30,
+        iter_num=5,
+        num_mutation=500,
+        num_elite=50,
+        alpha=0.1,
+        trunc_norm=True,
+    )
+
+    mb_controller = MBController(
+        model,
+        controller,
+        maxlen=int(1e6),
+        timestep=int(state_prior.TASK_HORIZON),
+        load=False,
+        init_buffer_size=1,
+        init_train_step=5,
+        path='/tmp/halfcheetah',
+        data_path=None,
+        batch_size=32,
+        valid_ratio=0.1,
+        iters_per_epoch=500,
+        valid_batch_num=1,
+        data_sampler='fix',
+        vis = Visualizer('/tmp/halfcheetah/history')
+    )
+
+    mb_controller.init(env)
+    for _ in range(200):
+        print(mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True, progress_train=True, num_train=5))
+
 if __name__ == '__main__':
-    #test_env()
-    test_cartpole()
+    #test_cartpole()
+    #test_halfcheetah()
+    test_env()

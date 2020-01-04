@@ -121,7 +121,6 @@ class EnBNNAgent(AgentBase):
         self.var_reg = var_reg
 
         self.state_prior = env.state_prior # which is actually a config file of the environment
-        self.batch_size = 32
         self.ensemble_size = ensemble_size
 
     def cuda(self):
@@ -156,8 +155,8 @@ class EnBNNAgent(AgentBase):
     def update(self, s, a, t):
         if self.training:
             self.optim.zero_grad()
-            self.obs_norm.fit(self.state_prior.encode(s))
-            self.action_norm.fit(a)
+            self.obs_norm.update(self.state_prior.encode(s))
+            self.action_norm.update(a)
 
         mean, log_var = self.get_predict(s, a)
 
