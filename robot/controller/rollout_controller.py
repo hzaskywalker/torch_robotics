@@ -14,7 +14,7 @@ class RolloutCEM:
 
         self.horizon = horizon
         self.replan_period = replan_period
-        self.init_var = torch.tensor((action_space.high - action_space.low)/16, device=device, dtype=torch.float)
+        self.init_std = torch.tensor((action_space.high - action_space.low)/4, device=device, dtype=torch.float)
         self.device = device
 
     def cost(self, x, a):
@@ -27,7 +27,7 @@ class RolloutCEM:
 
     def init_actions(self, horizon):
         return torch.tensor([(self.action_space.high + self.action_space.low) * 0.5 for _ in range(horizon)],
-                            dtype=torch.float, device=self.init_var.device)
+                            dtype=torch.float, device=self.init_std.device)
 
     def set_model(self, model):
         self.model = model
@@ -42,12 +42,9 @@ class RolloutCEM:
             if self.ac_buf.shape[0] > 0:
                 act, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
                 return act
-        obs = torch.tensor(obs, device=self.init_var.device, dtype=torch.float)
-        self.prev_actions = self.optimizer(obs, self.prev_actions, self.init_var)
+        obs = torch.tensor(obs, device=self.init_std.device, dtype=torch.float)
+        self.prev_actions = self.optimizer(obs, self.prev_actions, self.init_std)
 
         self.ac_buf, self.prev_actions = torch.split(self.prev_actions, [self.replan_period, self.horizon-self.replan_period])
         self.prev_actions = torch.cat((self.prev_actions, self.init_actions(self.replan_period)))
         return self.__call__(obs)
-
-
-

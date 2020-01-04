@@ -57,9 +57,8 @@ class GaussianLayer(nn.Module):
 
         self.out_features = out_features
 
-        # TODO: need add some normalization term
         self.max_logvar = nn.Parameter(torch.ones(1, out_features // 2, dtype=torch.float32) / 2.0)
-        self.min_logvar = nn.Parameter(- torch.ones(1, out_features // 2, dtype=torch.float32) * 10.0)
+        self.min_logvar = nn.Parameter(-torch.ones(1, out_features // 2, dtype=torch.float32) * 10.0)
 
     def forward(self, inputs):
         mean = inputs[:, :, :self.out_features // 2]
@@ -104,7 +103,7 @@ class EnBNN(nn.Module):
 
 class EnBNNAgent(AgentBase):
     def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01,
-                 ensemble_size=5, *args, **kwargs):
+                 ensemble_size=5, normalizer=False, *args, **kwargs):
         state_prior = env.state_prior
 
         inp_dim = state_prior.inp_dim
@@ -113,8 +112,11 @@ class EnBNNAgent(AgentBase):
 
         self.forward_model = EnBNN(ensemble_size, inp_dim + action_dim, obs_dim, *args, **kwargs)
 
-        self.obs_norm: Normalizer = Normalizer((inp_dim,))
-        self.action_norm: Normalizer = Normalizer((action_dim,))
+        self.normalizer = normalizer
+
+        if self.normalizer:
+            self.obs_norm: Normalizer = Normalizer((inp_dim,))
+            self.action_norm: Normalizer = Normalizer((action_dim,))
 
         super(EnBNNAgent, self).__init__(self.forward_model, lr)
         self.weight_decay = weight_decay
@@ -124,14 +126,16 @@ class EnBNNAgent(AgentBase):
         self.ensemble_size = ensemble_size
 
     def cuda(self):
-        self.obs_norm.cuda()
-        self.action_norm.cuda()
+        if self.normalizer:
+            self.obs_norm.cuda()
+            self.action_norm.cuda()
         return super(EnBNNAgent, self).cuda()
 
     def get_predict(self, s, a):
         inp = self.state_prior.encode(s)
-        inp = self.obs_norm(inp)
-        a = self.action_norm(a)
+        if self.normalizer:
+            inp = self.obs_norm(inp)
+            a = self.action_norm(a)
         mean, log_var = self.forward_model(inp, a)
         return self.state_prior.add(s, mean), log_var
 
@@ -146,22 +150,24 @@ class EnBNNAgent(AgentBase):
         for i in range(a.shape[1]):
             act = a[None, :, i].expand(self.ensemble_size, -1, -1)
             mean, log_var = self.get_predict(s, act)
-            t = torch.randn_like(log_var) * torch.exp(log_var/2) + mean # sample
+            t = torch.randn_like(log_var) * torch.exp(log_var * 0.5) + mean # sample
             outs.append(t)
             rewards.append(self.state_prior.cost(s, act, t))
             s = t
-        return torch.stack(outs, dim=2), torch.stack(rewards, dim=1).mean(dim=(0,1)) # get the reward amont time and B
+
+        return torch.stack(outs, dim=2), torch.stack(rewards, dim=1).mean(dim=(0,1)) # get the reward amount time and B
 
     def update(self, s, a, t):
         if self.training:
             self.optim.zero_grad()
-            self.obs_norm.update(self.state_prior.encode(s))
-            self.action_norm.update(a)
+            if self.normalizer:
+                self.obs_norm.update(self.state_prior.encode(s))
+                self.action_norm.update(a)
 
         mean, log_var = self.get_predict(s, a)
 
         inv_var = torch.exp(-log_var)
-        loss = ((mean - t.detach()[None,:]) ** 2) * inv_var + log_var
+        loss = ((mean - t.detach()[None, :]) ** 2) * inv_var + log_var
         loss = loss.mean(dim=(-2, -1)).sum(dim=0) # sum across different models
 
         loss += self.var_reg * self.forward_model.var_reg()

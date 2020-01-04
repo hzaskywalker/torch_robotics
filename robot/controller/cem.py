@@ -37,7 +37,7 @@ class CEM:
                 if self.upper_bound is not None and self.upper_bound is not None:
                     lb_dist = mean - self.lower_bound.to(mean.device)
                     ub_dist = -mean + self.upper_bound.to(mean.device)
-                    _std = torch.min((torch.min(lb_dist, ub_dist)/2) ** 2, std)
+                    _std = torch.min(torch.abs(torch.min(lb_dist, ub_dist)/2), std)
 
                 populations = torch.Tensor(self.sampler(size=shape)).to(mean.device) * _std[None, :] + mean[None, :]
                 reward = self.eval_function(scene, populations)

@@ -81,6 +81,7 @@ def test_cartpole():
         ensemble_size=5,
         num_layers=4,
         mid_channels=500,
+        normalizer=False,
     ).cuda()
 
     controller = RolloutCEM(
@@ -92,6 +93,8 @@ def test_cartpole():
         num_elite=40,
         alpha=0.1,
         trunc_norm=True,
+        upper_bound=env.action_space.high,
+        lower_bound=env.action_space.low,
     )
 
     mb_controller = MBController(
@@ -115,8 +118,9 @@ def test_cartpole():
     #exit(0)
 
     mb_controller.init(env)
-    for _ in range(100):
-        print(mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True, progress_train=True, num_train=5))
+    for it in range(100):
+        print(it, mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True,
+                                    progress_train=True, num_train=5))
 
 
 def test_halfcheetah():
@@ -146,6 +150,9 @@ def test_halfcheetah():
         num_elite=50,
         alpha=0.1,
         trunc_norm=True,
+
+        upper_bound=env.action_space.high,
+        lower_bound=env.action_space.low,
     )
 
     mb_controller = MBController(
@@ -167,10 +174,12 @@ def test_halfcheetah():
     )
 
     mb_controller.init(env)
-    for _ in range(200):
-        print(mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True, progress_train=True, num_train=5))
+    for it in range(200):
+        print(it, mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True,
+                                    progress_train=True, num_train=5))
 
 if __name__ == '__main__':
-    #test_cartpole()
+    test_cartpole()
+    #test_env()
+
     #test_halfcheetah()
-    test_env()
