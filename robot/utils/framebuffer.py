@@ -74,7 +74,7 @@ class TrajBuffer:
             else:
                 self.train.append(self.cur)
             self.cur += 1
-        self.cur += 1
+        self.cur += 1 # last, no item
 
         while self.train[0] is not None and self.train[0] < self.cur - self.maxlen:
             self.train.popleft()
@@ -116,16 +116,16 @@ class TrajBuffer:
     def make_sampler(self, sample_method, mode, n, use_tqdm=False):
         ran = tqdm.trange if use_tqdm else range
         if sample_method == 'random':
-            for i in ran(n):
+            for _ in ran(n):
                 yield self.sample(mode)
         else:
-            for i in ran(n):
+            for _ in ran(n):
                 # num_epoch
                 idxs = self.train.show()
                 idxs = np.random.permutation(idxs)
 
                 batch_size = self.batch_size
-                num_batch = (len(idxs) + batch_size - 1)// batch_size
+                num_batch = (len(idxs) + batch_size - 1) // batch_size
 
                 for j in ran(num_batch):
                     idx = idxs[j*batch_size:(j+1)*batch_size]

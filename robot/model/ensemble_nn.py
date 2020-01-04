@@ -103,7 +103,7 @@ class EnBNN(nn.Module):
 
 class EnBNNAgent(AgentBase):
     def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01, npart=20,
-                 ensemble_size=5, normalizer=False, *args, **kwargs):
+                 ensemble_size=5, normalizer=True, *args, **kwargs):
         state_prior = env.state_prior
 
         inp_dim = state_prior.inp_dim
@@ -161,12 +161,24 @@ class EnBNNAgent(AgentBase):
                 s = t
             return torch.stack(outs, dim=2), rewards.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
+    def fit_normalizer(self, data_gen):
+        # very strange function
+        idx = 0
+        for s, a, _ in data_gen:
+            s = self.state_prior.encode(s)
+            if idx == 0:
+                self.obs_norm.fit(s)
+                self.action_norm.fit(a)
+                idx = 1
+            else:
+                self.obs_norm.update(s)
+                self.action_norm.update(a)
+        print('normalizer')
+        print(self.obs_norm.mean, self.obs_norm.std, self.obs_norm.count)
+
     def update(self, s, a, t):
         if self.training:
             self.optim.zero_grad()
-            if self.normalizer:
-                self.obs_norm.update(self.state_prior.encode(s))
-                self.action_norm.update(a)
 
         mean, log_var = self.get_predict(s, a)
 

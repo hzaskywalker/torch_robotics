@@ -53,10 +53,10 @@ def test_env():
 
 def load_parameters(model: EnBNNAgent):
     import torch
-    xx = torch.load('/home/hza/handful-of-trials-pytorch/model.t')
+    xx = torch.load('/home/hza/handful-of-trials-pytorch/model_cheetah.t')
     idx = 0
     for i in model.forward_model.parameters():
-        while xx[idx].shape[-1] == 6:
+        while xx[idx].shape[-1] == 24: #6:
             idx += 1
         print(i.shape, xx[idx].shape)
         i[:] = xx[idx][:]
@@ -64,11 +64,11 @@ def load_parameters(model: EnBNNAgent):
     mu = xx[-4]
     var = xx[-3]
 
-    model.obs_norm.mean[:] = mu[0, :5]
-    model.obs_norm.std[:] = var[0, :5]
+    model.obs_norm.mean[:] = mu[0, :18] # 5
+    model.obs_norm.std[:] = var[0, :18]
 
-    model.action_norm.mean[:] = mu[0, -1]
-    model.action_norm.std[:] = var[0, -1]
+    model.action_norm.mean[:] = mu[0, -6:]
+    model.action_norm.std[:] = var[0, -6:]
 
 
 def test_cartpole():
@@ -85,7 +85,7 @@ def test_cartpole():
         ensemble_size=5,
         num_layers=4,
         mid_channels=500,
-        normalizer=False,
+        normalizer=True,
     ).cuda()
 
     controller = RolloutCEM(
@@ -143,6 +143,7 @@ def test_halfcheetah():
         ensemble_size=5,
         num_layers=5,
         mid_channels=200,
+        normalizer=False,
     ).cuda()
 
     controller = RolloutCEM(
@@ -157,6 +158,21 @@ def test_halfcheetah():
         upper_bound=env.action_space.high,
         lower_bound=env.action_space.low,
     )
+
+    if False:
+        load_parameters(model)
+
+        """
+        obs = env.reset()
+        action = env.action_space.sample()
+        import torch
+
+        t = model.get_predict(torch.Tensor(obs).cuda()[None,:], torch.Tensor(action).cuda()[None,:])[0]
+        print(t)
+        print(obs)
+        print(env.step(action)[0])
+        exit(0)
+        """
 
     mb_controller = MBController(
         model,
@@ -176,12 +192,15 @@ def test_halfcheetah():
         vis = Visualizer('/tmp/halfcheetah/history')
     )
 
+    #mb_controller.test(env, use_tqdm=True, print_reward=True)
+    #exit(0)
+
     mb_controller.init(env)
     for it in range(200):
         print(it, mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True,
                                     progress_train=True, num_train=5))
 
 if __name__ == '__main__':
-    #test_cartpole()
+    test_cartpole()
     #test_env()
-    test_halfcheetah()
+    #test_halfcheetah()
