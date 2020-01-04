@@ -23,7 +23,9 @@ def test_env():
         num_elite=50,
         alpha=0.1,
         trunc_norm=True,
-        device='cpu'
+        device='cpu',
+        upper_bound = env.action_space.high,
+        lower_bound =env.action_space.low,
     )
 
     mb_controller = MBController(
@@ -44,7 +46,9 @@ def test_env():
     )
 
     mb_controller.init(env)
-    print('acc:', mb_controller.test(env, use_tqdm=True, print_reward=True))
+    acc = mb_controller.test(env, use_tqdm=True, print_reward=True)
+    print('#' * 10)
+    print('acc:', acc)
 
 
 def load_parameters(model: EnBNNAgent):
@@ -150,7 +154,6 @@ def test_halfcheetah():
         num_elite=50,
         alpha=0.1,
         trunc_norm=True,
-
         upper_bound=env.action_space.high,
         lower_bound=env.action_space.low,
     )
@@ -179,7 +182,6 @@ def test_halfcheetah():
                                     progress_train=True, num_train=5))
 
 if __name__ == '__main__':
-    test_cartpole()
+    #test_cartpole()
     #test_env()
-
-    #test_halfcheetah()
+    test_halfcheetah()

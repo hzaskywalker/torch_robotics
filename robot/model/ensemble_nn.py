@@ -102,7 +102,7 @@ class EnBNN(nn.Module):
 
 
 class EnBNNAgent(AgentBase):
-    def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01,
+    def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01, npart=20,
                  ensemble_size=5, normalizer=False, *args, **kwargs):
         state_prior = env.state_prior
 
@@ -113,6 +113,9 @@ class EnBNNAgent(AgentBase):
         self.forward_model = EnBNN(ensemble_size, inp_dim + action_dim, obs_dim, *args, **kwargs)
 
         self.normalizer = normalizer
+        self.npart = npart
+        self.ensemble_size = ensemble_size
+        assert self.npart % self.ensemble_size == 0 and self.npart > 0
 
         if self.normalizer:
             self.obs_norm: Normalizer = Normalizer((inp_dim,))
@@ -142,20 +145,21 @@ class EnBNNAgent(AgentBase):
     def rollout(self, s, a):
         # s (inp_dim)
         # a (pop, T, acts)
-        if len(s.shape) == 1:
-            s = s[None, :].expand(a.shape[0], -1)
-        s = s[None, :].expand(self.ensemble_size, -1, -1)
-        outs = []
-        rewards = []
-        for i in range(a.shape[1]):
-            act = a[None, :, i].expand(self.ensemble_size, -1, -1)
-            mean, log_var = self.get_predict(s, act)
-            t = torch.randn_like(log_var) * torch.exp(log_var * 0.5) + mean # sample
-            outs.append(t)
-            rewards.append(self.state_prior.cost(s, act, t))
-            s = t
+        with torch.no_grad():
+            if len(s.shape) == 1:
+                s = s[None, :].expand(a.shape[0], -1)
+            s = s[None, :].expand(self.npart, -1, -1).reshape(self.ensemble_size, -1, *s.shape[1:])
 
-        return torch.stack(outs, dim=2), torch.stack(rewards, dim=1).mean(dim=(0,1)) # get the reward amount time and B
+            outs = []
+            rewards = 0
+            for i in range(a.shape[1]):
+                act = a[None, :, i].expand(self.npart, -1, -1).reshape(self.ensemble_size, -1, *a.shape[2:])
+                mean, log_var = self.get_predict(s, act)
+                t = torch.randn_like(log_var) * torch.exp(log_var * 0.5) + mean # sample
+                outs.append(t)
+                rewards = self.state_prior.cost(s, act, t) + rewards
+                s = t
+            return torch.stack(outs, dim=2), rewards.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
     def update(self, s, a, t):
         if self.training:
