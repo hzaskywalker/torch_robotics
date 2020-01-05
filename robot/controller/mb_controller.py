@@ -19,18 +19,18 @@ class MBController:
         controller:
             1. take model as a parameter and output the actions
     """
-    def __init__(self, model, controller, maxlen,
+    def __init__(self, model, controller, maxlen=int(1e6),
                  timestep=100,  #max trajectory length
                  load=False,
-                 init_buffer_size=1000, init_train_step=100000,
+                 init_buffer_size=1, init_train_step=5,
                  path=None,
                  data_path=None,
                  vis=None,
                  batch_size=200,
                  valid_ratio=0.2,
-                 iters_per_epoch=None,
-                 valid_batch_num=0,
-                 hook=[], data_sampler='random'):
+                 iters_per_epoch=1000,
+                 valid_batch_num=1,
+                 hook=[], data_sampler='fix'):
         assert isinstance(model, AgentBase)
         #assert isinstance(controller, ForwardControllerBase) or controller is None
 
@@ -93,6 +93,9 @@ class MBController:
 
             if self.iters_per_epoch is not None and self.train_iter % self.iters_per_epoch == 0:
                 self.after_epoch(data, output, env)
+
+        if 'update' in self.controller.__dir__():
+            self.controller.update(self.buffer)
 
     def after_epoch(self, data, output, env=None):
         self.model.eval()

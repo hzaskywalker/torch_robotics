@@ -161,6 +161,9 @@ class EnBNNAgent(AgentBase):
                 s = t
             return torch.stack(outs, dim=2), rewards.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
+    def forward(self, s, a):
+        return self.get_predict(s, a)
+
     def fit_normalizer(self, buffer):
         # TODO: very very ugly
         if self.normalizer:

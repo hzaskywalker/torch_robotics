@@ -2,29 +2,32 @@
 import torch
 from torch import nn
 import numpy as np
-from robot.utils.models import fc
+import copy
+from robot.utils import as_input
 from robot.utils import AgentBase
 from robot.utils.normalizer import Normalizer
 from robot.controller.cem import CEM
 
 
-def normc_init(shape, device):
+def normc_init(shape, device, std=1.):
     out = np.random.randn(*shape).astype(np.float32)
-    out *= 1. / np.sqrt(np.square(out).sum(axis=0, keepdims=True))
+    out *= 1. / np.sqrt(np.square(out).sum(axis=0, keepdims=True)) * std
     return torch.tensor(out, device=device, dtype=torch.float)
 
 
-class WeightNetwork(nn.Module):
+class WeightNetwork:
     def __init__(self, in_feature, out_feature, num_layers, mid_channels, device='cuda:0'):
-        super(WeightNetwork, self).__init__()
         layers = []
         if num_layers == 1:
             layers.append((in_feature, out_feature, False))
         else:
-            layers.append((in_feature, mid_channels, True))
+            if isinstance(mid_channels, int):
+                mid_channels = [mid_channels] * (num_layers-1)
+            assert len(mid_channels) == num_layers - 1
+            layers.append((in_feature, mid_channels[0], True))
             for i in range(num_layers-2):
-                layers.append((mid_channels, mid_channels, True))
-            layers.append((mid_channels, out_feature, False))
+                layers.append((mid_channels[i], mid_channels[i+1], True))
+            layers.append((mid_channels[num_layers-2], out_feature, False))
 
         self.tanh = nn.Tanh()
         self.num_layer = num_layers
@@ -49,10 +52,12 @@ class WeightNetwork(nn.Module):
 
     def init_weights(self):
         weights = []
-        for i, o, _ in self.layers:
-            w = normc_init((i, o), device=self._device)
-            b = normc_init((o,), device=self._device)
+        for idx, (i, o, _) in enumerate(self.layers):
+            std = 1. if idx != self.num_layer - 1 else 0.01
+            w = normc_init((i, o), device=self._device, std=std)
+            b = torch.zeros((o,), device=self._device) * 0
             weights += [w.reshape(-1), b.reshape(-1)]
+
         return torch.cat(weights)
 
     def __call__(self, x, weights):
@@ -77,57 +82,105 @@ class WeightNetwork(nn.Module):
 class PoplinController(AgentBase):
     # Poplin-P
     # very slow??
-    def __init__(self, model, prior, inp_dim, oup_dim, num_layers=3, mid_channels=64,
-                 *args, **kwargs):
+    def __init__(self, model, prior, horizon,
+                 inp_dim, oup_dim,
+                 std = 0.1 ** 0.5,
+                 replan_period=1,
+                 num_layers=2, mid_channels=32,
+                 iter_num=5, num_mutation=500, num_elite=100, device='cuda:0', **kwargs):
+        self.horizon = horizon
+        self.replan_period = replan_period
+        self._device = device
+
         self.network = WeightNetwork(inp_dim, oup_dim, num_layers=num_layers, mid_channels=mid_channels)
         self.normalizer = Normalizer(inp_dim)
-        self.cem = CEM(self.rollout, *args, **kwargs)
+        self.cem = CEM(self.rollout, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite,
+                       std = std,
+                       **kwargs)
 
         self.prior = prior
         self.model = model # model is a forward model
 
+        self.w_buf = None
+        self.prev_weights = None
+        self.cur_weights = None
+        self.weights_dataset = []
+
+        # hyper_parameters????
+
     def rollout(self, obs, weights):
-        # obs (500, x)
+        # obs (1, dx)
         # weights (500, w)
         # return rewards
 
+        obs = obs.expand(weights.shape[0], -1) # (500, x)
+
         reward = 0
         for i in range(weights.shape[1]):
-            action = self.network(obs, weights[:, i]) # ideally (5, 500, x)
-            t, _ = self.model(obs, action)
+            # in (500, 1, x) out ideally (5, 500, x)
+            action = self.network(obs[:, None], weights[:, i])[:, 0]
+            t, _ = self.model.forward(obs, action) # NOTE that
             if len(t.shape) == 3:
                 t = t.mean(dim=0) # mean
             reward = self.prior.cost(obs, action, t) + reward
             obs = t
         return reward
 
-
     def update(self, buffer):
         # update with past trajectories
         # directly copy the forward model's normalizer...
         if 'obs_norm' in self.model.__dir__():
             # use the same normalizer as the model
-            self.normalizer = self.model.normalizer.copy()
+            self.normalizer = copy.deepcopy(self.model.normalizer)
         else:
             raise NotImplementedError
 
-        pass
+        if len(self.weights_dataset) > 0:
+            print('UPDATE weights....')
+            self.cur_weights = torch.mean(torch.stack(self.weights_dataset), dim=0)
+        self.weights_dataset = []
 
 
-    def init_weight(self):
-        pass
+    def init_weight(self, horizon):
+        # mean
+        if self.cur_weights is None:
+            self.cur_weights = self.network.init_weights()
+        return self.cur_weights[None, :].expand(horizon, -1) # the second dimension is the time
 
 
+    def reset(self):
+        # random sample may be not good
+        self.prev_weights = self.init_weight(self.horizon)
+        self.w_buf = None
+
+
+    @as_input(2)
     def __call__(self, obs):
-        pass
+        assert len(obs.shape) == 2 and obs.shape[0] == 1
+        if self.w_buf is not None:
+            if self.w_buf.shape[0] > 0:
+                weight, self.w_buf = self.w_buf[0], self.w_buf[1:]
+                self.weights_dataset.append(weight)
+                return self.network(obs, weight)
+
+        self.prev_weights = self.cem(obs, self.prev_weights)
+        self.w_buf, self.prev_weights = torch.split(self.prev_weights, [self.replan_period, self.horizon-self.replan_period])
+        self.prev_weights = torch.cat((self.prev_weights, self.init_weight(self.replan_period)))
+        return self.__call__(obs)
+
+
+    def set_model(self, model):
+        self.model = model
 
 
 if __name__ == '__main__':
-    net = PoplinController(None, None, 25, 8).network
+    net = PoplinController(None, None, None, 18, 6).network
 
     import tqdm
 
     weight = net.init_weights()
+    print(weight.shape)
+    exit(0)
     ans = 0
     for i in tqdm.trange(30 * 5 * 100):
         x = torch.rand((500, 1, 25), device='cuda:0', dtype=torch.float)

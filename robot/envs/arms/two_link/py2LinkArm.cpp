@@ -6645,30 +6645,4 @@ static CYTHON_INLINE Py_ssize_t __Pyx_PyIndex_AsSsize_t(PyObject* b) {
              return -(Py_ssize_t) (((((((size_t)digits[2]) << PyLong_SHIFT) | (size_t)digits[1]) << PyLong_SHIFT) | (size_t)digits[0]));
            }
            break;
-         case 4:
-           if (8 * sizeof(Py_ssize_t) > 4 * PyLong_SHIFT) {
-             return (Py_ssize_t) (((((((((size_t)digits[3]) << PyLong_SHIFT) | (size_t)digits[2]) << PyLong_SHIFT) | (size_t)digits[1]) << PyLong_SHIFT) | (size_t)digits[0]));
-           }
-           break;
-         case -4:
-           if (8 * sizeof(Py_ssize_t) > 4 * PyLong_SHIFT) {
-             return -(Py_ssize_t) (((((((((size_t)digits[3]) << PyLong_SHIFT) | (size_t)digits[2]) << PyLong_SHIFT) | (size_t)digits[1]) << PyLong_SHIFT) | (size_t)digits[0]));
-           }
-           break;
-      }
-    }
-    #endif
-    return PyLong_AsSsize_t(b);
-  }
-  x = PyNumber_Index(b);
-  if (!x) return -1;
-  ival = PyInt_AsSsize_t(x);
-  Py_DECREF(x);
-  return ival;
-}
-static CYTHON_INLINE PyObject * __Pyx_PyInt_FromSize_t(size_t ival) {
-    return PyInt_FromSize_t(ival);
-}
-
-
-#endif /* Py_PYTHON_H */
+         ca

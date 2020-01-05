@@ -19,7 +19,8 @@ class RolloutCEM:
 
     def cost(self, x, a):
         x = x[None, :].expand(a.shape[0], -1)
-        out = self.model.rollout(x, a)[1] # ignore the cost and only use the reward
+        out = self.model.rollout(x, a)[1]
+        # ignore the cost and only use the reward
         if not isinstance(out, torch.Tensor):
             out = torch.Tensor(out).to(self.device)
         return out
