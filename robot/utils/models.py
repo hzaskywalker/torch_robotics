@@ -32,11 +32,13 @@ def conv1d(in_channels, out_channels, kernel_size, stride=1, padding=0, relu=Fal
 
 
 class fc(nn.Module):
-    def __init__(self, in_channels, out_channels, relu=False, batch_norm=False):
+    def __init__(self, in_channels, out_channels, relu=False, batch_norm=False, tanh=False):
         nn.Module.__init__(self)
         models = [nn.Linear(in_channels, out_channels)]
         if relu:
             models.append(nn.ReLU())
+        if tanh:
+            models.append(nn.Tanh())
         if batch_norm:
             models.append(nn.BatchNorm1d(out_channels))
         self.models = nn.Sequential(*models)

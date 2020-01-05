@@ -165,17 +165,16 @@ def test_halfcheetah():
         with torch.no_grad():
             load_parameters(model)
 
-        """
         obs = env.reset()
         action = env.action_space.sample()
         import torch
 
-        t = model.get_predict(torch.Tensor(obs).cuda()[None,:], torch.Tensor(action).cuda()[None,:])[0]
-        print(t)
+        t = model.get_predict(torch.Tensor(obs).cuda()[None,:], torch.Tensor(action).cuda()[None,:])
+        print(torch.exp(t[1]/2))
+        print(t[0])
         print(obs)
         print(env.step(action)[0])
         exit(0)
-        """
 
     mb_controller = MBController(
         model,

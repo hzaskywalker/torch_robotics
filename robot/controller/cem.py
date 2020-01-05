@@ -43,6 +43,7 @@ class CEM:
                 reward = self.eval_function(scene, populations)
 
                 _, topk_idx = (-reward).topk(k=self.num_elite, dim=0)
+                assert populations.shape[0] > topk_idx.max() and topk_idx.min() >= 0
                 elite = populations.index_select(0, topk_idx)
 
                 mean = mean * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
