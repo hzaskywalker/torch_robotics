@@ -7,6 +7,26 @@ from robot.controller.poplin import PoplinController
 from robot.controller.mb_controller import MBController
 from robot.utils import Visualizer
 
+def load_parameters(model: EnBNNAgent):
+    import torch
+    from scipy.io import loadmat
+    xx = loadmat('/home/hza/handful-of-trials-pytorch/POPLIN/log/POPLINP_AVG/2020-01-05--17:34:45/model.mat')
+    idx = 2
+    with torch.no_grad():
+        for i in model.forward_model.parameters():
+            while xx[str(idx)].shape[-1] == 24: #6:
+                idx += 1
+            i[:] = torch.tensor(xx[str(idx)][:], dtype=torch.float, device='cuda:0')
+            idx += 1
+        mu = torch.tensor(xx['0'], dtype=torch.float, device='cuda:0')
+        var = torch.tensor(xx['1'], dtype=torch.float, device='cuda:0')
+
+        model.obs_norm.mean[:] = mu[0, :18] # 5
+        model.obs_norm.std[:] = var[0, :18]
+
+        model.action_norm.mean[:] = mu[0, -6:]
+        model.action_norm.std[:] = var[0, -6:]
+
 def main():
     env_name = 'MBRLHalfCheetah-v0'
     #env_name = 'MBRLCartpole-v0'
@@ -28,13 +48,12 @@ def main():
     #model = GTModel(
     #    make, env_name, num_process=30
     #)
-    #from pets import load_parameters
-    #load_parameters(model)
+    load_parameters(model)
 
     controller = PoplinController(
         model=model,
         prior=state_prior,
-        horizon=30,
+        horizon=30, #30,
         inp_dim=state_prior.inp_dim,
         oup_dim=env.action_space.shape[0],
         iter_num=5,
@@ -43,10 +62,11 @@ def main():
         alpha=0.1,
         action_space=env.action_space, # constrain the action low and high
         trunc_norm=True,
-        std=0.1 ** 0.5
+        std=0.1 ** 0.5,
+        num_layers=2,
     )
 
-    model.rollout = model.rollout2
+    #model.rollout = model.rollout2
     controller2 = RolloutCEM(
         model=model,
         action_space=env.action_space,
@@ -61,7 +81,7 @@ def main():
     )
 
     mb_controller = MBController(
-        model, controller, timestep=int(state_prior.TASK_HORIZON),
+        model, controller, timestep=100, #int(state_prior.TASK_HORIZON * 0.1),
         path='/tmp/poplin_{}'.format(env_name),
         batch_size=32,
         valid_ratio=0.1,

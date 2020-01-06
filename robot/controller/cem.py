@@ -29,6 +29,8 @@ class CEM:
     def __call__(self, scene, mean=None, std=None):
         shape = (self.num_mutation,) + tuple(mean.shape)
         # initial: batch, dim, time_step
+        _x = mean
+
         with torch.no_grad():
             if std is None:
                 std = mean * 0 + self.std
@@ -40,19 +42,23 @@ class CEM:
                     _std = torch.min(torch.abs(torch.min(lb_dist, ub_dist)/2), std)
 
                 if self.trunc_norm:
-                    populations = trunc_norm(shape, device=mean.device) * _std[None, :] + mean[None, :]
+                    noise = trunc_norm(shape, device=mean.device)
                 else:
-                    populations = torch.randn(shape, device=mean.device) * _std[None, :] + mean[None, :]
+                    noise = torch.randn(shape, device=mean.device)
+                populations = noise * _std[None, :] + mean[None, :]
+                assert noise.shape == populations.shape
 
                 reward = self.eval_function(scene, populations)
                 reward[reward != reward] = self.inf
 
                 _, topk_idx = (-reward).topk(k=self.num_elite, dim=0)
+
                 assert populations.shape[0] > topk_idx.max() and topk_idx.min() >= 0,\
                     f"{populations.shape} {topk_idx.shape} topk max: {topk_idx.max()} min: {topk_idx.min()}, reward: {reward}, topk: {topk_idx}"
 
                 elite = populations.index_select(0, topk_idx)
 
                 mean = mean * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
-                std = ( (std ** 2) * self.alpha + (elite.std(dim=0) ** 2) * (1 - self.alpha) ) ** 0.5
+                std = ((std ** 2) * self.alpha + (elite.std(dim=0, unbiased=False) ** 2) * (1 - self.alpha)) ** 0.5
+        m = mean - _x
         return mean

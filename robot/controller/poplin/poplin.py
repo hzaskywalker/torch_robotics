@@ -53,16 +53,16 @@ class WeightNetwork:
 
     def init_weights(self):
         weights = []
-        self.scale = []
-        print("WARNING>>>>>> TRICKS on network weights...")
+        #self.scale = []
+        #print("WARNING>>>>>> TRICKS on network weights...")
         for idx, (i, o, _) in enumerate(self.layers):
             std = 1. if idx != self.num_layer - 1 else 0.01
             w = normc_init((i, o), device=self._device, std=std)
             b = torch.zeros((o,), device=self._device) * 0
-            print(w.mean(), w.std())
+            #print(w.mean(), w.std())
             weights += [w.reshape(-1), b.reshape(-1)]
 
-            self.scale.append(std)
+            #self.scale.append(std)
 
         return torch.cat(weights)
 
@@ -80,7 +80,9 @@ class WeightNetwork:
             b = b.reshape(*weights.shape[:-1], 1, o)
 
             #print(x.matmul(w)[:2])
-            x = x.matmul(w) * self.scale[l] + b # TODO: add trick here, I don't know the original implementation...
+            #print(x[0].mean(), x[0].std())
+            x = x.matmul(w) + b # TODO:  * self.scale[l] add trick here, I don't know the original implementation...
+            #print(b[0], x[0].mean(), x[0].std(), x[0].max())
             if tanh:
                 x = self.tanh(x)
         return x
@@ -104,9 +106,11 @@ class PoplinController(AgentBase):
 
         self.network = WeightNetwork(inp_dim, oup_dim, num_layers=num_layers, mid_channels=mid_channels)
         self.normalizer = Normalizer((inp_dim,)).to(device)
+        if 'obs_norm' in model.__dir__():
+            self.normalizer = copy.deepcopy(model.obs_norm)
+
         self.cem = CEM(self.rollout, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite,
-                       std= std,
-                       **kwargs)
+                       std=std, **kwargs)
 
         self.prior = prior
         self.model = model # model is a forward model
@@ -127,7 +131,6 @@ class PoplinController(AgentBase):
     def network_control(self, obs, weights):
         obs = self.prior.encode(obs)
         obs = self.normalizer(obs)
-
         out = self.network(obs, weights)
         if self.lb is not None:
             out = torch.max(torch.min(out, self.ub), self.lb)
@@ -140,7 +143,6 @@ class PoplinController(AgentBase):
         # return rewards
 
         obs = obs.expand(weights.shape[0], -1) # (500, x)
-
         reward = 0
         for i in range(weights.shape[1]):
             # in (500, 1, x) out ideally (5, 500, x)
@@ -148,6 +150,7 @@ class PoplinController(AgentBase):
             t, _ = self.model.forward(obs, action) # NOTE that
             if len(t.shape) == 3:
                 t = t.mean(dim=0) # mean
+            #print(self.prior.cost(obs, action, t))
             reward = self.prior.cost(obs, action, t) + reward
             obs = t
         return reward

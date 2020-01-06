@@ -47,7 +47,7 @@ class HalfCheetahEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.viewer.cam.elevation = -55
 
 
-class HalfCheetahEnv2(mujoco_env.MujocoEnv, utils.EzPickle):
+class HalfCheetahEnv2(HalfCheetahEnv):
     def __init__(self):
         self.prev_qpos = None
         dir_path = os.path.dirname(os.path.realpath(__file__))

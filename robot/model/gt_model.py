@@ -13,9 +13,9 @@ class Rollout:
         trajs = []
         rewards = []
         for s, a in zip(s, a):
-            #t = s[:d]
-            #self.env.set_state(s[:d], s[d:])
-            self.env.reset_state(s)
+            s[0] = 0
+            self.env.set_state(s[:d], s[d:])
+            #self.env.reset_state(s)
 
             is_forward = len(a.shape) == 1
             if is_forward:

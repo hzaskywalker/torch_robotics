@@ -28,7 +28,7 @@ register(
 
 register(
     id='MBRLHalfCheetah-v1',
-    entry_point='robot.envs.gym.half_cheetah:HalfCheetahEnv'
+    entry_point='robot.envs.gym.half_cheetah:HalfCheetahEnv2'
 )
 
 
