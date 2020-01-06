@@ -39,12 +39,11 @@ class CEM:
                     ub_dist = -mean + self.upper_bound.to(mean.device)
                     _std = torch.min(torch.abs(torch.min(lb_dist, ub_dist)/2), std)
 
-                from robot.utils import Timer
                 if self.trunc_norm:
-                    #populations = torch.Tensor(self.sampler(size=shape)).to(mean.device) * _std[None, :] + mean[None, :]
-                    populations = trunc_norm(shape, device=mean.device) * _std[None,:] + mean[None,:]
+                    populations = trunc_norm(shape, device=mean.device) * _std[None, :] + mean[None, :]
                 else:
-                    populations = torch.randn(shape, device=mean.device) *_std[None,:] + mean[None,:]
+                    populations = torch.randn(shape, device=mean.device) * _std[None, :] + mean[None, :]
+
                 reward = self.eval_function(scene, populations)
                 reward[reward != reward] = self.inf
 
@@ -55,5 +54,5 @@ class CEM:
                 elite = populations.index_select(0, topk_idx)
 
                 mean = mean * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
-                std = std * self.alpha + elite.std(dim=0) * (1 - self.alpha)
+                std = ( (std ** 2) * self.alpha + (elite.std(dim=0) ** 2) * (1 - self.alpha) ) ** 0.5
         return mean

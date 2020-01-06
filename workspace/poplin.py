@@ -8,8 +8,8 @@ from robot.controller.mb_controller import MBController
 from robot.utils import Visualizer
 
 def main():
-    #env_name = 'MBRLHalfCheetah-v0'
-    env_name = 'MBRLCartpole-v0'
+    env_name = 'MBRLHalfCheetah-v0'
+    #env_name = 'MBRLCartpole-v0'
     env = make(env_name)
     state_prior = env.state_prior
 
@@ -25,26 +25,52 @@ def main():
         npart=20,
     ).cuda()
 
+    #model = GTModel(
+    #    make, env_name, num_process=30
+    #)
+    #from pets import load_parameters
+    #load_parameters(model)
+
     controller = PoplinController(
         model=model,
         prior=state_prior,
         horizon=30,
-        inp_dim=env.observation_space.shape[0],
+        inp_dim=state_prior.inp_dim,
         oup_dim=env.action_space.shape[0],
         iter_num=5,
         num_mutation=500,
         num_elite=50,
+        alpha=0.1,
+        action_space=env.action_space, # constrain the action low and high
         trunc_norm=True,
+        std=0.1 ** 0.5
+    )
+
+    model.rollout = model.rollout2
+    controller2 = RolloutCEM(
+        model=model,
+        action_space=env.action_space,
+        horizon=30,
+        iter_num=5,
+        num_mutation=500,
+        num_elite=50,
+        alpha=0.1,
+        trunc_norm=True,
+        upper_bound=env.action_space.high,
+        lower_bound=env.action_space.low,
     )
 
     mb_controller = MBController(
-        model, controller, timestep=state_prior.TASK_HORIZON,
-        path='/tmp/poplin_cartpole',
+        model, controller, timestep=int(state_prior.TASK_HORIZON),
+        path='/tmp/poplin_{}'.format(env_name),
         batch_size=32,
         valid_ratio=0.1,
     )
 
-    #mb_controller.test(env, print_reward=True, use_tqdm=True)
+    acc =mb_controller.test(env, print_reward=True, use_tqdm=True)
+    print()
+    print(acc)
+    exit(0)
 
     mb_controller.init(env)
     for it in range(200):

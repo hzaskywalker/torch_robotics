@@ -37,6 +37,7 @@ class WeightNetwork:
         start = 0
         self.w = []
         self.b = []
+        self.scale = []
 
         for i, o, _ in self.layers:
             r = start + i * o
@@ -52,11 +53,16 @@ class WeightNetwork:
 
     def init_weights(self):
         weights = []
+        self.scale = []
+        print("WARNING>>>>>> TRICKS on network weights...")
         for idx, (i, o, _) in enumerate(self.layers):
             std = 1. if idx != self.num_layer - 1 else 0.01
             w = normc_init((i, o), device=self._device, std=std)
             b = torch.zeros((o,), device=self._device) * 0
+            print(w.mean(), w.std())
             weights += [w.reshape(-1), b.reshape(-1)]
+
+            self.scale.append(std)
 
         return torch.cat(weights)
 
@@ -72,7 +78,9 @@ class WeightNetwork:
 
             w = w.reshape(*weights.shape[:-1], i, o)
             b = b.reshape(*weights.shape[:-1], 1, o)
-            x = x.matmul(w) + b
+
+            #print(x.matmul(w)[:2])
+            x = x.matmul(w) * self.scale[l] + b # TODO: add trick here, I don't know the original implementation...
             if tanh:
                 x = self.tanh(x)
         return x
@@ -84,18 +92,20 @@ class PoplinController(AgentBase):
     # very slow??
     def __init__(self, model, prior, horizon,
                  inp_dim, oup_dim,
-                 std = 0.1 ** 0.5,
+                 std=0.1 ** 0.5,
                  replan_period=1,
                  num_layers=2, mid_channels=32,
-                 iter_num=5, num_mutation=500, num_elite=100, device='cuda:0', **kwargs):
+                 iter_num=5, num_mutation=500, num_elite=100,
+                 action_space = None,
+                 device='cuda:0', **kwargs):
         self.horizon = horizon
         self.replan_period = replan_period
         self._device = device
 
         self.network = WeightNetwork(inp_dim, oup_dim, num_layers=num_layers, mid_channels=mid_channels)
-        self.normalizer = Normalizer(inp_dim)
+        self.normalizer = Normalizer((inp_dim,)).to(device)
         self.cem = CEM(self.rollout, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite,
-                       std = std,
+                       std= std,
                        **kwargs)
 
         self.prior = prior
@@ -104,9 +114,25 @@ class PoplinController(AgentBase):
         self.w_buf = None
         self.prev_weights = None
         self.cur_weights = None
-        self.weights_dataset = []
 
-        # hyper_parameters????
+        self.weights_dataset = []
+        self.obs_dataset = []
+
+        self.lb = self.up = None
+        if action_space is not None:
+            self.lb = torch.tensor(action_space.low, device=device, dtype=torch.float)
+            self.ub = torch.tensor(action_space.high, device=device, dtype=torch.float)
+
+
+    def network_control(self, obs, weights):
+        obs = self.prior.encode(obs)
+        obs = self.normalizer(obs)
+
+        out = self.network(obs, weights)
+        if self.lb is not None:
+            out = torch.max(torch.min(out, self.ub), self.lb)
+        return out
+
 
     def rollout(self, obs, weights):
         # obs (1, dx)
@@ -118,7 +144,7 @@ class PoplinController(AgentBase):
         reward = 0
         for i in range(weights.shape[1]):
             # in (500, 1, x) out ideally (5, 500, x)
-            action = self.network(obs[:, None], weights[:, i])[:, 0]
+            action = self.network_control(obs[:, None], weights[:, i])[:, 0]
             t, _ = self.model.forward(obs, action) # NOTE that
             if len(t.shape) == 3:
                 t = t.mean(dim=0) # mean
@@ -127,18 +153,23 @@ class PoplinController(AgentBase):
         return reward
 
     def update(self, buffer):
-        # update with past trajectories
-        # directly copy the forward model's normalizer...
-        if 'obs_norm' in self.model.__dir__():
-            # use the same normalizer as the model
-            self.normalizer = copy.deepcopy(self.model.normalizer)
+        print('fit policy normalizer...')
+        if len(self.obs_dataset) == 0:
+            data_gen = buffer.make_sampler('fix', 'train', 1, use_tqdm=False)
+            for s, _, _ in data_gen:
+                self.normalizer.update(self.prior.encode(s))
         else:
-            raise NotImplementedError
+            self.normalizer.update(self.prior.encode(torch.stack(self.obs_dataset)))
+
+        print('policy normalizer:')
+        print(self.normalizer.mean, self.normalizer.std)
 
         if len(self.weights_dataset) > 0:
             print('UPDATE weights....')
             self.cur_weights = torch.mean(torch.stack(self.weights_dataset), dim=0)
+            print(self.cur_weights[-8:])
         self.weights_dataset = []
+        self.obs_dataset = []
 
 
     def init_weight(self, horizon):
@@ -161,7 +192,9 @@ class PoplinController(AgentBase):
             if self.w_buf.shape[0] > 0:
                 weight, self.w_buf = self.w_buf[0], self.w_buf[1:]
                 self.weights_dataset.append(weight)
-                return self.network(obs, weight)
+                self.obs_dataset.append(obs.detach())
+                out = self.network_control(obs, weight)
+                return out
 
         self.prev_weights = self.cem(obs, self.prev_weights)
         self.w_buf, self.prev_weights = torch.split(self.prev_weights, [self.replan_period, self.horizon-self.replan_period])
@@ -174,18 +207,9 @@ class PoplinController(AgentBase):
 
 
 if __name__ == '__main__':
-    net = PoplinController(None, None, None, 18, 6).network
+    network = PoplinController(None, None, None, 10, 3)
 
-    import tqdm
+    weight = network.network.init_weights()
+    x = torch.zeros((100, 10)).cuda()
 
-    weight = net.init_weights()
-    print(weight.shape)
-    exit(0)
-    ans = 0
-    for i in tqdm.trange(30 * 5 * 100):
-        x = torch.rand((500, 1, 25), device='cuda:0', dtype=torch.float)
-        weights = torch.rand((500, weight.shape[0]), device='cuda:0', dtype=torch.float)
-        ans = net(x, weights) + ans
-        print((ans[1] - net(x[1], weights[1])).abs().max())
-        print(ans.shape)
-        exit(0)
+    network.network(x, weight)

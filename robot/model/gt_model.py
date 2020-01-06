@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import time
 from robot.utils import AgentBase
 from robot.utils.data_parallel import DataParallel
 
@@ -12,7 +13,9 @@ class Rollout:
         trajs = []
         rewards = []
         for s, a in zip(s, a):
-            self.env.set_state(s[:d], s[d:])
+            #t = s[:d]
+            #self.env.set_state(s[:d], s[d:])
+            self.env.reset_state(s)
 
             is_forward = len(a.shape) == 1
             if is_forward:
@@ -72,6 +75,9 @@ class GTModel(AgentBase):
         pass
 
     def __call__(self, s, a):
+        return self.forward(s, a)
+
+    def forward(self, s, a):
         # transform to numpy
         is_np = not isinstance(s, torch.Tensor)
         if not is_np:

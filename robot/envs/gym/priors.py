@@ -92,5 +92,6 @@ class HalfCheetahPrior(StatePrior):
 
 PRIORS = {
     'MBRLCartpole-v0': CartPolePrior(),
-    'MBRLHalfCheetah-v0': HalfCheetahPrior()
+    'MBRLHalfCheetah-v0': HalfCheetahPrior(),
+    'MBRLHalfCheetah-v1': HalfCheetahPrior()
 }

@@ -26,6 +26,12 @@ register(
 )
 
 
+register(
+    id='MBRLHalfCheetah-v1',
+    entry_point='robot.envs.gym.half_cheetah:HalfCheetahEnv'
+)
+
+
 def make(env_name):
     from .priors import PRIORS
     env = gym.make(env_name)

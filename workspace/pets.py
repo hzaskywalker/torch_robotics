@@ -129,7 +129,7 @@ def test_cartpole():
 
 def test_halfcheetah():
     print('loading...')
-    env_name = 'MBRLHalfCheetah-v0'
+    env_name = 'MBRLHalfCheetah-v1'
     env = make(env_name)
     state_prior = env.state_prior
     #print(env.observation_space)
@@ -184,7 +184,7 @@ def test_halfcheetah():
         load=False,
         init_buffer_size=1,
         init_train_step=5,
-        path='/tmp/halfcheetah',
+        path='/tmp/halfcheetah1',
         data_path=None,
         batch_size=32,
         valid_ratio=0.1,

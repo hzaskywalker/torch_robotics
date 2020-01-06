@@ -45,3 +45,11 @@ class HalfCheetahEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def viewer_setup(self):
         self.viewer.cam.distance = self.model.stat.extent * 0.25
         self.viewer.cam.elevation = -55
+
+
+class HalfCheetahEnv2(mujoco_env.MujocoEnv, utils.EzPickle):
+    def __init__(self):
+        self.prev_qpos = None
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        mujoco_env.MujocoEnv.__init__(self, '%s/assets/half_cheetah.xml' % dir_path, 1)
+        utils.EzPickle.__init__(self)

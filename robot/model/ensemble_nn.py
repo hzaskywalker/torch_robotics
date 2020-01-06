@@ -161,6 +161,18 @@ class EnBNNAgent(AgentBase):
                 s = t
             return torch.stack(outs, dim=2), rewards.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
+    def rollout2(self, obs, weights):
+        obs = obs.expand(weights.shape[0], -1) # (500, x)
+        reward = 0
+        for i in range(weights.shape[1]):
+            action = weights[:, i]
+            t, _ = self.forward(obs, action) # NOTE that
+            if len(t.shape) == 3:
+                t = t.mean(dim=0) # mean
+            reward = self.state_prior.cost(obs, action, t) + reward
+            obs = t
+        return obs, reward
+
     def forward(self, s, a):
         return self.get_predict(s, a)
 

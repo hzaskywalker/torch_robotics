@@ -47,6 +47,9 @@ def sac(env, num_steps=1000001, replay_size=1000000, start_steps=10000, batch_si
 
             # Ignore the "done" signal if it comes from hitting the time horizon.
             # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
+            if episode_steps == env._max_episode_steps:
+                done = True
+
             mask = 1 if episode_steps == env._max_episode_steps else float(not done)
 
             memory.push(state, action, reward, next_state, mask)  # Append transition to memory
