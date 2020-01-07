@@ -44,8 +44,8 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         renderer.add_point_light([2, -2, 2], [1, 1, 1])
         renderer.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        #renderer.cam.set_position(np.array([0, -1, 1]))
-        #renderer.cam.rotate_yaw_pitch(0, -0.5)
+        renderer.cam.set_position(np.array([0, -1, 1]))
+        renderer.cam.rotate_yaw_pitch(0, -0.5)
         return renderer
 
     @staticmethod
@@ -79,7 +79,7 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         self.add_capsule(builder, cart, np.array([0, 0, 0]), np.array([0.707, 0, 0.707, 0]), 0.1, 0.1,
                          np.array([1., 0., 0.]), "cart_geom")
 
-        self.add_capsule(builder, pole, np.array([0, 0, 0]), np.array([0.707, 0, 0.707, 0]), 0.049, 0.3,
+        self.add_capsule(builder, pole, np.array([-0.3, 0, 0]), np.array([0.707, 0, 0.707, 0]), 0.049, 0.3,
                          np.array([0, 0.7, 0.7]), "pole_geom")
 
         wrapper = builder.build(True)
