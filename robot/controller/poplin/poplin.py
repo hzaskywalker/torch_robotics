@@ -78,11 +78,7 @@ class WeightNetwork:
 
             w = w.reshape(*weights.shape[:-1], i, o)
             b = b.reshape(*weights.shape[:-1], 1, o)
-
-            #print(x.matmul(w)[:2])
-            #print(x[0].mean(), x[0].std())
-            x = x.matmul(w) + b # TODO:  * self.scale[l] add trick here, I don't know the original implementation...
-            #print(b[0], x[0].mean(), x[0].std(), x[0].max())
+            x = x.matmul(w) + b
             if tanh:
                 x = self.tanh(x)
         return x
@@ -129,7 +125,7 @@ class PoplinController(AgentBase):
 
 
     def network_control(self, obs, weights):
-        obs = self.prior.encode(obs)
+        #obs = self.prior.encode(obs)
         obs = self.normalizer(obs)
         out = self.network(obs, weights)
         if self.lb is not None:
@@ -141,7 +137,6 @@ class PoplinController(AgentBase):
         # obs (1, dx)
         # weights (500, w)
         # return rewards
-
         obs = obs.expand(weights.shape[0], -1) # (500, x)
         reward = 0
         for i in range(weights.shape[1]):
@@ -150,7 +145,6 @@ class PoplinController(AgentBase):
             t, _ = self.model.forward(obs, action) # NOTE that
             if len(t.shape) == 3:
                 t = t.mean(dim=0) # mean
-            #print(self.prior.cost(obs, action, t))
             reward = self.prior.cost(obs, action, t) + reward
             obs = t
         return reward
@@ -160,9 +154,12 @@ class PoplinController(AgentBase):
         if len(self.obs_dataset) == 0:
             data_gen = buffer.make_sampler('fix', 'train', 1, use_tqdm=False)
             for s, _, _ in data_gen:
-                self.normalizer.update(self.prior.encode(s))
+                #s = self.prior.encode(s)
+                self.normalizer.update(s)
         else:
-            self.normalizer.update(self.prior.encode(torch.stack(self.obs_dataset)))
+            s = torch.stack(self.obs_dataset)
+            #s = self.prior.encode(s)
+            self.normalizer.update(s)
 
         print('policy normalizer:')
         print(self.normalizer.mean, self.normalizer.std)

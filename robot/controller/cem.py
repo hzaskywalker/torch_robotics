@@ -17,10 +17,12 @@ class CEM:
 
         self.alpha = alpha
         self.trunc_norm = trunc_norm
+
         if upper_bound is not None:
-            upper_bound = torch.Tensor(upper_bound)
+            upper_bound = torch.tensor(upper_bound, dtype=torch.float)
+
         if lower_bound is not None:
-            lower_bound = torch.Tensor(lower_bound)
+            lower_bound = torch.tensor(lower_bound, dtype=torch.float)
 
         self.upper_bound = upper_bound
         self.lower_bound = lower_bound

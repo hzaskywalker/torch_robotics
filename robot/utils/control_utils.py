@@ -48,7 +48,6 @@ def rollout(env, controller=None, x=None, timestep=200, use_tqdm=False):
         xs.append(x)
         us.append(u)
         x, r = env.step(u)[:2]
-
         rs.append(r)
 
     xs.append(x)
