@@ -118,7 +118,7 @@ def main():
         model, controller, timestep=1000, #int(state_prior.TASK_HORIZON * 0.1),
         path='/tmp/poplin_{}'.format(env_name),
         batch_size=32,
-        valid_ratio=0.1,
+        valid_ratio=0.0,
     )
 
     #acc = mb_controller.test(env, print_reward=True, use_tqdm=True)

@@ -22,6 +22,7 @@ class MBController:
     def __init__(self, model, controller, maxlen=int(1e6),
                  timestep=100,  #max trajectory length
                  load=False,
+                 load_data=False,
                  init_buffer_size=1, init_train_step=5,
                  path=None,
                  data_path=None,
@@ -37,6 +38,8 @@ class MBController:
         if data_path is None:
             data_path = path
         self.data_path = data_path
+        if not load_data:
+            self.data_path = None
 
         self.data_sampler = data_sampler
 
@@ -64,7 +67,7 @@ class MBController:
         self.vis = vis
         self.train_iter = 0
         self.iters_per_epoch = iters_per_epoch
-        self.valid_batch_num = valid_batch_num
+        self.valid_batch_num = valid_batch_num if valid_ratio > 0 else 0
 
         self._outputs = []
         self.hook = hook
@@ -152,7 +155,7 @@ class MBController:
             else:
                 print('filling buffer...')
                 self.update_buffer(env, random_policy, self.init_buffer_size)
-                if self.path is not None:
+                if self.data_path is not None:
                     self.buffer.save(init_buffer_path)
 
 

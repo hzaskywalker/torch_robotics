@@ -138,7 +138,7 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         self.do_simulation(a, self.frame_skip)
         xposafter = self.root_link.get_global_pose().p[0]
         forward_reward = (xposafter - xposbefore)/self.dt
-        ctrl_cost = -.1 * np.square(a /  np.array([120, 90, 60, 120, 60, 30])).sum()
+        ctrl_cost = -.1 * np.square(a / np.array([120, 90, 60, 120, 60, 30])).sum()
         reward = forward_reward + ctrl_cost 
         ob = self._get_obs()
         done = False

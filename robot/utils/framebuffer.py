@@ -41,7 +41,7 @@ class CircleBuffer:
         return self.__getitem__(idx)
 
     def show(self):
-        if self.index <= self.start:
+        if self.index <= self.start and self.size > 0:
             return self.buffer[self.start:] + self.buffer[:self.index]
         else:
             return self.buffer[self.start:self.index]

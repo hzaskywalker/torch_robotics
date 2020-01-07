@@ -5,12 +5,16 @@ import gym
 from gym import spaces
 
 DEFAULT_SIZE = 500
-import sapien
 
 try:
     import sapyen as sapien_core
 except ModuleNotFoundError:
     import sapien.core as sapien_core
+
+try:
+    from sapyen import Pose
+except ModuleNotFoundError:
+    from sapien.core import Pose
 
 
 def convert_observation_to_space(observation):
@@ -121,7 +125,8 @@ class SapienEnv(gym.Env):
                                          old_state.act, old_state.udd_state)
         self.sim.set_state(new_state)
         self.sim.forward()'''
-        pass
+        self.model.set_qpos(qpos)
+        self.model.set_qvel(qvel)
 
     @property
     def dt(self):
@@ -152,6 +157,10 @@ class SapienEnv(gym.Env):
     def get_body_com(self, body_name):
     #    return self.data.get_body_xpos(body_name)
         pass
+
+    def add_capsule(self, builder, body, xpos, xquat, radius, length, color, name):
+        builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, length)
+        builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, length, color, name)
 
     def state_vector(self):
         raise NotImplementedError
