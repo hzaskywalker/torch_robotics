@@ -72,7 +72,6 @@ class GaussianLayer(nn.Module):
         return self.max_logvar.sum() - self.min_logvar.sum()
 
 
-
 class EnBNN(nn.Module):
     # ensemble bayesian
     def __init__(self, ensemble_size, in_features, out_features, num_layers, mid_channels):
