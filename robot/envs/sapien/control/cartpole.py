@@ -20,7 +20,7 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         qpos = self.init_qpos + np.random.normal(0, 0.1, np.shape(self.init_qpos))
         qvel = self.init_qvel + np.random.normal(0, 0.1, np.shape(self.init_qvel))
         self.set_state(qpos, qvel)
-        return self._get_obs()
+        return  self._get_obs()
 
     def step(self, a):
         self.do_simulation(a, self.frame_skip)
@@ -44,7 +44,7 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         renderer.add_point_light([2, -2, 2], [1, 1, 1])
         renderer.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        renderer.cam.set_position(np.array([0, -1, 1]))
+        renderer.cam.set_position(np.array([0, -3, 3]))
         renderer.cam.rotate_yaw_pitch(0, -0.5)
         return renderer
 
@@ -63,24 +63,24 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         x2z = np.array([0.7071068, 0, -0.7071068, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
 
-        root = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "root") # world root
+        rail = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "rail") # world root
 
-        cart = builder.add_link(root, Pose(np.array([0, 0, 0]), PxIdentity), "cart", "slider",
-                                 sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-2.5, 2.5]]),
-                                 Pose(np.array([0, 0, 0]), x2z), Pose(np.array([0, 0, 0]), x2z))
+        cart = builder.add_link(rail, Pose(np.array([0, 0, 0]), PxIdentity), "cart", "slider",
+                                 sapien_core.PxArticulationJointType.PRISMATIC, np.array([[-2.5, 2.5]]),
+                                 Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity))
 
         pole = builder.add_link(cart, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "torso",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.pi, np.pi]]),
-                                 Pose(np.array([0, 0, 0]), x2y), Pose(np.array([0, 0, 0]), x2y))
+                                 Pose(np.array([0, 0, 0]), x2y), Pose(np.array([-0.31, 0., 0]), PxIdentity))
 
-        self.add_capsule(builder, root, np.array([0, 0, 0]), np.array([0.707, 0, 0.707, 0]), 0.02, 3,
-                         np.array([0.3, 0.3, 0.7]), "root_geom")
+        self.add_capsule(builder, rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 3,
+                         np.array([1., 0., 0.]), "rail")
 
-        self.add_capsule(builder, cart, np.array([0, 0, 0]), np.array([0.707, 0, 0.707, 0]), 0.1, 0.1,
-                         np.array([1., 0., 0.]), "cart_geom")
+        self.add_capsule(builder, cart, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.1, 0.1,
+                         np.array([0., 1., 0.]), "cart")
 
-        self.add_capsule(builder, pole, np.array([-0.3, 0, 0]), np.array([0.707, 0, 0.707, 0]), 0.049, 0.3,
-                         np.array([0, 0.7, 0.7]), "pole_geom")
+        self.add_capsule(builder, pole, np.array([0.1, 0., 0.]), np.array([1., 0, 0., 0.]), 0.049, 0.3,
+                         np.array([0, 0, 1.]), "cpole")
 
         wrapper = builder.build(True)
         wrapper.add_force_actuator("slider", -100, 100)

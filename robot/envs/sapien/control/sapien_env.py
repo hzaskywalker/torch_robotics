@@ -113,9 +113,7 @@ class SapienEnv(gym.Env):
     # -----------------------------
 
     def reset(self):
-        #self.sim.reset()
-        ob = self.reset_model()
-        return ob
+        return self.reset_model()
 
 
     def set_state(self, qpos, qvel):

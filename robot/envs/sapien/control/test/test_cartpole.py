@@ -4,11 +4,10 @@ def test():
     cartpole = CartpoleEnv()
 
     cartpole.reset()
-    for i in range(1000):
+    for i in range(100):
         action = cartpole.action_space.sample()
 
         cartpole.step(action)
-
         cartpole.render()
 
 
