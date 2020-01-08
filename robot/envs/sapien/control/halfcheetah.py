@@ -25,7 +25,7 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         renderer.add_point_light([2, -2, 2], [1, 1, 1])
         renderer.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        renderer.cam.set_position(np.array([0, -1, 1]))
+        renderer.cam.set_position(np.array([0, -10, 10]))
         renderer.cam.rotate_yaw_pitch(0, -0.5)
         return renderer
 
@@ -163,6 +163,3 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         # TODO: reset root_velocity
         return self._get_obs()
 
-    def viewer_setup(self):
-        #self.viewer.cam.distance = self.model.stat.extent * 0.5
-        pass

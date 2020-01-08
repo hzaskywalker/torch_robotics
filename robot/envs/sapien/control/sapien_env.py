@@ -60,6 +60,7 @@ class SapienEnv(gym.Env):
 
         self.init_qpos = self.model.get_qpos().ravel().copy()
         self.init_qvel = self.model.get_qvel().ravel().copy()
+        self.seed()
 
         self._set_action_space()
         action = self.action_space.sample()
@@ -163,9 +164,9 @@ class SapienEnv(gym.Env):
             builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, length)
         builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, length, color, name)
 
+    """
     def state_vector(self):
         raise NotImplementedError
-        """
         return np.concatenate([
             self.body_link.get_global_pose().p,
             self.body_link.get_global_pose().q,
@@ -176,3 +177,9 @@ class SapienEnv(gym.Env):
             np.clip(self.wrapper.get_cfrc_ext(), -1, 1).flat
         ])
         """
+
+    def state_vector(self):
+        return np.concatenate([
+            self.model.get_qpos().flat,
+            self.model.get_qvel().flat,
+        ])
