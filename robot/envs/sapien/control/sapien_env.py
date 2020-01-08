@@ -8,8 +8,10 @@ DEFAULT_SIZE = 500
 
 try:
     import sapyen as sapien_core
+    print('USE sapyen')
 except ModuleNotFoundError:
     import sapien.core as sapien_core
+    print('USE sapien core')
 
 try:
     from sapyen import Pose
@@ -108,7 +110,9 @@ class SapienEnv(gym.Env):
         Optionally implement this method, if you need to tinker with camera position
         and so forth.
         """
-        pass
+        if not self.create_window:
+            self._renderer.show_window()
+            self.create_window = True
 
     # -----------------------------
 
@@ -137,10 +141,8 @@ class SapienEnv(gym.Env):
 
 
     def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE):
+        self.viewer_setup()
         if mode == 'human':
-            if not self.create_window:
-                self._renderer.show_window()
-
             self.sim.update_renderer()
             self._renderer.render()
         else:
@@ -156,8 +158,9 @@ class SapienEnv(gym.Env):
     #    return self.data.get_body_xpos(body_name)
         pass
 
-    def add_capsule(self, builder, body, xpos, xquat, radius, length, color, name):
-        builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, length)
+    def add_capsule(self, builder, body, xpos, xquat, radius, length, color, name, shape=True):
+        if shape:
+            builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, length)
         builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, length, color, name)
 
     def state_vector(self):

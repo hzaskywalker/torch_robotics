@@ -44,6 +44,9 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         renderer.add_point_light([2, -2, 2], [1, 1, 1])
         renderer.add_point_light([-2, 0, 2], [1, 1, 1])
 
+        renderer.cam.set_forward(np.array([0, 1, 0]))
+        renderer.cam.set_up(np.array([0, 0, 1]))
+
         renderer.cam.set_position(np.array([0, -3, 3]))
         renderer.cam.rotate_yaw_pitch(0, -0.5)
         return renderer
@@ -60,7 +63,7 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         builder = self.sim.create_articulation_builder()
         PxIdentity = np.array([1, 0, 0, 0]) # rotation
 
-        x2z = np.array([0.7071068, 0, -0.7071068, 0])
+        x2z = np.array([0.7071068, 0, 0.7071068, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
 
         rail = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "rail") # world root
@@ -71,15 +74,15 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
 
         pole = builder.add_link(cart, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "torso",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.pi, np.pi]]),
-                                 Pose(np.array([0, 0, 0]), x2y), Pose(np.array([-0.31, 0., 0]), PxIdentity))
+                                 Pose(np.array([0, 0, 0]), x2y), Pose(np.array([-0.28, 0., 0]), x2z))
 
         self.add_capsule(builder, rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 3,
-                         np.array([1., 0., 0.]), "rail")
+                         np.array([1., 0., 0.]), "rail", shape=False)
 
         self.add_capsule(builder, cart, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.1, 0.1,
                          np.array([0., 1., 0.]), "cart")
 
-        self.add_capsule(builder, pole, np.array([0.1, 0., 0.]), np.array([1., 0, 0., 0.]), 0.049, 0.3,
+        self.add_capsule(builder, pole, np.array([0.0, 0., 0.]), np.array([1., 0, 0., 0.]), 0.049, 0.3,
                          np.array([0, 0, 1.]), "cpole")
 
         wrapper = builder.build(True)

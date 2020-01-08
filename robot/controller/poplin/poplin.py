@@ -183,8 +183,8 @@ class PoplinController(AgentBase):
         # random sample may be not good
         self.prev_weights = self.init_weight(self.horizon)
         # TODO:
-        print('I do not reset the cur_weights to None, use average')
-        #self.cur_weights = None
+        #print('I do not reset the cur_weights to None, use average')
+        self.cur_weights = None
         self.w_buf = None
 
 
