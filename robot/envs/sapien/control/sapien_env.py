@@ -171,10 +171,10 @@ class SapienEnv(gym.Env):
     #    return self.data.get_body_xpos(body_name)
         pass
 
-    def add_capsule(self, builder, body, xpos, xquat, radius, length, color, name, shape=True):
+    def add_capsule(self, builder, body, xpos, xquat, radius, half_length, color, name, shape=True):
         if shape:
-            builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, length)
-        builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, length, color, name)
+            builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, half_length) #half length
+        builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, half_length, color, name) #half length
 
     def add_free_joint(self, builder, parent, link_name, joint_name, parent_pose, child_pose):
         # free joint, 3 poeses, and 3 rotations

@@ -17,7 +17,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         renderer.add_point_light([2, -2, 2], [1, 1, 1])
         renderer.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        renderer.cam.set_position(np.array([0, -20, 10]))
+        renderer.cam.set_position(np.array([0, -5, 5]))
         renderer.cam.rotate_yaw_pitch(0, -0.5)
         return renderer
 
@@ -42,32 +42,36 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
                              )
         torso = builder.add_link(root3, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "rot",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.inf, np.inf]]),
-                                 Pose(np.array([0, 0, 0]), x2z), Pose(np.array([0., 0, 0]), x2z))
+                                 Pose(np.array([0, 0, 0.]), x2z), Pose(np.array([0., 0, 0]), x2z))
 
         mid = builder.add_link(torso, Pose(np.array([0, 0, 0]), PxIdentity), "mid", "rot2",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-100, 100]]),
-                                 Pose(np.array([0.5, 0, 0]), x2z), Pose(np.array([0.0, 0, 0]), x2z))
+                                 Pose(np.array([0.5, 0, 0]), x2z), Pose(np.array([0.5, 0, 0]), x2z))
 
         back = builder.add_link(mid, Pose(np.array([0, 0, 0]), PxIdentity), "back", "rot3",
                                sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-100, 100]]),
-                               Pose(np.array([-2., 0, 0]), x2z), Pose(np.array([0., 0, 0]), x2z))
+                               Pose(np.array([-0.5, 0, 0]), x2z), Pose(np.array([0.5, 0, 0]), x2z))
 
 
-        neg = np.array([0, 0, 0, 1])
-        self.add_capsule(builder, torso, np.array([1.5, 0, 0]), PxIdentity, 0.1, 1.,
+        self.add_capsule(builder, torso, np.array([1., 0, 0]), PxIdentity, 0.1, 0.5,
                          np.array([1., 0., 0.]), "torso", shape=True)
-        self.add_capsule(builder, mid, np.array([-1., 0, 0]), PxIdentity, 0.1, 1.,
+        self.add_capsule(builder, mid, np.array([0., 0, 0]), PxIdentity, 0.1, 0.5,
                          np.array([0., 1., 0.]), "mid", shape=True)
-        self.add_capsule(builder, back, np.array([-1., 0, 0, 0]), PxIdentity, 0.1, 1,
+        self.add_capsule(builder, back, np.array([0., 0, 0, 0]), PxIdentity, 0.1, 0.5,
                          np.array([0., 0., 1.]), "back", shape=True)
-        density = 10
+
+        density = 100
         builder.update_link_mass_and_inertia(torso, density)
         builder.update_link_mass_and_inertia(mid, density)
         builder.update_link_mass_and_inertia(back, density)
 
+        # TODO: how to add viscosity
+        # TODO: length of capsules is wrong
+        # TODO: what's the density and gear in mujoco
+
         wrapper = builder.build(True) #fix base = True
-        wrapper.add_force_actuator("rot2", -20, 20)
-        wrapper.add_force_actuator("rot3", -20, 20)
+        wrapper.add_force_actuator("rot2", -30, 30)
+        wrapper.add_force_actuator("rot3", -30, 30)
 
         ground = self.sim.add_ground(-1)
         return wrapper, None

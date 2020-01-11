@@ -47,44 +47,37 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
                                 sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.inf, np.inf]]),
                                 Pose(np.array([0, 0, 0]), x2y), Pose(np.array([0, 0, 0]), x2y))                     
 
-        builder.add_capsule_shape_to_link(torso,  Pose(np.array([0, 0, 0]), PxIdentity), 0.046, 0.5)
-        builder.add_capsule_visual_to_link(torso,  Pose(np.array([0, 0, 0]), PxIdentity), 0.046, 0.5, 
+        self.add_capsule(builder, torso, np.array([0, 0, 0]), PxIdentity, 0.046, 0.5,
                                           np.array([1, 1, 1]), "torso")
         
-        builder.add_capsule_shape_to_link(torso,  Pose(np.array([0.6, 0, 0.1]), 
-                                        np.array([0.939236, 0.000000, -0.343272, 0.000000])), 0.046, 0.15)
-        builder.add_capsule_visual_to_link(torso,  Pose(np.array([0.6, 0, 0.1]), 
-                                        np.array([0.939236, 0.000000, -0.343272, 0.000000])), 0.046, 0.15, 
+        self.add_capsule(builder, torso,  np.array([0.6, 0, 0.1]),
+                                        np.array([0.939236, 0.000000, -0.343272, 0.000000]), 0.046, 0.15,
                                           np.array([1, 1, 1]), "head")
 
         bthigh = builder.add_link(torso, Pose(np.array([0, 0, 0]), PxIdentity), "bthigh", "bthigh",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-0.52, 1.05]]),
                                  Pose(np.array([-0.5, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068])),
-                                 Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068]))) 
-        builder.add_capsule_shape_to_link(bthigh,  Pose(np.array([0.1, 0, -0.13]), 
-                                        np.array([-0.897736,-0.000000,-0.440535,0.000000])), 0.046, 0.145)
-        builder.add_capsule_visual_to_link(bthigh,  Pose(np.array([0.1, 0, -0.13]), 
-                                            np.array([-0.897736,-0.000000,-0.440535,0.000000])), 0.046, 0.145,
+                                 Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068])))
+
+        self.add_capsule(builder, bthigh,  np.array([0.1, 0, -0.13]),
+                                            np.array([-0.897736,-0.000000,-0.440535,0.000000]), 0.046, 0.145,
                                             np.array([1, 1, 1]), "bthigh")
 
         bshin = builder.add_link(bthigh, Pose(np.array([0, 0, 0]), PxIdentity), "bshin", "bshin",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-0.785, 0.785]]),
                                  Pose(np.array([0.16, 0, -.25]), np.array([ 0.7071068, 0, 0, 0.7071068])),
-                                 Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068]))) 
-        builder.add_capsule_shape_to_link(bshin,  Pose(np.array([-0.14, 0, -0.07]), 
-                                        np.array([-0.227590, 0.000000, -0.973757, 0.000000])), 0.046, 0.15)
-        builder.add_capsule_visual_to_link(bshin,  Pose(np.array([-0.14, 0, -0.07]), 
-                                        np.array([-0.227590, 0.000000, -0.973757, 0.000000])), 0.046, 0.15,
+                                 Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068])))
+
+        self.add_capsule(builder, bshin,  np.array([-0.14, 0, -0.07]),
+                                        np.array([-0.227590, 0.000000, -0.973757, 0.000000]), 0.046, 0.15,
                                             np.array([0.9, 0.6, 0.6]), "bshin")
 
         bfoot = builder.add_link(bshin, Pose(np.array([0, 0, 0]), PxIdentity), "bfoot", "bfoot",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-0.4, 0.785]]),
                                  Pose(np.array([-0.28, 0, -.14]), np.array([ 0.7071068, 0, 0, 0.7071068])),
                                  Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068]))) 
-        builder.add_capsule_shape_to_link(bfoot,  Pose(np.array([0.03, 0, -0.097]), 
-                                        np.array([0.605503, 0.000000, -0.795843, 0.000000])), 0.046, 0.094)
-        builder.add_capsule_visual_to_link(bfoot,  Pose(np.array([0.03, 0, -0.097]), 
-                                        np.array([0.605503, 0.000000, -0.795843, 0.000000])), 0.046, 0.094,
+        self.add_capsule(builder, bfoot, np.array([0.03, 0, -0.097]),
+                                        np.array([0.605503, 0.000000, -0.795843, 0.000000]), 0.046, 0.094,
                                             np.array([0.9, 0.6, 0.6]), "bfoot")
 
 
@@ -92,30 +85,24 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-1, 0.7]]),
                                  Pose(np.array([0.5, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068])),
                                  Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068]))) 
-        builder.add_capsule_shape_to_link(fthigh,  Pose(np.array([-0.07, 0, -0.12]), 
-                                        np.array([0.865124, 0.000000, -0.501557, 0.000000])), 0.046, 0.133)
-        builder.add_capsule_visual_to_link(fthigh,  Pose(np.array([-0.07, 0, -0.12]), 
-                                            np.array([0.865124, 0.000000, -0.501557, 0.000000])), 0.046, 0.133,
+        self.add_capsule(builder, fthigh,  np.array([-0.07, 0, -0.12]),
+                                            np.array([0.865124, 0.000000, -0.501557, 0.000000]), 0.046, 0.133,
                                             np.array([1, 1, 1]), "fthigh")
 
         fshin = builder.add_link(fthigh, Pose(np.array([0, 0, 0]), PxIdentity), "fshin", "fshin",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-1.2, .87]]),
                                  Pose(np.array([-.14, 0, -.24]), np.array([ 0.7071068, 0, 0, 0.7071068])),
                                  Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068]))) 
-        builder.add_capsule_shape_to_link(fshin,  Pose(np.array([.065, 0, -.09]), 
-                                        np.array([0.466561, 0.000000, -0.884489, 0.000000])), 0.046, 0.106)
-        builder.add_capsule_visual_to_link(fshin,  Pose(np.array([.065, 0, -.09]), 
-                                        np.array([0.466561, 0.000000, -0.884489, 0.000000])), 0.046, 0.106,
+        self.add_capsule(builder, fshin, np.array([.065, 0, -.09]),
+                                        np.array([0.466561, 0.000000, -0.884489, 0.000000]), 0.046, 0.106,
                                             np.array([0.9, 0.6, 0.6]), "fshin")
 
         ffoot = builder.add_link(fshin, Pose(np.array([0, 0, 0]), PxIdentity), "ffoot", "ffoot",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-0.5, 0.5]]),
                                  Pose(np.array([0.13, 0, -.18]), np.array([ 0.7071068, 0, 0, 0.7071068])),
                                  Pose(np.array([0, 0, 0]), np.array([0.7071068, 0, 0, 0.7071068]))) 
-        builder.add_capsule_shape_to_link(ffoot,  Pose(np.array([0.045, 0, -0.07]), 
-                                        np.array([0.466561, 0.000000, -0.884489, 0.000000])), 0.046, 0.07)
-        builder.add_capsule_visual_to_link(ffoot,  Pose(np.array([0.045, 0, -0.07]), 
-                                        np.array([0.466561, 0.000000, -0.884489, 0.000000])), 0.046, 0.07,
+        self.add_capsule(builder, ffoot, np.array([0.045, 0, -0.07]),
+                                        np.array([0.466561, 0.000000, -0.884489, 0.000000]), 0.046, 0.07,
                                             np.array([0.9, 0.6, 0.6]), "ffoot")
 
         wrapper = builder.build(True)
