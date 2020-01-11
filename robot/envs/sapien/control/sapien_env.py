@@ -3,6 +3,7 @@ import numpy as np
 from gym.utils import seeding
 import gym
 from gym import spaces
+from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
 
 DEFAULT_SIZE = 500
 
@@ -57,6 +58,7 @@ class SapienEnv(gym.Env):
         self._renderer = self.build_render()
         self.sim.set_renderer(self._renderer)
 
+        self.builder = self.sim.create_articulation_builder()
         self.model, self.root = self.build_model()
         self.init_qpos = self.get_qpos()
         self.init_qvel = self.get_qvel()
@@ -180,6 +182,52 @@ class SapienEnv(gym.Env):
         if shape:
             builder.add_sphere_shape_to_link(body, Pose(xpos, xquat), radius) #half length
         builder.add_sphere_visual_to_link(body, Pose(xpos, xquat), radius, color, name) #half length
+
+
+    def my_add_link(self, father, link_pose, local_pose, name, joint_name, range,
+                    dumping=0., stiffness=0., density=1000., type='hinge'):
+        # range  [a, b]
+        link_pose = np.array(link_pose[0]), np.array(link_pose[1])
+        local_pose = np.array(local_pose[0]), np.array(local_pose[1])
+        def parent_pose(xpos, xquat, ypos, yquat):
+            pos = rotate_vector(ypos, xquat) + xpos
+            quat = qmult(xquat, yquat)
+            return Pose(pos, quat)
+
+        if type == 'hinge':
+            joint_type = sapien_core.PxArticulationJointType.REVOLUTE
+        else:
+            joint_type = sapien_core.PxArticulationJointType.PRISMATIC
+
+        father = self.builder.add_link(father,  Pose(np.array([0, 0., 0]), np.array([1, 0, 0, 0])),
+                                     name, joint_name, joint_type,
+                                     np.array([range]),
+                                     parent_pose(*link_pose, *local_pose), Pose(*local_pose))
+
+        if density != 1000:
+            self.builder.update_link_mass_and_inertia(father, density)
+        if dumping != 0. or stiffness != 0.:
+            raise NotImplementedError
+        return father
+
+    def fromto(self, link, vec, size, rgb, name):
+        def vec2pose(vec):
+            l = np.linalg.norm(vec)
+            a, b = np.array([1, 0, 0]), vec/l
+            # find quat such that qmult(quat, [1, 0, 0]) = vec
+            if np.linalg.norm(a-b) < 1e-6:
+                pose = np.array([1, 0, 0, 0])
+            else:
+                v = np.cross(a, b) #rotation along v
+                theta = np.arccos(np.dot(a, b))
+                pose = axangle2quat(v, theta)
+            assert np.linalg.norm(rotate_vector(np.array([1, 0, 0]), pose) - b) < 1e-5
+            return l, pose
+
+        if isinstance(vec, str):
+            vec = np.array(list(map(float, vec.split(' '))))
+        l, pose = vec2pose((vec[3:]-vec[:3])/2)
+        self.add_capsule(self.builder, link, (vec[3:] + vec[:3])/2, pose, size, l, rgb, name)
 
     """
     def state_vector(self):

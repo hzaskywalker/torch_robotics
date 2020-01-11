@@ -1,7 +1,6 @@
 import numpy as np
 from .sapien_env import Pose, sapien_core, SapienEnv
 from gym import utils
-from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
 
 def mass_center(model, sim):
     mass = np.expand_dims(model.body_mass, 1)
@@ -27,93 +26,63 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         return renderer
 
     def build_model(self):
-        self.builder = builder = self.sim.create_articulation_builder()
+        builder = self.builder
         PxIdentity = np.array([1, 0, 0, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
         x2z = np.array([0.7071068, 0, 0.7071068, 0])
         rgb = np.array([0.1, 0.1, 0.1])
         rgb2 = np.array([0.6, 0.6, 0.6])
+        default_rgb = np.array([0.5, 0.5, 0.5])
 
-        world = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world") # root coordinates #free
-        r_shoulder_pan_link = self.my_add_link(world, ([0, -0.6, 0], PxIdentity), ([0, 0, 0], x2z),
+        cur = world = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world") # root coordinates #free
+        cur = r_shoulder_pan_link = self.my_add_link(cur, ([0, -0.6, 0], PxIdentity), ([0, 0, 0], x2z),
                                                "r_shoulder_pan_link", "r_shoulder_pan_joint", [-2.2854, 1.714602])
-        self.add_sphere(builder, r_shoulder_pan_link, np.array([-0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e1")
-        self.add_sphere(builder, r_shoulder_pan_link, np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
-        self.add_sphere(builder, r_shoulder_pan_link, np.array([-0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e1p")
-        self.add_sphere(builder, r_shoulder_pan_link, np.array([0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e2p")
-        self.fromto(r_shoulder_pan_link, "0 0 -0.4 0 0 0.2", 0.1, rgb, "e2p")
+        self.add_sphere(builder, cur, np.array([-0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e1")
+        self.add_sphere(builder, cur,  np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
+        self.add_sphere(builder, cur, np.array([-0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e1p")
+        self.add_sphere(builder, cur, np.array([0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e2p")
+        self.fromto(cur, "0 0 -0.4 0 0 0.2", 0.1, default_rgb, "sp")
 
 
-        r_shoulder_lift_link = self.my_add_link(r_shoulder_pan_link, ([0.1, 0, 0], PxIdentity), ([0, 0, 0], x2y),
+        cur = r_shoulder_lift_link = self.my_add_link(cur, ([0.1, 0, 0], PxIdentity), ([0, 0, 0], x2y),
                                                "r_shoulder_lift_link", "r_shoulder_lift_joint", [-0.5236, 1.3963])
-        self.fromto(r_shoulder_lift_link, "0 -0.1 0 0 0.1 0", 0.1, rgb, "sl")
+        self.fromto(cur, "0 -0.1 0 0 0.1 0", 0.1, default_rgb, "sl")
 
-        r_upper_arm_roll_link = self.my_add_link(r_shoulder_lift_link, ([0., 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
+        cur = r_upper_arm_roll_link = self.my_add_link(cur, ([0, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
                                                "r_upper_arm_roll_link", "r_upper_arm_roll_joint", [-1.5, 1.7])
 
-        self.fromto(r_upper_arm_roll_link, "-0.1 0 0 0.1 0 0", 0.02, rgb, "uar")
-        self.fromto(r_upper_arm_roll_link, "0 0 0 0.4 0 0", 0.06, rgb, "r_upper_arm_link")
+        self.fromto(cur, "-0.1 0 0 0.1 0 0", 0.02, default_rgb, "uar")
+        self.fromto(cur, "0 0 0 0.4 0 0", 0.06, default_rgb, "ua")
 
-        r_elbow_flex_link = self.my_add_link(r_upper_arm_roll_link, ([0.4, 0, 0], PxIdentity), ([0, 0, 0], x2y),
-                                                 "r_elbow_flex_link", "r_elbow_flex_link", [-2.3213, 0])
-        self.fromto(r_elbow_flex_link, "0 -0.02 0 0.0 0.02 0", 0.06, rgb2, "r_elbow_flex_link")
+        cur = r_elbow_flex_link = self.my_add_link(cur, ([0.4, 0, 0], PxIdentity), ([0, 0, 0], x2y),
+                                                 "r_elbow_flex_link", "r_elbow_flex_joint", [-2.3213, 0])
+        self.fromto(cur, "0 -0.02 0 0.0 0.02 0", 0.06, default_rgb, "ef")
 
-        r_forearm_roll_link = self.my_add_link(r_elbow_flex_link, ([0.4, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
+        cur = r_forearm_roll_link = self.my_add_link(cur, ([0, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
                                              "r_forearm_roll_link", "r_forearm_roll_joint", [-1.5, 1.5])
-        self.fromto(r_forearm_roll_link, "-0.1 0 0 0.1 0 0", 0.02, rgb, "r_forearm_roll_link")
-        self.fromto(r_forearm_roll_link, "0 0 0 0.291 0 0", 0.05, rgb2, "r_forearm_link")
+        self.fromto(cur, "-0.1 0 0 0.1 0 0", 0.02, default_rgb, "fr")
+        self.fromto(cur, "0 0 0 0.291 0 0", 0.05, default_rgb, "fa")
 
-        r_wrist_flex_link = self.my_add_link(r_forearm_roll_link, ([0.321, 0, 0], PxIdentity), ([0, 0, 0], x2y),
+
+        cur = r_wrist_flex_link = self.my_add_link(cur, ([0.321, 0, 0], PxIdentity), ([0, 0, 0], x2y),
                                                "r_wrist_flex_link", "r_wrist_flex_joint", [-1.094, 0.])
-        self.fromto(r_wrist_flex_link, "0 -0.02 0 0 0.02 0", 0.01, rgb, "wf")
+        self.fromto(cur, "0 -0.02 0 0 0.02 0", 0.01, rgb, "wf")
 
-        r_wrist_roll_link = self.my_add_link(r_wrist_flex_link, ([0., 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
+        cur = r_wrist_roll_link = self.my_add_link(cur, ([0., 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
                                              "r_wrist_roll_link", "r_wrist_roll_joint", [-1.5, 1.5])
 
-        self.add_sphere(builder, r_wrist_roll_link, np.array([0.1, -0.1, 0.]), PxIdentity, 0.01, rgb2, "tip_arml")
-        self.add_sphere(builder, r_wrist_roll_link, np.array([0.1, 0.1, 0.]), PxIdentity, 0.01, rgb2, "tip_armr")
+        self.add_sphere(builder, cur, np.array([0.1, -0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_arml")
+        self.add_sphere(builder, cur, np.array([0.1, 0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_armr")
 
-        self.fromto(r_wrist_roll_link, "0 -0.1 0. 0.0 +0.1 0", 0.02, rgb2, "hand1")
-        self.fromto(r_wrist_roll_link, "0 -0.1 0. 0.1 -0.1 0", 0.02, rgb2, "hand2")
-        self.fromto(r_wrist_roll_link, "0 +0.1 0. 0.1 +0.1 0", 0.02, rgb2, "hand3")
+        self.fromto(cur, "0 -0.1 0. 0.0 +0.1 0", 0.02, default_rgb, "hand1")
+        self.fromto(cur, "0 -0.1 0. 0.1 -0.1 0", 0.02, default_rgb, "hand2")
+        self.fromto(cur, "0 +0.1 0. 0.1 +0.1 0", 0.02, default_rgb, "hand3")
 
 
         wrapper = builder.build(True) #fix base = True
         #wrapper.add_force_actuator("abdomen_z", -100, 100)
         ground = self.sim.add_ground(-1)
         return wrapper, None
-
-    def my_add_link(self, link, link_pose, local_pose, name, joint_name, range):
-        # range  [a, b]
-        link_pose = np.array(link_pose[0]), np.array(link_pose[1])
-        local_pose = np.array(local_pose[0]), np.array(local_pose[1])
-        def parent_pose(xpos, xquat, ypos, yquat):
-            pos = rotate_vector(ypos, xquat) + xpos
-            quat = qmult(xquat, yquat)
-            return Pose(pos, quat)
-        return self.builder.add_link(link,  Pose(np.array([0, 0., 0]), np.array([1, 0, 0, 0])),
-                                                 name, joint_name, sapien_core.PxArticulationJointType.REVOLUTE,
-                                                 np.array([range]),
-                                                 parent_pose(*link_pose, *local_pose), Pose(*local_pose))
-
-    def fromto(self, link, vec, size, rgb, name):
-        def vec2pose(vec):
-            l = np.linalg.norm(vec)
-            a, b = np.array([1, 0, 0]), vec/l
-            # find quat such that qmult(quat, [1, 0, 0]) = vec
-            if np.linalg.norm(a-b) < 1e-6:
-                pose = np.array([1, 0, 0, 0])
-            else:
-                v = np.cross(a, b) #rotation along v
-                theta = np.arccos(np.dot(a, b))
-                pose = axangle2quat(v, theta)
-            assert np.linalg.norm(rotate_vector(np.array([1, 0, 0]), pose) - b) < 1e-5
-            return l, pose
-
-        if isinstance(vec, str):
-            vec = np.array(list(map(float, vec.split(' '))))
-        l, pose = vec2pose((vec[3:]-vec[:3])/2)
-        self.add_capsule(self.builder, link, (vec[3:] + vec[:3])/2, pose, size, l, rgb, name)
 
 
     def step(self, a):

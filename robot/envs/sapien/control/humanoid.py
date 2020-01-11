@@ -42,7 +42,7 @@ class HumanoidEnv(SapienEnv, utils.EzPickle):
             assert np.linalg.norm(rotate_vector(np.array([1, 0, 0]), pose) - b) < 1e-5
             return l, pose
 
-        builder = self.sim.create_articulation_builder()
+        builder = self.builder
         PxIdentity = np.array([1, 0, 0, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
         x2z = np.array([0.7071068, 0, 0.7071068, 0])

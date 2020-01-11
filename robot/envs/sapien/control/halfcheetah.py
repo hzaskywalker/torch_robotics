@@ -31,7 +31,7 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
 
 
     def build_model(self):
-        builder = self.sim.create_articulation_builder()
+        builder = self.builder
         PxIdentity = np.array([1, 0, 0, 0])
         x2z = np.array([0.7071068, 0, -0.7071068, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])

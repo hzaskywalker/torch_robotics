@@ -22,7 +22,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         return renderer
 
     def build_model(self):
-        builder = self.sim.create_articulation_builder()
+        builder = self.builder
         PxIdentity = np.array([1, 0, 0, 0])
 
         density = 5
