@@ -185,7 +185,7 @@ class SapienEnv(gym.Env):
 
 
     def my_add_link(self, father, link_pose, local_pose, name, joint_name, range,
-                    dumping=0., stiffness=0., density=1000., type='hinge'):
+                    dumping=0., stiffness=0., type='hinge'):
         # range  [a, b]
         link_pose = np.array(link_pose[0]), np.array(link_pose[1])
         local_pose = np.array(local_pose[0]), np.array(local_pose[1])
@@ -199,24 +199,24 @@ class SapienEnv(gym.Env):
         else:
             joint_type = sapien_core.PxArticulationJointType.PRISMATIC
 
-        father = self.builder.add_link(father,  Pose(np.array([0, 0., 0]), np.array([1, 0, 0, 0])),
+        link = self.builder.add_link(father,  Pose(np.array([0, 0., 0]), np.array([1, 0, 0, 0])),
                                      name, joint_name, joint_type,
                                      np.array([range]),
                                      parent_pose(*link_pose, *local_pose), Pose(*local_pose))
 
-        if density != 1000:
-            self.builder.update_link_mass_and_inertia(father, density)
         if dumping != 0. or stiffness != 0.:
             raise NotImplementedError
-        return father
+        return link
 
-    def fromto(self, link, vec, size, rgb, name):
+    def fromto(self, link, vec, size, rgb, name, density=1000.):
         def vec2pose(vec):
             l = np.linalg.norm(vec)
             a, b = np.array([1, 0, 0]), vec/l
             # find quat such that qmult(quat, [1, 0, 0]) = vec
             if np.linalg.norm(a-b) < 1e-6:
                 pose = np.array([1, 0, 0, 0])
+            elif np.linalg.norm(a+b) < 1e-6:
+                pose = np.array([0, 0, 0, 1])
             else:
                 v = np.cross(a, b) #rotation along v
                 theta = np.arccos(np.dot(a, b))
@@ -228,6 +228,9 @@ class SapienEnv(gym.Env):
             vec = np.array(list(map(float, vec.split(' '))))
         l, pose = vec2pose((vec[3:]-vec[:3])/2)
         self.add_capsule(self.builder, link, (vec[3:] + vec[:3])/2, pose, size, l, rgb, name)
+
+        if density != 1000:
+            self.builder.update_link_mass_and_inertia(link, density)
 
     """
     def state_vector(self):

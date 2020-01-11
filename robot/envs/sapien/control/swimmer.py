@@ -25,12 +25,11 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         builder = self.builder
         PxIdentity = np.array([1, 0, 0, 0])
 
-        density = 5
-
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
         x2z = np.array([0.7071068, 0, 0.7071068, 0])
 
 
+        # TODO: default friction... should be closed
         root1 = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "root1")
         root2 = builder.add_link(root1, Pose(np.array([0, 0, 0]), PxIdentity), "root2", "slider1",
                                  sapien_core.PxArticulationJointType.PRISMATIC, np.array([[-np.inf, np.inf]]),
@@ -40,38 +39,31 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
                                  sapien_core.PxArticulationJointType.PRISMATIC, np.array([[-np.inf, np.inf]]),
                                  Pose(np.array([0, 0, 0]), x2y), Pose(np.array([0, 0, 0]), x2y)
                              )
+
         torso = builder.add_link(root3, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "rot",
                                  sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.inf, np.inf]]),
                                  Pose(np.array([0, 0, 0.]), x2z), Pose(np.array([0., 0, 0]), x2z))
 
-        mid = builder.add_link(torso, Pose(np.array([0, 0, 0]), PxIdentity), "mid", "rot2",
-                                 sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-100, 100]]),
-                                 Pose(np.array([0.5, 0, 0]), x2z), Pose(np.array([0.5, 0, 0]), x2z))
+        density = 1000.
+        self.fromto(torso, "1.5 0 0 0.5 0 0", 0.1, np.array([1., 0, 0]), "torso", density=density)
 
-        back = builder.add_link(mid, Pose(np.array([0, 0, 0]), PxIdentity), "back", "rot3",
-                               sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-100, 100]]),
-                               Pose(np.array([-0.5, 0, 0]), x2z), Pose(np.array([0.5, 0, 0]), x2z))
+        range = [np.radians(-100), np.radians(100)]
+        mid = self.my_add_link(torso, ([0.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "mid", "rot2", range)
+        self.fromto(mid, "0 0 0 -1 0 0", 0.1, np.array([0., 1., 0]), "mid", density=density)
 
+        back = self.my_add_link(mid, ([-1., 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "back", "rot3", range)
+        self.fromto(back, "0 0 0 -1 0 0", 0.1, np.array([0., 0., 1.]), "back", density=density)
 
-        self.add_capsule(builder, torso, np.array([1., 0, 0]), PxIdentity, 0.1, 0.5,
-                         np.array([1., 0., 0.]), "torso", shape=True)
-        self.add_capsule(builder, mid, np.array([0., 0, 0]), PxIdentity, 0.1, 0.5,
-                         np.array([0., 1., 0.]), "mid", shape=True)
-        self.add_capsule(builder, back, np.array([0., 0, 0, 0]), PxIdentity, 0.1, 0.5,
-                         np.array([0., 0., 1.]), "back", shape=True)
-
-        density = 100
-        builder.update_link_mass_and_inertia(torso, density)
-        builder.update_link_mass_and_inertia(mid, density)
-        builder.update_link_mass_and_inertia(back, density)
+        #front = self.my_add_link(torso, ([1.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "front", "rot3", range)
+        #self.fromto(front, "0 0 0 1 0 0", 0.1, np.array([0., 1., 0]), "font", density=density)
 
         # TODO: how to add viscosity
         # TODO: length of capsules is wrong
         # TODO: what's the density and gear in mujoco
 
         wrapper = builder.build(True) #fix base = True
-        wrapper.add_force_actuator("rot2", -30, 30)
-        wrapper.add_force_actuator("rot3", -30, 30)
+        wrapper.add_force_actuator("rot2", -100, 100)
+        wrapper.add_force_actuator("rot3", -100, 100)
 
         ground = self.sim.add_ground(-1)
         return wrapper, None
