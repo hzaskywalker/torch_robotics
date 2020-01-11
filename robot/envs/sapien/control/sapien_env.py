@@ -176,9 +176,10 @@ class SapienEnv(gym.Env):
             builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, half_length) #half length
         builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, half_length, color, name) #half length
 
-    def add_free_joint(self, builder, parent, link_name, joint_name, parent_pose, child_pose):
-        # free joint, 3 poeses, and 3 rotations
-        rot1 = builder.add_link(parent, )
+    def add_sphere(self, builder, body, xpos, xquat, radius, color, name, shape=True):
+        if shape:
+            builder.add_sphere_shape_to_link(body, Pose(xpos, xquat), radius) #half length
+        builder.add_sphere_visual_to_link(body, Pose(xpos, xquat), radius, color, name) #half length
 
     """
     def state_vector(self):
