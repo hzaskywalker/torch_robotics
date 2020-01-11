@@ -143,12 +143,13 @@ class HumanoidEnv(SapienEnv, utils.EzPickle):
                                      )  # end in local pos
 
             local_pos = np.array([0, 0, 0]), vec2pose(np.array([0, -1, 1]))[1]
-            upper_arm = builder.add_link(torso, Pose(np.array([0, 0, 0.]), PxIdentity), f"{dir}_upper_arm", f"{dir}_shoulder2",
+            upper_arm = builder.add_link(shoulder_1, Pose(np.array([0, 0, 0.]), PxIdentity), f"{dir}_upper_arm", f"{dir}_shoulder2",
                                           sapien_core.PxArticulationJointType.REVOLUTE,
                                           np.array([[np.radians(-85), np.radians(60)]]),
                                           Pose(*local_pos), Pose(*local_pos),
                                           )  # end in local pos
             #TODO: should be upper_arm actaully
+            #arm = upper_arm
             arm = shoulder_1
 
             if dir == 'right':
@@ -186,12 +187,21 @@ class HumanoidEnv(SapienEnv, utils.EzPickle):
             pos = np.array([0.18, 0.18, 0.18]) if dir == 'right' else np.array([0.18, -0.18, 0.18])
             self.add_sphere(builder, lower_arm, pos, PxIdentity, 0.04, default_rgb, f"{dir}_hand")
 
+        #TODO: tendon
 
 
         wrapper = builder.build(True) #fix base = True
-        #wrapper.add_force_actuator("abdomen_z", -100, 100)
-        #wrapper.add_force_actuator("abdomen_y", -100, 100)
-        #wrapper.add_force_actuator("abdomen_x", -100, 100)
+        wrapper.add_force_actuator("abdomen_z", -100, 100)
+        wrapper.add_force_actuator("abdomen_y", -100, 100)
+        wrapper.add_force_actuator("abdomen_x", -100, 100)
+        for i in ['left', 'right']:
+            wrapper.add_force_actuator(f"{i}_hip_x", -100, 100)
+            wrapper.add_force_actuator(f"{i}_hip_y", -100, 100)
+            wrapper.add_force_actuator(f"{i}_hip_z", -300, 300)
+            wrapper.add_force_actuator(f"{i}_keen", -200, 200)
+            wrapper.add_force_actuator(f"{i}_shouler1", -25, 25)
+            wrapper.add_force_actuator(f"{i}_shouler2", -25, 25)
+            wrapper.add_force_actuator(f"{i}_elbow", -25, 25)
 
         ground = self.sim.add_ground(-1)
         return wrapper, torso
