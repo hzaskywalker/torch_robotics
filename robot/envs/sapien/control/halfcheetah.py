@@ -126,17 +126,18 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         wrapper.add_force_actuator("fshin", -60, 60)
         wrapper.add_force_actuator("ffoot", -30, 30)
 
-        self.root_link = torso
-        self.init_root_pose_p = self.root_link.get_global_pose().p
-        self.init_root_pose_q = self.root_link.get_global_pose().q
-
+        #self.root_link = torso
+        #self.init_root_pose_p = self.root_link.get_global_pose().p
+        #self.init_root_pose_q = self.root_link.get_global_pose().q
+        #self.add_object(torso)
         ground = self.sim.add_ground(-1)
-        return wrapper
+        return wrapper, torso
 
     def step(self, a):
-        xposbefore = self.root_link.get_global_pose().p[0]
+        xposbefore = self.root.get_global_pose().p[0]
         self.do_simulation(a, self.frame_skip)
-        xposafter = self.root_link.get_global_pose().p[0]
+        xposafter = self.root.get_global_pose().p[0]
+
         forward_reward = (xposafter - xposbefore)/self.dt
         ctrl_cost = -.1 * np.square(a / np.array([120, 90, 60, 120, 60, 30])).sum()
         reward = forward_reward + ctrl_cost 
@@ -153,13 +154,16 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         ])
 
     def reset_model(self):
-        qpos = self.init_qpos + self.np_random.uniform(size=9, low=-.1, high=.1)
-        qvel = self.init_qvel + self.np_random.randn(9) * .1
-        self.model.set_qpos(qpos)
-        self.model.set_qvel(qvel)
-        root_pose_p = self.init_root_pose_p #+ self.np_random.uniform(size=3, low=-.1, high=.1)
-        root_pose_q = self.init_root_pose_q #+ self.np_random.uniform(size=4, low=-.1, high=.1)
-        self.model.set_root_pose(root_pose_p, root_pose_q)
+        qpos = self.init_qpos.copy()
+        qpos[7:] += self.np_random.uniform(size=9, low=-.1, high=.1)
+        qvel = self.init_qvel.copy()
+        qvel[6:] += self.np_random.randn(9) * .1
+        #self.model.set_qpos(qpos)
+        #self.model.set_qvel(qvel)
+        #root_pose_p = self.init_root_pose_p #+ self.np_random.uniform(size=3, low=-.1, high=.1)
+        #root_pose_q = self.init_root_pose_q #+ self.np_random.uniform(size=4, low=-.1, high=.1)
+        #self.model.set_root_pose(root_pose_p, root_pose_q)
+        self.set_state(qpos, qvel)
         # TODO: reset root_velocity
         return self._get_obs()
 

@@ -73,7 +73,7 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
                                  Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity))
 
         pole = builder.add_link(cart, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "torso",
-                                 sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.pi, np.pi]]),
+                                 sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.pi/2, np.pi/2]]),
                                  Pose(np.array([0, 0, 0]), x2y), Pose(np.array([-0.28, 0., 0]), x2z))
 
         self.add_capsule(builder, rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 3,
@@ -89,5 +89,4 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         wrapper.add_force_actuator("slider", -100, 100)
 
         self.sim.add_ground(-1)
-        return wrapper
-
+        return wrapper, None

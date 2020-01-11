@@ -115,7 +115,7 @@ def main():
     )
 
     mb_controller = MBController(
-        model, controller, timestep=1000, #int(state_prior.TASK_HORIZON * 0.1),
+        model, controller2, timestep=1000, #int(state_prior.TASK_HORIZON * 0.1),
         path='/tmp/poplin_{}'.format(env_name),
         batch_size=32,
         valid_ratio=0.0,
@@ -146,6 +146,8 @@ def main():
     for it in range(100):
         print(it, mb_controller.fit(env, progress_buffer_update=False, progress_rollout=True,
                                     progress_train=True, num_train=5))
+
+        print("I am using controller2")
 
 if __name__ == '__main__':
     main()

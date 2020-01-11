@@ -44,6 +44,7 @@ class SapienEnv(gym.Env):
         self.timestep = timestep
         self.viewer = None
         self._viewers = {}
+        self._objects = []
 
         self.metadata = {
             'render.modes': ['human'], 
@@ -56,10 +57,9 @@ class SapienEnv(gym.Env):
         self._renderer = self.build_render()
         self.sim.set_renderer(self._renderer)
 
-        self.model = self.build_model()
-
-        self.init_qpos = self.model.get_qpos().ravel().copy()
-        self.init_qvel = self.model.get_qvel().ravel().copy()
+        self.model, self.root = self.build_model()
+        self.init_qpos = self.get_qpos()
+        self.init_qvel = self.get_qvel()
         self.seed()
 
         self._set_action_space()
@@ -72,6 +72,19 @@ class SapienEnv(gym.Env):
 
         self.create_window = False
 
+    def get_qpos(self):
+        if self.root is not None:
+            root = [self.root.get_global_pose().p, self.root.get_global_pose().q]
+        else:
+            root = []
+        return np.concatenate(root + [self.model.get_qpos().ravel()])
+
+    def get_qvel(self):
+        if self.root is not None:
+            root = [self.root.get_linear_velocity(), self.root.get_angular_velocity()]
+        else:
+            root = []
+        return np.concatenate(root + [self.model.get_qpos().ravel()])
 
     def _set_action_space(self):
         bounds = self.model.get_force_actuator_range().copy()
@@ -122,14 +135,13 @@ class SapienEnv(gym.Env):
 
 
     def set_state(self, qpos, qvel):
-        '''assert qpos.shape == (self.model.nq,) and qvel.shape == (self.model.nv,)
-        old_state = self.sim.get_state()
-        new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel,
-                                         old_state.act, old_state.udd_state)
-        self.sim.set_state(new_state)
-        self.sim.forward()'''
+        if self.root is not None:
+            self.model.set_root_pose(qpos[:7], qvel[:6])
+            qpos = qpos[7:]
+            qvel = qvel[6:]
         self.model.set_qpos(qpos)
         self.model.set_qvel(qvel)
+
 
     @property
     def dt(self):
@@ -164,6 +176,10 @@ class SapienEnv(gym.Env):
             builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, length)
         builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, length, color, name)
 
+    def add_free_joint(self, builder, parent, link_name, joint_name, parent_pose, child_pose):
+        # free joint, 3 poeses, and 3 rotations
+        rot1 = builder.add_link(parent, )
+
     """
     def state_vector(self):
         raise NotImplementedError
@@ -180,6 +196,6 @@ class SapienEnv(gym.Env):
 
     def state_vector(self):
         return np.concatenate([
-            self.model.get_qpos().flat,
-            self.model.get_qvel().flat,
+            self.get_qpos().flat,
+            self.get_qvel().flat,
         ])

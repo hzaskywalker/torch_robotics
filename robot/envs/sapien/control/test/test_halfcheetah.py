@@ -1,7 +1,10 @@
 from robot.envs.sapien.control.halfcheetah import HalfCheetahEnv
 
-def test():
+def test_cheetah():
     cheetah = HalfCheetahEnv()
+
+    print(cheetah.observation_space)
+    print(cheetah.action_space)
 
     cheetah.reset()
     for i in range(1000):
@@ -13,4 +16,4 @@ def test():
 
 
 if __name__ == '__main__':
-    test()
+    test_cheetah()

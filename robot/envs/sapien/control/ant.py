@@ -112,7 +112,8 @@ class AntEnv(SapienEnv, utils.EzPickle):
         self.body_link = body_link
         self.init_root_pose_p = self.body_link.get_global_pose().p
         self.init_root_pose_q = self.body_link.get_global_pose().q
-        return wrapper
+
+        return wrapper, body_link
 
     def step(self, a):
         xposbefore = self.body_link.get_global_pose().p[0] #torso
@@ -136,6 +137,7 @@ class AntEnv(SapienEnv, utils.EzPickle):
             reward_survive=survive_reward)
 
     def _get_obs(self):
+
         return np.concatenate([
             self.body_link.get_global_pose().p[2:],
             self.body_link.get_global_pose().q,
@@ -146,27 +148,18 @@ class AntEnv(SapienEnv, utils.EzPickle):
             np.clip(self.model.get_cfrc_ext(), -1, 1).flat, # 54->84 ??
         ])
 
-
-    def state_vector(self):
-        return np.concatenate([
-            self.body_link.get_global_pose().p,
-            self.body_link.get_global_pose().q,
-            self.model.get_qpos().flat,
-            self.body_link.get_linear_velocity(),
-            self.body_link.get_angular_velocity(),
-            self.model.get_qvel().flat,
-            np.clip(self.model.get_cfrc_ext(), -1, 1).flat
-        ])
-
     def reset_model(self):
-        qpos = self.init_qpos + self.np_random.uniform(size=8, low=-.1, high=.1)
-        qvel = self.init_qvel + self.np_random.randn(8) * .1
-        self.model.set_qpos(qpos)
-        self.model.set_qvel(qvel)
-        root_pose_p = self.init_root_pose_p #+ self.np_random.uniform(size=3, low=-.1, high=.1)
-        root_pose_q = self.init_root_pose_q #+ self.np_random.uniform(size=4, low=-.1, high=.1)
-        self.model.set_root_pose(root_pose_p, root_pose_q)
+        qpos = self.init_qpos
+        qpos[7:] += self.np_random.uniform(size=8, low=-.1, high=.1)
+        qvel = self.init_qvel
+        qvel[6:] += self.np_random.uniform(size=8, low=-.1, high=.1)
+        #self.model.set_qpos(qpos)
+        #self.model.set_qvel(qvel)
+        #root_pose_p = self.init_root_pose_p #+ self.np_random.uniform(size=3, low=-.1, high=.1)
+        #root_pose_q = self.init_root_pose_q #+ self.np_random.uniform(size=4, low=-.1, high=.1)
+        #self.model.set_root_pose(root_pose_p, root_pose_q)
         # TODO: reset root_velocity
+        self.set_state(qpos, qvel)
         return self._get_obs()
 
     #def viewer_setup(self):
