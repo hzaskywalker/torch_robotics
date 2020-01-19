@@ -124,7 +124,7 @@ class EnBNNAgent(AgentBase):
         self.weight_decay = weight_decay
         self.var_reg = var_reg
 
-        self.state_prior = env.state_prior # which is actually a config file of the environment
+        self.state_prior = state_prior # which is actually a config file of the environment
         self.ensemble_size = ensemble_size
 
     def cuda(self):

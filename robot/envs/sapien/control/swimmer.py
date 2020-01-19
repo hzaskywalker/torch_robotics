@@ -54,13 +54,6 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         back = self.my_add_link(mid, ([-1., 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "back", "rot3", range)
         self.fromto(back, "0 0 0 -1 0 0", 0.1, np.array([0., 0., 1.]), "back", density=density)
 
-        #front = self.my_add_link(torso, ([1.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "front", "rot3", range)
-        #self.fromto(front, "0 0 0 1 0 0", 0.1, np.array([0., 1., 0]), "font", density=density)
-
-        # TODO: how to add viscosity
-        # TODO: length of capsules is wrong
-        # TODO: what's the density and gear in mujoco
-
         wrapper = builder.build(True) #fix base = True
         wrapper.add_force_actuator("rot2", -100, 100)
         wrapper.add_force_actuator("rot3", -100, 100)
