@@ -30,12 +30,20 @@ class Type(object):
     def __sub__(self, other):
         raise NotImplementedError
 
-    def id(self, index):
-        raise NotImplementedError
-
     def metric(self):
         raise NotImplementedError
 
+    def id(self, index):
+        raise NotImplementedError
+
+    @classmethod
+    def stack(cls, dim=0):
+        # making batch methods...
+        raise NotImplementedError
+
+    @property
+    def shape(self):
+        raise NotImplementedError
 
 class Space(GymSpace):
     def __init__(self, shape=None, dtype=None, cls=None):

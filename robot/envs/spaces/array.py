@@ -5,6 +5,7 @@ from .utils import to_numpy, to_tensor
 
 TYPE_DICT = {
     np.dtype('float32'): torch.float,
+    np.dtype('int64'): torch.long,
 }
 
 
@@ -36,7 +37,7 @@ class Array(Type):
         return Array(self.data - other.data)
 
     def id(self, index):
-        return Array(self.data[index])
+        return Array(self.data[index], isinstance(index, tuple)) #if it's tuple, it's still a batch, otherwise a tuple
 
     def __repr__(self):
         return "Array("+str(self.data)+")"
@@ -45,6 +46,9 @@ class Array(Type):
         d = self.data.reshape(-1) if not self.is_batch else self.data.reshape(self.data.shape[0], -1)
         return (d**2).sum(-1)
 
+    @property
+    def shape(self):
+        return self.data.shape
 
 
 def _get_precision(dtype):
@@ -54,12 +58,17 @@ def _get_precision(dtype):
         return np.inf
 
 class ArraySpace(Space):
-    def __init__(self, low, high=None, dtype=np.float32):
+    def __init__(self, low, high=None, shape=None, dtype=np.float32):
         if high is None:
             low, high = -low, low
 
-        assert low.shape == high.shape, "box dimension mismatch"
-        shape = low.shape
+        if shape is None:
+            assert low.shape == high.shape, "box dimension mismatch"
+            shape = low.shape
+        else:
+            assert np.isscalar(low) and np.isscalar(high)
+            low = np.zeros(shape, dtype=np.int64) + low
+            high = np.zeros(shape, dtype=np.int64) + high
 
         self.low, self.high = low, high
         self.bounded_below = -np.inf < self.low
@@ -128,3 +137,29 @@ class ArraySpace(Space):
 
     def __repr__(self):
         return "Array(Shape="+str(self.shape)+")"
+
+
+class Discrete(Space):
+    def __init__(self, low, high=None, shape=None):
+        if high is None:
+            low, high = low * 0, low
+
+        if shape is not None:
+            low = np.zeros(shape, dtype=np.int64) + low
+            high = np.zeros(shape, dtype=np.int64) + high
+
+        self.low = low
+        self.high = high
+        shape = self.low.shape
+
+        super(Discrete, self).__init__(shape, np.int64, Array)
+
+    def sample(self):
+        return Array(self.np_random.randint(self.low, self.high))
+
+    def contains(self, x):
+        if isinstance(x, list):
+            x = np.array(x)
+        assert isinstance(x, np.ndarray)
+        x = x.astype(self.dtype)
+        return x.shape == self.shape and np.all(x >= self.low) and np.all(x < self.high)

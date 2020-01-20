@@ -21,15 +21,15 @@ def test_array_space():
     assert check_np_array(a.numpy(), out) #cuda
 
     # operator
-    a = Array(np.array([1,2,3, 5]))
-    b = Array(np.array([2,3,4, 9]))
+    a = Array(np.array([1, 2, 3, 5]))
+    b = Array(np.array([2, 3, 4, 9]))
 
     assert check_np_array((a+b).numpy(), np.array([3, 5, 7, 14]))
     assert check_np_array((a-b).numpy(), np.array([-1, -1, -1, -4]))
     assert np.abs(a.metric() - (1**2 + 2**2 + 3**2 + 5**2)) < 1e-5
 
     # batch version
-    a = Array(np.array([[1,2,3], [2,3,4]]), is_batch=True)
+    a = Array(np.array([[1, 2, 3], [2, 3, 4]]), is_batch=True)
     assert check_np_array(a.metric(), np.array([1**2 + 2**2 + 3**2, 2**2 + 3** 2 + 4**2]))
 
     # in

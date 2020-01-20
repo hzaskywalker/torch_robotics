@@ -52,6 +52,23 @@ class Dict(OrderedDict, Type):
     def id(self, index):
         return Dict([(i, v.id(index)) for i, v in self.items()])
 
+    @property
+    def shape(self):
+        return OrderedDict([(i, v.shape) for i, v in self.items()])
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            return self[item]
+
+    def __setattr__(self, key, value):
+        if key not in self:
+            self.__dict__[key] = value
+        else:
+            self[key] = value
+
+
 class DictSpace(OrderedDict, Space):
     def seed(self, seed=None):
         [space.seed(seed) for space in self.values()]
