@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from .space import Type, Space
+from .utils import to_numpy, to_tensor
 
 TYPE_DICT = {
     np.dtype('float32'): torch.float,
@@ -13,16 +14,10 @@ class Array(Type):
         super(Array, self).__init__(data, is_batch)
 
     def numpy(self):
-        if isinstance(self.data, torch.Tensor):
-            return self.data.detach().cpu().numpy()
-        else:
-            return self.data
+        return to_numpy(self.data, self.is_batch)
 
     def tensor(self, device='cuda:0'):
-        if isinstance(self.data, torch.Tensor):
-            return self.data.to(device)
-        else:
-            return torch.tensor(self.data, dtype=TYPE_DICT[self.data.dtype])
+        return to_tensor(self.data, device)
 
     @classmethod
     def from_numpy(cls, data, shape, is_batch=False):
@@ -40,7 +35,7 @@ class Array(Type):
     def __sub__(self, other):
         return Array(self.data - other.data)
 
-    def __index__(self, index):
+    def id(self, index):
         return Array(self.data[index])
 
     def __repr__(self):
@@ -130,3 +125,6 @@ class ArraySpace(Space):
             x = np.array(x)  # Promote list to array for contains check
         assert isinstance(x, np.ndarray)
         return x.shape == self.shape and np.all(x >= self.low) and np.all(x <= self.high)
+
+    def __repr__(self):
+        return "Array(Shape="+str(self.shape)+")"

@@ -1,3 +1,4 @@
+import numpy as np
 from gym.spaces import Space as GymSpace
 
 class Type(object):
@@ -29,7 +30,7 @@ class Type(object):
     def __sub__(self, other):
         raise NotImplementedError
 
-    def __index__(self, index):
+    def id(self, index):
         raise NotImplementedError
 
     def metric(self):
@@ -45,7 +46,7 @@ class Space(GymSpace):
         self.np_random = None
         self.seed()
 
-    def from_numpy(self, data, is_batch=None):
+    def from_numpy(self, data, is_batch=False):
         import numpy as np  # takes about 300-400ms to import, so we load lazily
         if self.cls is np.ndarray:
             shape = (-1,) + self.shape if is_batch else self.shape
@@ -58,3 +59,7 @@ class Space(GymSpace):
 
     def sample(self):
         raise NotImplementedError
+
+    @property
+    def size(self):
+        return int(np.prod(self.shape))
