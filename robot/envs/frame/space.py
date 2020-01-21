@@ -40,7 +40,7 @@ class Space(GymSpace):
         if isinstance(state, np.ndarray) or isinstance(state, torch.Tensor):
             return state[index]
         else:
-            return OrderedDict([(i, self.id(v, index)) for i, v in state.items()])
+            raise NotImplementedError
 
     def to_numpy(self, state):
         # return the same type object, while the data is numpy
@@ -90,9 +90,9 @@ class Space(GymSpace):
 
 class Frame:
     def __init__(self, space: Space, state, scene=None, is_batch=False):
+        self.state = state
         self.space = space
         self.scene = scene
-        self.state = state
         self.is_batch = is_batch
 
     def __array__(self):
@@ -103,28 +103,28 @@ class Frame:
 
     def numpy(self):
         scene = None if self.scene is None else to_numpy(self.scene)
-        return Frame(self.space, to_numpy(self.state), scene, self.is_batch)
+        return self.__class__(self.space, to_numpy(self.state), scene, self.is_batch)
 
     def tensor(self, device):
         scene = None if self.scene is None else to_tensor(self.scene, device)
-        return Frame(self.space, to_tensor(self.state, device), scene, self.is_batch)
+        return self.__class__(self.space, to_tensor(self.state, device), scene, self.is_batch)
 
     def __sub__(self, other):
-        if isinstance(other, Frame):
+        if isinstance(other, self.__class__):
             other = other.state
-        return self.space.sub(self.state, other, self.scene)
+        return self.__class__(self.space, self.space.sub(self.state, other, self.scene), self.scene, self.is_batch)
 
     def __add__(self, other):
-        if isinstance(other, Frame):
+        if isinstance(other, self.__class__):
             other = other.state
-        return self.space.add(self.state, other, self.scene)
+        return self.__class__(self.space, self.space.add(self.state, other, self.scene), self.scene, self.is_batch)
 
     def metric(self):
         return self.space.metric(self.state, self.scene, self.is_batch)
 
     def id(self, index):
         assert self.is_batch
-        return Frame(self.scene.id(self.state, index), isinstance(index, tuple))
+        return self.__class__(self.space, self.space.id(self.state, index), self.scene, is_batch=isinstance(index, tuple))
 
     def __repr__(self):
         return "Frame("+str(self.state)+") of "+str(self.space)

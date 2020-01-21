@@ -33,6 +33,7 @@ def size(shape):
     elif isinstance(shape, tuple) or isinstance(shape, list):
         return int(np.prod(shape))
     else:
+        raise NotImplementedError
         return shape.size
 
 def deserialize(v, shape, is_batch):
@@ -42,6 +43,7 @@ def deserialize(v, shape, is_batch):
         else:
             return v.reshape(*shape)
     elif isinstance(shape, OrderedDict):
+        raise NotImplementedError
         l = 0
         out = OrderedDict()
         for i, spec in shape.items():
