@@ -5,27 +5,32 @@ from .angular import Angular6d, Angular6dSpace
 from .array import ArraySpace, Discrete
 
 
-def node_space(n):
-    return DictSpace(
-        p=ArraySpace(1, shape=(n, 3)),
-        v=ArraySpace(1, shape=(n, 3)),
-        w=Angular6dSpace(shape=(n,)),
-        dw=ArraySpace(1, shape=(n, 3)),
-    )
+def NodeSpace(n, m=None, low=1., high=None):
+    if m is None:
+        return DictSpace(
+            p=ArraySpace(low=low, high=high, shape=(n, 3)),
+            v=ArraySpace(low=low, high=high, shape=(n, 3)),
+            w=Angular6dSpace(shape=(n,)),
+            dw=ArraySpace(low=low, high=high, shape=(n, 3)),
+        )
+    else:
+        return ArraySpace(
+            low=low, high=high, shape=(n, m)
+        )
 
-def edge_space(n, m, d):
-    return DictSpace(
-        e=ArraySpace(1, shape=(m, d)),
-        s=Discrete(n, shape=(m,)),
-        t=Discrete(n, shape=(m,))
-    )
 
-def graph_space(node_space, edge_space, global_space=None):
-    space = DictSpace(
-        node=node_space,
-        edge=edge_space,
-    )
+def GraphSpace(n, m, dim_edge, dim_node=None,
+               low_node=1, high_node=None,
+               low_edge=1, high_edge=None,
+               global_dim=None):
+    space = DictSpace()
+    if dim_node is not None and dim_node != 0:
+        space['node']=NodeSpace(n, dim_node, low_node, high_node),
+    if dim_edge != 0:
+        space['edge'] = ArraySpace(low_edge, high_edge, shape=(m, dim_edge))
 
-    if global_space is not None:
-        space['global'] = global_space
+    space['graph'] = Discrete(n, shape=(2, m))
+
+    if global_dim is not None:
+        space['global'] = ArraySpace(1, shape=(global_dim,))
     return space

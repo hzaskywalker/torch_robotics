@@ -1,28 +1,26 @@
 import numpy as np
 from gym.spaces import Space as GymSpace
 
+
 class Type(object):
     def __init__(self, data, is_batch=False):
         self.data = data
         self.is_batch = is_batch
 
     def __array__(self):
-        return self.numpy()
+        return self.numpy().serialize()
+
+    def serialize(self):
+        # return the serialization
+        raise NotImplementedError
 
     def numpy(self):
-        # return a numpy
+        # return the same type object, while the data is numpy
         raise NotImplementedError
 
     def tensor(self, device='cuda:0'):
-        # return a tensor
+        # return the same type object, while the data is saved as pytorch Tensor
         raise NotImplementedError
-
-    def to(self, device='cuda:0'):
-        if device == 'numpy':
-            self.data = self.numpy()
-        else:
-            self.data = self.tensor(device)
-        return self
 
     def __add__(self, other):
         raise NotImplementedError
@@ -36,6 +34,9 @@ class Type(object):
     def id(self, index):
         raise NotImplementedError
 
+    def encode(self):
+        raise NotImplementedError
+
     @classmethod
     def stack(cls, dim=0):
         # making batch methods...
@@ -44,6 +45,7 @@ class Type(object):
     @property
     def shape(self):
         raise NotImplementedError
+
 
 class Space(GymSpace):
     def __init__(self, shape=None, dtype=None, cls=None):
@@ -71,3 +73,8 @@ class Space(GymSpace):
     @property
     def size(self):
         return int(np.prod(self.shape))
+
+    @property
+    def derivative(self):
+        # return the derivative_space
+        raise NotImplementedError

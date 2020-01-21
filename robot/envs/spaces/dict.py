@@ -1,6 +1,7 @@
 import numpy as np
+import torch
 from collections import OrderedDict
-from .utils import to_numpy, to_tensor
+from .utils import to_numpy, to_tensor, serialize, cat
 from .space import Type, Space
 
 class Dict(OrderedDict, Type):
@@ -8,17 +9,17 @@ class Dict(OrderedDict, Type):
         OrderedDict.__init__(self, *args, **kwargs)
         self.is_batch = is_batch
 
-    def numpy(self):
+    def serialize(self):
         out = []
         for i, v in self.items():
-            out.append(to_numpy(v, self.is_batch))
-        return np.concatenate(out, axis=-1)
+            out.append(serialize(v, self.is_batch))
+        return cat(out, dim=-1)
+
+    def numpy(self):
+        return Dict([(i, to_numpy(v)) for i, v in self.items()], is_batch=self.is_batch)
 
     def tensor(self, device='cuda:0'):
-        out = Dict()
-        for i, v in self.items():
-            out[i] = to_tensor(v, device)
-        return Dict(out, is_batch=self.is_batch)
+        return Dict([(i, to_tensor(v, device)) for i, v in self.items()], is_batch=self.is_batch)
 
     def to(self, device='cuda:0'):
         for i, v in self.items():
@@ -60,7 +61,10 @@ class Dict(OrderedDict, Type):
         if item in self.__dict__:
             return self.__dict__[item]
         else:
-            return self[item]
+            try:
+                return self[item]
+            except KeyError:
+                raise AttributeError
 
     def __setattr__(self, key, value):
         if key not in self:
@@ -91,6 +95,10 @@ class DictSpace(OrderedDict, Space):
 
     def __repr__(self):
         return "DictSpace(" + ", ". join([str(k) + ":" + str(s) for k, s in self.items()]) + ")"
+
+    def __contains__(self, item):
+        # override the in
+        return self.contains(item)
 
     def from_numpy(self, data, is_batch=False):
         l = 0

@@ -1,5 +1,5 @@
 import numpy as np
-from .array import Array, Space
+from .array import Array, ArraySpace
 from robot.utils.rot6d import rmul, inv, rmat
 
 
@@ -30,16 +30,11 @@ class Angular6d(Array):
         return "Angular6d(" + str(self.data) + ")"
 
 
-class Angular6dSpace(Space):
+class Angular6dSpace(ArraySpace):
     def __init__(self, shape):
         shape = shape + (6,) # add 6 dimension at the end
-        super(Angular6dSpace, self).__init__(shape, np.float32, Angular6d)
-
-    def contains(self, x):
-        if isinstance(x, list):
-            x = np.array(x)  # Promote list to array for contains check
-        assert isinstance(x, np.ndarray)
-        return x.shape == self.shape
+        super(Angular6dSpace, self).__init__(low=-1, high=1, shape=shape)
+        self.cls = Angular6d
 
     def sample(self):
         # how to sample a random rotation in three d

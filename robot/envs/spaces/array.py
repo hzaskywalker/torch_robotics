@@ -1,12 +1,7 @@
 import torch
 import numpy as np
 from .space import Type, Space
-from .utils import to_numpy, to_tensor
-
-TYPE_DICT = {
-    np.dtype('float32'): torch.float,
-    np.dtype('int64'): torch.long,
-}
+from .utils import serialize, to_tensor, to_numpy
 
 
 class Array(Type):
@@ -14,11 +9,14 @@ class Array(Type):
         assert isinstance(data, torch.Tensor) or isinstance(data, np.ndarray)
         super(Array, self).__init__(data, is_batch)
 
+    def serialize(self):
+        return serialize(self.data, self.is_batch)
+
     def numpy(self):
-        return to_numpy(self.data, self.is_batch)
+        return Array(to_numpy(self.data), self.is_batch)
 
     def tensor(self, device='cuda:0'):
-        return to_tensor(self.data, device)
+        return Array(to_tensor(self.data, device), self.is_batch)
 
     @classmethod
     def from_numpy(cls, data, shape, is_batch=False):
@@ -67,14 +65,15 @@ class ArraySpace(Space):
             shape = low.shape
         else:
             assert np.isscalar(low) and np.isscalar(high)
-            low = np.zeros(shape, dtype=np.int64) + low
-            high = np.zeros(shape, dtype=np.int64) + high
+            low = np.zeros(shape=shape, dtype=np.float32) + low
+            high = np.zeros(shape=shape, dtype=np.float32) + high
 
         self.low, self.high = low, high
         self.bounded_below = -np.inf < self.low
         self.bounded_above = np.inf > self.high
 
         super(ArraySpace, self).__init__(shape, dtype, Array)
+
 
     def is_bounded(self, manner="both"):
         below = np.all(self.bounded_below)
@@ -130,6 +129,8 @@ class ArraySpace(Space):
         return Array(sample.astype(self.dtype))
 
     def contains(self, x):
+        assert isinstance(x, Array)
+        x = x.data
         if isinstance(x, list):
             x = np.array(x)  # Promote list to array for contains check
         assert isinstance(x, np.ndarray)
@@ -158,6 +159,8 @@ class Discrete(Space):
         return Array(self.np_random.randint(self.low, self.high))
 
     def contains(self, x):
+        assert isinstance(x, Array)
+        x = x.data
         if isinstance(x, list):
             x = np.array(x)
         assert isinstance(x, np.ndarray)
