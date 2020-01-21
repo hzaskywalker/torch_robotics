@@ -69,7 +69,6 @@ class Dict(OrderedDict, Space):
     def __index__(self, index):
         raise NotImplementedError
 
-    #def metric(self):
     def metric(self, a, scene=None, is_batch=False):
         ans = 0
         for i, spec in self.items():

@@ -98,6 +98,9 @@ class Frame:
     def __array__(self):
         return self.space.serialize(self.numpy().observe(), self.is_batch) # must be numpy
 
+    def serialize(self):
+        return self.space.serialize(self.state, self.is_batch)
+
     def observe(self):
         return self.space.observe(self.state, self.scene)
 

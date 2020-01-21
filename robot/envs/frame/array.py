@@ -108,7 +108,7 @@ class Array(Space):
 
 
 
-class Discrete(Space):
+class Discrete(Array):
     def __init__(self, low, high=None, shape=None):
         if high is None:
             low, high = low * 0, low
@@ -122,7 +122,7 @@ class Discrete(Space):
         shape = self.low.shape
 
         shape = tuple(shape)
-        super(Discrete, self).__init__(shape, np.int64)
+        super(Array, self).__init__(shape, np.int64)
 
     def sample(self):
         return self.np_random.randint(self.low, self.high)
