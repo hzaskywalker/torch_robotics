@@ -11,6 +11,11 @@ import numpy as np
 
 # PyTorch-backed implementations
 
+def qinv(q):
+    q1 = q.copy()
+    q1[...,1:] = -q1[...,1:]
+    return q1
+
 def qmul(q, r):
     """
     Multiply quaternion(s) q with quaternion(s) r.

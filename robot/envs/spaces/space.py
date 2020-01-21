@@ -87,6 +87,9 @@ class Space(GymSpace):
         # return a Frame variable that help us to write the code...
         return Frame(self, state, scene, is_batch)
 
+    def evaluate(self, state, action, scene=None, goal=None):
+        raise NotImplementedError
+
 
 class Frame:
     def __init__(self, space: Space, state, scene=None, is_batch=False):
@@ -132,3 +135,7 @@ class Frame:
     def __repr__(self):
         return "Frame("+str(self.state)+") of "+str(self.space)
 
+
+    @property
+    def shape(self):
+        return self.state.shape

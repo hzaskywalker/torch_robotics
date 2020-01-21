@@ -9,18 +9,18 @@ class AntEnv(SapienEnv, utils.EzPickle):
         utils.EzPickle.__init__(self)
 
     def build_render(self):
-        renderer = sapien_core.OptifuserRenderer()
+        renderer = sapien_core.OptifuserController(self._renderer2)
 
-        renderer.set_ambient_light([.4, .4, .4])
-        renderer.set_shadow_light([1, -1, -1], [.5, .5, .5])
-        renderer.add_point_light([2, 2, 2], [1, 1, 1])
-        renderer.add_point_light([2, -2, 2], [1, 1, 1])
-        renderer.add_point_light([-2, 0, 2], [1, 1, 1])
+        self.sim.set_ambient_light([.4, .4, .4])
+        self.sim.set_shadow_light([1, -1, -1], [.5, .5, .5])
+        self.sim.add_point_light([2, 2, 2], [1, 1, 1])
+        self.sim.add_point_light([2, -2, 2], [1, 1, 1])
+        self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        renderer.cam.set_position(np.array([0, 1, 10]))
-        renderer.cam.set_forward(np.array([0, 1, 0]))
-        renderer.cam.set_up(np.array([0, 0, 1]))
-        renderer.cam.rotate_yaw_pitch(0, -1.5)
+        renderer.camera.set_position(np.array([0, 1, 10]))
+        renderer.camera.set_forward(np.array([0, 1, 0]))
+        renderer.camera.set_up(np.array([0, 0, 1]))
+        renderer.camera.rotate_yaw_pitch(0, -1.5)
         return renderer
 
     def build_model(self):

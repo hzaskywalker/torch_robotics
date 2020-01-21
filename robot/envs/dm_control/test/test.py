@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from robot.envs.dm_control import make as dm_make
-from robot.envs.dm_control.dm_env import GraphDmControlWrapper
+from robot.envs.dm_control.graph_env import GraphDmControlWrapper
 
 def make(env_name, mode='Graph'):
     """

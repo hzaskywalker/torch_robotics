@@ -108,3 +108,12 @@ class DictFrame(Frame):
     def __repr__(self):
         return "DictFrame("+str(self.state)+") of "+str(self.space)
 
+    @property
+    def shape(self):
+        def get_shape(a):
+            if isinstance(a, np.ndarray) or isinstance(a, torch.Tensor):
+                return a.shape
+            else:
+                assert isinstance(a, OrderedDict)
+                return OrderedDict([(i, get_shape(v)) for i, v in a.items()])
+        return get_shape(self.state)

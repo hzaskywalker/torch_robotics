@@ -9,17 +9,15 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         utils.EzPickle.__init__(self)
 
     def build_render(self):
-        renderer = sapien_core.OptifuserRenderer()
+        self.sim.set_ambient_light([.4, .4, .4])
+        self.sim.set_shadow_light([1, -1, -1], [.5, .5, .5])
+        self.sim.add_point_light([2, 2, 2], [1, 1, 1])
+        self.sim.add_point_light([2, -2, 2], [1, 1, 1])
+        self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        renderer.set_ambient_light([.4, .4, .4])
-        renderer.set_shadow_light([1, -1, -1], [.5, .5, .5])
-        renderer.add_point_light([2, 2, 2], [1, 1, 1])
-        renderer.add_point_light([2, -2, 2], [1, 1, 1])
-        renderer.add_point_light([-2, 0, 2], [1, 1, 1])
-
-        renderer.cam.set_position(np.array([0, -5, 5]))
-        renderer.cam.rotate_yaw_pitch(0, -0.5)
-        return renderer
+        self._renderer.camera.set_position(np.array([0, -5, 5]))
+        self._renderer.camera.rotate_yaw_pitch(0, -0.5)
+        return self._renderer
 
     def build_model(self):
         builder = self.builder
@@ -30,19 +28,15 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
 
 
         # TODO: default friction... should be closed
-        root1 = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "root1")
-        root2 = builder.add_link(root1, Pose(np.array([0, 0, 0]), PxIdentity), "root2", "slider1",
-                                 sapien_core.PxArticulationJointType.PRISMATIC, np.array([[-np.inf, np.inf]]),
-                                 Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity))
+        root1 = self.my_add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), None, "root1")
+        root2 = self.my_add_link(root1, ([0, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity), "root2", "slider1",
+                                 [-np.inf, np.inf], type='hing', father_pose_type='sapien')
 
-        root3 = builder.add_link(root2, Pose(np.array([0, 0, 0]), PxIdentity), "root3", "slider2",
-                                 sapien_core.PxArticulationJointType.PRISMATIC, np.array([[-np.inf, np.inf]]),
-                                 Pose(np.array([0, 0, 0]), x2y), Pose(np.array([0, 0, 0]), x2y)
-                             )
+        root3 = self.my_add_link(root2, ([0, 0, 0], x2y), ([0, 0, 0], x2y), "root3", "slider2",
+                                 [-np.inf, np.inf], type='slider', father_pose_type='sapien')
 
-        torso = builder.add_link(root3, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "rot",
-                                 sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.inf, np.inf]]),
-                                 Pose(np.array([0, 0, 0.]), x2z), Pose(np.array([0., 0, 0]), x2z))
+        torso = self.my_add_link(root3, ([0, 0, 0.], x2z), ([0., 0, 0], x2z), "torso", "rot",
+                                 [-np.inf, np.inf], type='slider', father_pose_type='sapien')
 
         density = 1000.
         self.fromto(torso, "1.5 0 0 0.5 0 0", 0.1, np.array([1., 0, 0]), "torso", density=density)
@@ -55,8 +49,8 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         self.fromto(back, "0 0 0 -1 0 0", 0.1, np.array([0., 0., 1.]), "back", density=density)
 
         wrapper = builder.build(True) #fix base = True
-        wrapper.add_force_actuator("rot2", -100, 100)
-        wrapper.add_force_actuator("rot3", -100, 100)
+        #wrapper.add_force_actuator("rot2", -100, 100)
+        #wrapper.add_force_actuator("rot3", -100, 100)
 
         ground = self.sim.add_ground(-1)
         return wrapper, None

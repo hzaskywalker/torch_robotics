@@ -7,17 +7,10 @@ from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
 
 DEFAULT_SIZE = 500
 
-try:
-    import sapyen as sapien_core
-    print('USE sapyen')
-except ModuleNotFoundError:
-    import sapien.core as sapien_core
-    print('USE sapien core')
+import sapien.core as sapien_core
+print('USE sapien core')
 
-try:
-    from sapyen import Pose
-except ModuleNotFoundError:
-    from sapien.core import Pose
+from sapien.core import Pose
 
 
 def convert_observation_to_space(observation):
@@ -52,11 +45,14 @@ class SapienEnv(gym.Env):
             'video.frames_per_second': int(np.round(1.0 / self.dt))
         }
 
-        self.sim = sapien_core.Simulation()
-        self.sim.set_time_step(timestep)
+        self._sim = sapien_core.Simulation()
+        self._renderer2 = sapien_core.OptifuserRenderer()
+        self._sim.set_renderer(self._renderer2)
+        #self.sim.set_time_step(timestep)
 
-        self._renderer = self.build_render()
-        self.sim.set_renderer(self._renderer)
+        self.sim = self._sim.create_scene()
+        self._renderer = sapien_core.OptifuserController(self._renderer2)
+        self.build_render()
 
         self.builder = self.sim.create_articulation_builder()
         self.model, self.root = self.build_model()
@@ -173,39 +169,42 @@ class SapienEnv(gym.Env):
     #    return self.data.get_body_xpos(body_name)
         pass
 
-    def add_capsule(self, builder, body, xpos, xquat, radius, half_length, color, name, shape=True):
+    def add_capsule(self, body, xpos, xquat, radius, half_length, color, name, shape=True):
         if shape:
-            builder.add_capsule_shape_to_link(body, Pose(xpos, xquat), radius, half_length) #half length
-        builder.add_capsule_visual_to_link(body, Pose(xpos, xquat), radius, half_length, color, name) #half length
+            body.add_capsule_shape(Pose(xpos, xquat), radius, half_length) #half length
+        body.add_capsule_visual(Pose(xpos, xquat), radius, half_length, color, name) #half length
 
     def add_sphere(self, builder, body, xpos, xquat, radius, color, name, shape=True):
         if shape:
             builder.add_sphere_shape_to_link(body, Pose(xpos, xquat), radius) #half length
         builder.add_sphere_visual_to_link(body, Pose(xpos, xquat), radius, color, name) #half length
 
-
-    def my_add_link(self, father, link_pose, local_pose, name, joint_name, range,
-                    dumping=0., stiffness=0., type='hinge'):
+    def my_add_link(self, father, link_pose, local_pose=None, name=None, joint_name=None, range=None,
+                    friction=0., dumping=0., type='hinge', father_pose_type='mujoco'):
         # range  [a, b]
-        link_pose = np.array(link_pose[0]), np.array(link_pose[1])
-        local_pose = np.array(local_pose[0]), np.array(local_pose[1])
-        def parent_pose(xpos, xquat, ypos, yquat):
-            pos = rotate_vector(ypos, xquat) + xpos
-            quat = qmult(xquat, yquat)
-            return Pose(pos, quat)
+        link = self.builder.create_link_builder(father)
+        link.set_name(name)
 
-        if type == 'hinge':
-            joint_type = sapien_core.PxArticulationJointType.REVOLUTE
-        else:
-            joint_type = sapien_core.PxArticulationJointType.PRISMATIC
+        if father is not None:
+            link_pose = np.array(link_pose[0]), np.array(link_pose[1])
+            local_pose = np.array(local_pose[0]), np.array(local_pose[1])
+            def parent_pose(xpos, xquat, ypos, yquat):
+                pos = rotate_vector(ypos, xquat) + xpos
+                quat = qmult(xquat, yquat)
+                return Pose(pos, quat)
 
-        link = self.builder.add_link(father,  Pose(np.array([0, 0., 0]), np.array([1, 0, 0, 0])),
-                                     name, joint_name, joint_type,
-                                     np.array([range]),
-                                     parent_pose(*link_pose, *local_pose), Pose(*local_pose))
+            if type == 'hinge':
+                joint_type = sapien_core.ArticulationJointType.REVOLUTE
+            else:
+                joint_type = sapien_core.ArticulationJointType.PRISMATIC
 
-        if dumping != 0. or stiffness != 0.:
-            raise NotImplementedError
+            link.set_joint_name(joint_name)
+            father_pose = parent_pose(*link_pose, *local_pose) if father_pose_type == 'mujoco' else Pose(*link_pose)
+            link.set_joint_properties(
+                joint_type, np.array([range]),
+                father_pose, Pose(*local_pose),
+                friction, dumping
+            )
         return link
 
     def fromto(self, link, vec, size, rgb, name, density=1000.):
@@ -227,10 +226,11 @@ class SapienEnv(gym.Env):
         if isinstance(vec, str):
             vec = np.array(list(map(float, vec.split(' '))))
         l, pose = vec2pose((vec[3:]-vec[:3])/2)
-        self.add_capsule(self.builder, link, (vec[3:] + vec[:3])/2, pose, size, l, rgb, name)
+        self.add_capsule(link, (vec[3:] + vec[:3])/2, pose, size, l, rgb, name)
 
         if density != 1000:
-            self.builder.update_link_mass_and_inertia(link, density)
+            #self.builder.update_link_mass_and_inertia(link, density)
+            raise NotImplementedError
 
     """
     def state_vector(self):

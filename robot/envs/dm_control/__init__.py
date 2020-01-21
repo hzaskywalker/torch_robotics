@@ -1,7 +1,9 @@
 from gym.envs.registration import register
-import gym
 import os
 os.environ['MUJOCO_GL'] = "osmesa" # for headless rendering
+from .dm_env import DmControlWrapper
+from .graph_env import GraphDmControlWrapper
+import gym
 from . import dm_env
 import hashlib
 
@@ -17,7 +19,7 @@ def make(domain_name, task_name, task_kwargs=None, visualize_reward=False, mode=
     if gym_id not in gym_id_list:
         register(
             id=gym_id,
-            entry_point='robot.envs.dm_control.dm_env:{}DmControlWrapper'.format(mode),
+            entry_point='robot.envs.dm_control:{}DmControlWrapper'.format(mode),
             kwargs={'domain_name': domain_name, 'task_name': task_name, 'task_kwargs': task_kwargs,
                     'visualize_reward': visualize_reward, 'render_mode_list': render_mode_list}
         )
