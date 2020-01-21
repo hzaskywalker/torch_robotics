@@ -1,7 +1,7 @@
 import numpy as np
 import torch
-from robot.envs.frame.array import Array
-from robot.envs.frame.space import Frame
+from robot.envs.spaces.array import Array
+from robot.envs.spaces.space import Frame
 
 def check_np_array(a, b):
     return ((a-b)**2).sum() < 1e-6

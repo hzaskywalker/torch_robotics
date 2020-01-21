@@ -1,3 +1,3 @@
-from .array import ArraySpace, Array
+from .array import Array
 from .graph import GraphSpace
-from .dict import DictSpace, Dict
+from .dict import Dict

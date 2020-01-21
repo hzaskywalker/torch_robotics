@@ -1,9 +1,9 @@
 import numpy as np
 import tqdm
 import torch
-from robot.envs.frame.dict import  Dict
-from robot.envs.frame.array import Array
-#from robot.envs.frame.angular import Angular6d, Angular6dSpace
+from robot.envs.spaces.dict import  Dict
+from robot.envs.spaces.array import Array
+#from robot.envs.spaces.angular import Angular6d, Angular6dSpace
 
 def check_np_array(a, b):
     return ((a-b)**2).sum() < 1e-6
@@ -78,9 +78,9 @@ def test_array_space():
     assert space.contains(a.state)
 
     # in
-    #assert [0.1, 0.1, 0.1] in space
-    #assert [-0.1, -0.1, -0.1] in space
-    #assert not [-1.1, -0.1, -0.1] in space
+    #assert [0.1, 0.1, 0.1] in spaces
+    #assert [-0.1, -0.1, -0.1] in spaces
+    #assert not [-1.1, -0.1, -0.1] in spaces
 
 
 if __name__ == '__main__':

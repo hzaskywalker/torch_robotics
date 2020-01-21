@@ -1,52 +1,7 @@
 import torch
 import numpy as np
-from .space import Type, Space
+from .space import Space
 from .utils import serialize, to_tensor, to_numpy
-
-
-class Array(Type):
-    def __init__(self, data, is_batch=False):
-        assert isinstance(data, torch.Tensor) or isinstance(data, np.ndarray)
-        super(Array, self).__init__(data, is_batch)
-
-    def serialize(self):
-        return serialize(self.data, self.is_batch)
-
-    def numpy(self):
-        return Array(to_numpy(self.data), self.is_batch)
-
-    def tensor(self, device='cuda:0'):
-        return Array(to_tensor(self.data, device), self.is_batch)
-
-    @classmethod
-    def from_numpy(cls, data, shape, is_batch=False):
-        shape = (-1,) + shape if is_batch else shape
-        return Array(data.reshape(shape), is_batch)
-
-    @classmethod
-    def from_tensor(cls, data, shape, is_batch=False):
-        # the function is the same...
-        return cls.from_numpy(data, shape, is_batch)
-
-    def __add__(self, other):
-        return Array(self.data + other.data)
-
-    def __sub__(self, other):
-        return Array(self.data - other.data)
-
-    def id(self, index):
-        return Array(self.data[index], isinstance(index, tuple)) #if it's tuple, it's still a batch, otherwise a tuple
-
-    def __repr__(self):
-        return "Array("+str(self.data)+")"
-
-    def metric(self):
-        d = self.data.reshape(-1) if not self.is_batch else self.data.reshape(self.data.shape[0], -1)
-        return (d**2).sum(-1)
-
-    @property
-    def shape(self):
-        return self.data.shape
 
 
 def _get_precision(dtype):
@@ -55,7 +10,7 @@ def _get_precision(dtype):
     else:
         return np.inf
 
-class ArraySpace(Space):
+class Array(Space):
     def __init__(self, low, high=None, shape=None, dtype=np.float32):
         if high is None:
             low, high = -low, low
@@ -72,7 +27,8 @@ class ArraySpace(Space):
         self.bounded_below = -np.inf < self.low
         self.bounded_above = np.inf > self.high
 
-        super(ArraySpace, self).__init__(shape, dtype, Array)
+        shape = tuple(shape)
+        super(Array, self).__init__(shape, dtype)
 
 
     def is_bounded(self, manner="both"):
@@ -126,11 +82,9 @@ class ArraySpace(Space):
         if self.dtype.kind == 'i':
             sample = np.floor(sample)
 
-        return Array(sample.astype(self.dtype))
+        return sample.astype(self.dtype)
 
     def contains(self, x):
-        assert isinstance(x, Array)
-        x = x.data
         if isinstance(x, list):
             x = np.array(x)  # Promote list to array for contains check
         assert isinstance(x, np.ndarray)
@@ -139,8 +93,22 @@ class ArraySpace(Space):
     def __repr__(self):
         return "Array(Shape="+str(self.shape)+")"
 
+    def observe(self, state, scene=None):
+        return state
 
-class Discrete(Space):
+    def add(self, a, b, scene=None):
+        return a + b
+
+    def sub(self, a, b, scene=None):
+        return a - b
+
+    def metric(self, a, scene=None, is_batch=False):
+        d = a.reshape(-1) if not is_batch else a.reshape(a.shape[0], -1)
+        return (d**2).sum(-1)
+
+
+
+class Discrete(Array):
     def __init__(self, low, high=None, shape=None):
         if high is None:
             low, high = low * 0, low
@@ -153,13 +121,13 @@ class Discrete(Space):
         self.high = high
         shape = self.low.shape
 
-        super(Discrete, self).__init__(shape, np.int64, Array)
+        shape = tuple(shape)
+        super(Array, self).__init__(shape, np.int64)
 
     def sample(self):
-        return Array(self.np_random.randint(self.low, self.high))
+        return self.np_random.randint(self.low, self.high)
 
     def contains(self, x):
-        assert isinstance(x, Array)
         x = x.data
         if isinstance(x, list):
             x = np.array(x)

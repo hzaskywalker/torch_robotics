@@ -76,7 +76,7 @@ class DmControlWrapper(gym.Env):
         self.dmcenv:dm_control.suite.control.Environment = suite.load(domain_name=domain_name, task_name=task_name, task_kwargs=task_kwargs,
                                  visualize_reward=visualize_reward)
 
-        # convert spec to space
+        # convert spec to spaces
         self.action_space = convertSpec2Space(self.dmcenv.action_spec(), clip_inf=True)
         self.observation_space = convertOrderedDict2Space(self.dmcenv.observation_spec())
 
