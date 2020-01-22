@@ -9,7 +9,8 @@ def test():
     for i in range(10000):
         action = pusher.action_space.sample()
         action *= 0
-        pusher.step(action)
+        p = pusher.step(action)[0]
+        print(p)
         pusher.render()
 
 

@@ -33,7 +33,7 @@ class SapienEnv(gym.Env):
     """
     Superclass for all Sapyen environments.
     """
-    def __init__(self, frame_skip, timestep=0.01):
+    def __init__(self, frame_skip, timestep=0.01, gravity=[0, 0, -9.8]):
         self.frame_skip = frame_skip
         self.timestep = timestep
         self.viewer = None
@@ -49,7 +49,7 @@ class SapienEnv(gym.Env):
         self._renderer2 = sapien_core.OptifuserRenderer()
         self._sim.set_renderer(self._renderer2)
 
-        self.sim = self._sim.create_scene()
+        self.sim = self._sim.create_scene(gravity=np.array(gravity))
         self.sim.set_timestep(timestep)
         self._renderer = sapien_core.OptifuserController(self._renderer2)
 
@@ -58,6 +58,9 @@ class SapienEnv(gym.Env):
         self._renderer.set_current_scene(self.sim)
 
         self.builder = self.sim.create_articulation_builder()
+
+        self._default_density = 1000
+
         self.model, self.root = self.build_model()
 
         # get actors...
@@ -205,18 +208,30 @@ class SapienEnv(gym.Env):
     #    return self.data.get_body_xpos(body_name)
         pass
 
-    def add_capsule(self, body, xpos, xquat, radius, half_length, color, name, shape=True):
+    def add_capsule(self, body, xpos, xquat, radius, half_length, color, name, shape=True, density=None):
+        if density is None:
+            density = self._default_density
         if shape:
-            body.add_capsule_shape(Pose(xpos, xquat), radius, half_length) #half length
+            body.add_capsule_shape(Pose(xpos, xquat), radius, half_length, density=density) #half length
         body.add_capsule_visual(Pose(xpos, xquat), radius, half_length, color, name) #half length
 
-    def add_sphere(self, body, xpos, xquat, radius, color, name, shape=True):
+    def add_sphere(self, body, xpos, xquat, radius, color, name, shape=True, density=None):
+        if density is None:
+            density = self._default_density
         if shape:
-            body.add_sphere_shape(Pose(xpos, xquat), radius) #half length
+            body.add_sphere_shape(Pose(xpos, xquat), radius, density=density) #half length
         body.add_sphere_visual(Pose(xpos, xquat), radius, color, name) #half length
 
+    def add_box(self, body, xpos, xquat, size, color, name, shape=True, density=None):
+        if density is None:
+            density = self._default_density
+
+        if shape:
+            body.add_box_shape(Pose(xpos, xquat), np.array(size))
+        body.add_box_visual(Pose(xpos, xquat), np.array(size), color, name=name)
+
     def my_add_link(self, father, link_pose, local_pose=None, name=None, joint_name=None, range=None,
-                    friction=0., dumping=0., type='hinge', father_pose_type='mujoco'):
+                    friction=0., damping=0., type='hinge', father_pose_type='mujoco', contype=1, conaffinity=1):
         # range  [a, b]
         link = self.builder.create_link_builder(father)
         link.set_name(name)
@@ -240,8 +255,9 @@ class SapienEnv(gym.Env):
             link.set_joint_properties(
                 joint_type, np.array([range]),
                 father_pose, Pose(*local_pose),
-                friction, dumping
+                friction, damping
             )
+            link.set_collision_group(contype, conaffinity, 0)
         return link
 
     def fromto(self, link, vec, size, rgb, name, density=1000.):
@@ -270,7 +286,7 @@ class SapienEnv(gym.Env):
             raise NotImplementedError
 
 
-    def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None):
+    def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None, contype=1, conaffinity=1):
         types = {
             sapien_core.ArticulationJointType.PRISMATIC: 'slider',
             sapien_core.ArticulationJointType.REVOLUTE: 'hinge',
@@ -287,7 +303,7 @@ class SapienEnv(gym.Env):
                 local_pose = (local_pose.p, local_pose.q)
             else:
                 local_pose = ([0, 0, 0], [1, 0, 0, 0])
-        return self.my_add_link(father, father_pose, local_pose, name=name, joint_name=joint_name, range=range, type=types[joint_type], father_pose_type='sapien')
+        return self.my_add_link(father, father_pose, local_pose, name=name, joint_name=joint_name, range=range, type=types[joint_type], father_pose_type='sapien', contype=contype, conaffinity=conaffinity)
 
 
     def add_force_actuator(self, name, low, high):

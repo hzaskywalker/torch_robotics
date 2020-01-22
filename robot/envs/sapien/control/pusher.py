@@ -9,7 +9,7 @@ def mass_center(model, sim):
 
 class PusherEnv(SapienEnv, utils.EzPickle):
     def __init__(self):
-        SapienEnv.__init__(self, 5)
+        SapienEnv.__init__(self, 5, gravity=[0, 0, 0])
         utils.EzPickle.__init__(self)
 
     def build_render(self):
@@ -24,6 +24,8 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
     def build_model(self):
         builder = self.builder
+        self._default_density = 300
+
         PxIdentity = np.array([1, 0, 0, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
         x2z = np.array([0.7071068, 0, 0.7071068, 0])
@@ -31,9 +33,13 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         rgb2 = np.array([0.6, 0.6, 0.6])
         default_rgb = np.array([0.5, 0.5, 0.5])
 
-        cur = world = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world") # root coordinates #free
+        cur = world = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world", contype=1, conaffinity=1) # root coordinates #free
+        #table
+        world.add_box_shape(Pose([0., 0.5, -0.325]), np.array((1., 1., 0.1)))
+        world.add_box_visual(Pose([0., 0.5, -0.325]), size=np.array((1., 1., 0.1)), color=np.array([1., 1., 1.]))
+
         cur = r_shoulder_pan_link = self.my_add_link(cur, ([0, -0.6, 0], PxIdentity), ([0, 0, 0], x2z),
-                                               "r_shoulder_pan_link", "r_shoulder_pan_joint", [-2.2854, 1.714602])
+                                               "r_shoulder_pan_link", "r_shoulder_pan_joint", [-2.2854, 1.714602], contype=0, conaffinity=0, damping=1.)
         self.add_sphere(cur, np.array([-0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e1")
         self.add_sphere(cur,  np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
         self.add_sphere(cur, np.array([-0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e1p")
@@ -42,31 +48,31 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
 
         cur = r_shoulder_lift_link = self.my_add_link(cur, ([0.1, 0, 0], PxIdentity), ([0, 0, 0], x2y),
-                                               "r_shoulder_lift_link", "r_shoulder_lift_joint", [-0.5236, 1.3963])
+                                               "r_shoulder_lift_link", "r_shoulder_lift_joint", [-0.5236, 1.3963], damping=1., contype=0, conaffinity=0)
         self.fromto(cur, "0 -0.1 0 0 0.1 0", 0.1, default_rgb, "sl")
 
         cur = r_upper_arm_roll_link = self.my_add_link(cur, ([0, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
-                                               "r_upper_arm_roll_link", "r_upper_arm_roll_joint", [-1.5, 1.7])
+                                               "r_upper_arm_roll_link", "r_upper_arm_roll_joint", [-1.5, 1.7], contype=0, conaffinity=0, damping=0.1)
 
         self.fromto(cur, "-0.1 0 0 0.1 0 0", 0.02, default_rgb, "uar")
         self.fromto(cur, "0 0 0 0.4 0 0", 0.06, default_rgb, "ua")
 
         cur = r_elbow_flex_link = self.my_add_link(cur, ([0.4, 0, 0], PxIdentity), ([0, 0, 0], x2y),
-                                                 "r_elbow_flex_link", "r_elbow_flex_joint", [-2.3213, 0])
+                                                 "r_elbow_flex_link", "r_elbow_flex_joint", [-2.3213, 0], contype=0, conaffinity=0, damping=0.1)
         self.fromto(cur, "0 -0.02 0 0.0 0.02 0", 0.06, default_rgb, "ef")
 
         cur = r_forearm_roll_link = self.my_add_link(cur, ([0, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
-                                             "r_forearm_roll_link", "r_forearm_roll_joint", [-1.5, 1.5])
+                                             "r_forearm_roll_link", "r_forearm_roll_joint", [-1.5, 1.5], contype=0, conaffinity=0, damping=0.1)
         self.fromto(cur, "-0.1 0 0 0.1 0 0", 0.02, default_rgb, "fr")
         self.fromto(cur, "0 0 0 0.291 0 0", 0.05, default_rgb, "fa")
 
 
         cur = r_wrist_flex_link = self.my_add_link(cur, ([0.321, 0, 0], PxIdentity), ([0, 0, 0], x2y),
-                                               "r_wrist_flex_link", "r_wrist_flex_joint", [-1.094, 0.])
+                                               "r_wrist_flex_link", "r_wrist_flex_joint", [-1.094, 0.], contype=0, conaffinity=0, damping=0.1)
         self.fromto(cur, "0 -0.02 0 0 0.02 0", 0.01, rgb, "wf")
 
         cur = r_wrist_roll_link = self.my_add_link(cur, ([0., 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
-                                             "r_wrist_roll_link", "r_wrist_roll_joint", [-1.5, 1.5])
+                                             "r_wrist_roll_link", "r_wrist_roll_joint", [-1.5, 1.5], contype=1, conaffinity=1, damping=0.1)
 
         self.add_sphere(cur, np.array([0.1, -0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_arml")
         self.add_sphere(cur, np.array([0.1, 0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_armr")
@@ -75,10 +81,23 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         self.fromto(cur, "0 -0.1 0. 0.1 -0.1 0", 0.02, default_rgb, "hand2")
         self.fromto(cur, "0 +0.1 0. 0.1 +0.1 0", 0.02, default_rgb, "hand3")
 
+        obj_slidey = self.my_add_link(world, ([0.45, -0.05, -0.275], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidery", [-10.3213, 10.3], damping=0.5, type='slider')
+        obj = self.my_add_link(obj_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "obj", "obj_sliderx", [-10.3213, 10.3], damping=0.5, type='slider', contype=1)
+        self.add_box(obj, (0, 0, 0), PxIdentity, (0.05, 0.05, 0.05), (1, 0, 0), "object", density=0.0001)
+
 
         wrapper = builder.build(True) #fix base = True
         ground = self.sim.add_ground(-1)
-        self.add_force_actuator("r_wrist_flex_joint", -100, 100)
+        wrapper.set_root_pose(Pose([0., 0., 0.]))
+
+        limit = 20
+        self.add_force_actuator("r_shoulder_pan_joint", -limit, limit)
+        self.add_force_actuator("r_wrist_flex_joint", -limit, limit)
+        self.add_force_actuator("r_upper_arm_roll_joint", -limit, limit)
+        self.add_force_actuator("r_elbow_flex_joint", -limit, limit)
+        self.add_force_actuator("r_forearm_roll_joint", -limit, limit)
+        self.add_force_actuator("r_wrist_flex_joint", -limit, limit)
+        self.add_force_actuator("r_wrist_roll_joint", -limit, limit)
         return wrapper, None
 
 

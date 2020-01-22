@@ -16,7 +16,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
         self._renderer.camera.set_position(np.array([0, -5, 5]))
-        self._renderer.camera.rotate_yaw_pitch(0, -0.5)
+        self._renderer.camera.rotate_yaw_pitch(np.pi/2, -0.5)
         self._renderer.set_current_scene(self.sim)
         return self._renderer
 
