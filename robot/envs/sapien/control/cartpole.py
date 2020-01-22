@@ -36,20 +36,17 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         return ob, reward, done, {}
 
     def build_render(self):
-        renderer = sapien_core.OptifuserRenderer()
+        self.sim.set_ambient_light([.4, .4, .4])
+        self.sim.set_shadow_light([1, -1, -1], [.5, .5, .5])
+        self.sim.add_point_light([2, 2, 2], [1, 1, 1])
+        self.sim.add_point_light([2, -2, 2], [1, 1, 1])
+        self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        renderer.set_ambient_light([.4, .4, .4])
-        renderer.set_shadow_light([1, -1, -1], [.5, .5, .5])
-        renderer.add_point_light([2, 2, 2], [1, 1, 1])
-        renderer.add_point_light([2, -2, 2], [1, 1, 1])
-        renderer.add_point_light([-2, 0, 2], [1, 1, 1])
+        self._renderer.camera.set_forward(np.array([0, 1, 0]))
+        self._renderer.camera.set_up(np.array([0, 0, 1]))
 
-        renderer.cam.set_forward(np.array([0, 1, 0]))
-        renderer.cam.set_up(np.array([0, 0, 1]))
-
-        renderer.cam.set_position(np.array([0, -3, 3]))
-        renderer.cam.rotate_yaw_pitch(0, -0.5)
-        return renderer
+        self._renderer.camera.set_position(np.array([0, -3, 3]))
+        self._renderer.camera.rotate_yaw_pitch(0., -0.5)
 
     @staticmethod
     def _get_ee_pos(x):
@@ -66,27 +63,27 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         x2z = np.array([0.7071068, 0, 0.7071068, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
 
-        rail = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "rail") # world root
+        rail = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "rail") # world root
 
-        cart = builder.add_link(rail, Pose(np.array([0, 0, 0]), PxIdentity), "cart", "slider",
-                                 sapien_core.PxArticulationJointType.PRISMATIC, np.array([[-2.5, 2.5]]),
+        cart = self.add_link(rail, Pose(np.array([0, 0, 0]), PxIdentity), "cart", "slider",
+                                 sapien_core.ArticulationJointType.PRISMATIC, np.array([[-2.5, 2.5]]),
                                  Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity))
 
-        pole = builder.add_link(cart, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "torso",
-                                 sapien_core.PxArticulationJointType.REVOLUTE, np.array([[-np.pi/2, np.pi/2]]),
+        pole = self.add_link(cart, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "torso",
+                                 sapien_core.ArticulationJointType.REVOLUTE, np.array([[-np.pi/2, np.pi/2]]),
                                  Pose(np.array([0, 0, 0]), x2y), Pose(np.array([-0.28, 0., 0]), x2z))
 
-        self.add_capsule(builder, rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 3,
+        self.add_capsule(rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 3,
                          np.array([1., 0., 0.]), "rail", shape=False)
 
-        self.add_capsule(builder, cart, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.1, 0.1,
+        self.add_capsule(cart, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.1, 0.1,
                          np.array([0., 1., 0.]), "cart")
 
-        self.add_capsule(builder, pole, np.array([0.0, 0., 0.]), np.array([1., 0, 0., 0.]), 0.049, 0.3,
+        self.add_capsule(pole, np.array([0.0, 0., 0.]), np.array([1., 0, 0., 0.]), 0.049, 0.3,
                          np.array([0, 0, 1.]), "cpole")
 
         wrapper = builder.build(True)
-        wrapper.add_force_actuator("slider", -100, 100)
+        self.add_force_actuator("slider", -100, 100)
 
         self.sim.add_ground(-1)
         return wrapper, None

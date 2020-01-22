@@ -13,17 +13,14 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         utils.EzPickle.__init__(self)
 
     def build_render(self):
-        renderer = sapien_core.OptifuserRenderer()
+        self.sim.set_ambient_light([.4, .4, .4])
+        self.sim.set_shadow_light([1, -1, -1], [.5, .5, .5])
+        self.sim.add_point_light([2, 2, 2], [1, 1, 1])
+        self.sim.add_point_light([2, -2, 2], [1, 1, 1])
+        self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        renderer.set_ambient_light([.4, .4, .4])
-        renderer.set_shadow_light([1, -1, -1], [.5, .5, .5])
-        renderer.add_point_light([2, 2, 2], [1, 1, 1])
-        renderer.add_point_light([2, -2, 2], [1, 1, 1])
-        renderer.add_point_light([-2, 0, 2], [1, 1, 1])
-
-        renderer.cam.set_position(np.array([4, 0, 4]))
-        renderer.cam.rotate_yaw_pitch(np.pi/2, -0.5)
-        return renderer
+        self._renderer.camera.set_position(np.array([4, 0, 4]))
+        self._renderer.camera.rotate_yaw_pitch(-np.pi, -0.5)
 
     def build_model(self):
         builder = self.builder
@@ -34,13 +31,13 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         rgb2 = np.array([0.6, 0.6, 0.6])
         default_rgb = np.array([0.5, 0.5, 0.5])
 
-        cur = world = builder.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world") # root coordinates #free
+        cur = world = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world") # root coordinates #free
         cur = r_shoulder_pan_link = self.my_add_link(cur, ([0, -0.6, 0], PxIdentity), ([0, 0, 0], x2z),
                                                "r_shoulder_pan_link", "r_shoulder_pan_joint", [-2.2854, 1.714602])
-        self.add_sphere(builder, cur, np.array([-0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e1")
-        self.add_sphere(builder, cur,  np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
-        self.add_sphere(builder, cur, np.array([-0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e1p")
-        self.add_sphere(builder, cur, np.array([0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e2p")
+        self.add_sphere(cur, np.array([-0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e1")
+        self.add_sphere(cur,  np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
+        self.add_sphere(cur, np.array([-0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e1p")
+        self.add_sphere(cur, np.array([0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e2p")
         self.fromto(cur, "0 0 -0.4 0 0 0.2", 0.1, default_rgb, "sp")
 
 
@@ -71,8 +68,8 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         cur = r_wrist_roll_link = self.my_add_link(cur, ([0., 0, 0], PxIdentity), ([0, 0, 0], PxIdentity),
                                              "r_wrist_roll_link", "r_wrist_roll_joint", [-1.5, 1.5])
 
-        self.add_sphere(builder, cur, np.array([0.1, -0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_arml")
-        self.add_sphere(builder, cur, np.array([0.1, 0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_armr")
+        self.add_sphere(cur, np.array([0.1, -0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_arml")
+        self.add_sphere(cur, np.array([0.1, 0.1, 0.]), PxIdentity, 0.01, default_rgb, "tip_armr")
 
         self.fromto(cur, "0 -0.1 0. 0.0 +0.1 0", 0.02, default_rgb, "hand1")
         self.fromto(cur, "0 -0.1 0. 0.1 -0.1 0", 0.02, default_rgb, "hand2")
@@ -80,8 +77,8 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
 
         wrapper = builder.build(True) #fix base = True
-        #wrapper.add_force_actuator("abdomen_z", -100, 100)
         ground = self.sim.add_ground(-1)
+        self.add_force_actuator("r_wrist_flex_joint", -100, 100)
         return wrapper, None
 
 

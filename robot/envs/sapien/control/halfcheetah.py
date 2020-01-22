@@ -26,25 +26,6 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         #self._renderer.camera.set_up(np.array([0, 0, 1]))
         self._renderer.camera.rotate_yaw_pitch(np.pi/2, -0.5)
 
-    def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None):
-        types = {
-            sapien_core.ArticulationJointType.PRISMATIC: 'slider',
-            sapien_core.ArticulationJointType.REVOLUTE: 'hinge',
-            None: None
-        }
-        if range is not None:
-            range = range[0]
-            if father_pose is not None:
-                father_pose = (father_pose.p, father_pose.q)
-            else:
-                father_pose = ([0, 0, 0], [1, 0, 0, 0])
-
-            if local_pose is not None:
-                local_pose = (local_pose.p, local_pose.q)
-            else:
-                local_pose = ([0, 0, 0], [1, 0, 0, 0])
-        return self.my_add_link(father, father_pose, local_pose, name=name, joint_name=joint_name, range=range, type=types[joint_type], father_pose_type='sapien')
-
 
     def build_model(self):
         builder = self.builder
