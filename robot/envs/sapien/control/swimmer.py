@@ -1,6 +1,6 @@
 from gym import utils, spaces
 # from gym.envs.mujoco import mujoco_env
-from .sapien_env import Pose, sapien_core, SapienEnv
+from .sapien_env import SapienEnv
 import numpy as np
 
 class SwimmerEnv(SapienEnv, utils.EzPickle):
@@ -17,6 +17,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
 
         self._renderer.camera.set_position(np.array([0, -5, 5]))
         self._renderer.camera.rotate_yaw_pitch(0, -0.5)
+        self._renderer.set_current_scene(self.sim)
         return self._renderer
 
     def build_model(self):
@@ -28,15 +29,15 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
 
 
         # TODO: default friction... should be closed
-        root1 = self.my_add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), None, "root1")
+        root1 = self.my_add_link(None,  (np.array([0, 0, 0]), PxIdentity), None, "root1")
         root2 = self.my_add_link(root1, ([0, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity), "root2", "slider1",
-                                 [-np.inf, np.inf], type='hing', father_pose_type='sapien')
+                                 [-np.inf, np.inf], type='slider', father_pose_type='sapien')
 
         root3 = self.my_add_link(root2, ([0, 0, 0], x2y), ([0, 0, 0], x2y), "root3", "slider2",
                                  [-np.inf, np.inf], type='slider', father_pose_type='sapien')
 
         torso = self.my_add_link(root3, ([0, 0, 0.], x2z), ([0., 0, 0], x2z), "torso", "rot",
-                                 [-np.inf, np.inf], type='slider', father_pose_type='sapien')
+                                 [-np.inf, np.inf], type='hinge', father_pose_type='sapien')
 
         density = 1000.
         self.fromto(torso, "1.5 0 0 0.5 0 0", 0.1, np.array([1., 0, 0]), "torso", density=density)
@@ -49,10 +50,10 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         self.fromto(back, "0 0 0 -1 0 0", 0.1, np.array([0., 0., 1.]), "back", density=density)
 
         wrapper = builder.build(True) #fix base = True
-        #wrapper.add_force_actuator("rot2", -100, 100)
-        #wrapper.add_force_actuator("rot3", -100, 100)
+        self.add_force_actuator("rot2", -100, 100)
+        self.add_force_actuator("rot3", -100, 100)
 
-        ground = self.sim.add_ground(-1)
+        self.sim.add_ground(-1)
         return wrapper, None
 
 

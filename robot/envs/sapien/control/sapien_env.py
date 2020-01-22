@@ -48,14 +48,41 @@ class SapienEnv(gym.Env):
         self._sim = sapien_core.Simulation()
         self._renderer2 = sapien_core.OptifuserRenderer()
         self._sim.set_renderer(self._renderer2)
-        #self.sim.set_time_step(timestep)
 
         self.sim = self._sim.create_scene()
+        self.sim.set_timestep(timestep)
         self._renderer = sapien_core.OptifuserController(self._renderer2)
+
+        self.force_actuators = []
         self.build_render()
 
         self.builder = self.sim.create_articulation_builder()
         self.model, self.root = self.build_model()
+
+        # get actors...
+        joints = self.model.get_joints()
+        joint_name = [i.name for i in joints]
+        joint_dof = [i.get_dof() for i in joints]
+        self.actor_idx = []
+        self.actor_bound = []
+        self._dof = len(self.model.get_qf())
+        assert self._dof == sum(joint_dof)
+
+        print(joint_name)
+        print(joint_dof)
+        for (name, low, high) in self.force_actuators:
+            i = joint_name.index(name)
+            assert joint_name[i] == name
+            s = sum([joint_dof[j] for j in range(i)])
+            print(name, s)
+            for j in range(joint_dof[i]):
+                self.actor_idx.append(s+j)
+                self.actor_bound.append((low, high))
+        self.actor_bound = np.array(self.actor_bound)
+        self.actor_idx = np.array(self.actor_idx)
+        print(self.actor_idx)
+        print(self.actor_bound)
+
         self.init_qpos = self.get_qpos()
         self.init_qvel = self.get_qvel()
         self.seed()
@@ -85,7 +112,8 @@ class SapienEnv(gym.Env):
         return np.concatenate(root + [self.model.get_qpos().ravel()])
 
     def _set_action_space(self):
-        bounds = self.model.get_force_actuator_range().copy()
+        #bounds = self.model.get_force_actuator_range().copy()
+        bounds = np.array(self.actor_bound)
         low = bounds[:, 0]
         high = bounds[:, 1]
         self.action_space = spaces.Box(low=low, high=high, dtype=np.float32)
@@ -146,15 +174,17 @@ class SapienEnv(gym.Env):
         return self.timestep * self.frame_skip
 
     def do_simulation(self, a, n_frames):
+        qf = np.zeros((self._dof), np.float32)
+        qf[self.actor_idx] = a
         for _ in range(n_frames):
-            self.model.apply_actuator(a)
+            self.model.set_qf(qf)
             self.sim.step()
 
 
     def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE):
         self.viewer_setup()
         if mode == 'human':
-            self.sim.update_renderer()
+            self.sim.update_render()
             self._renderer.render()
         else:
             raise NotImplementedError
@@ -182,6 +212,7 @@ class SapienEnv(gym.Env):
     def my_add_link(self, father, link_pose, local_pose=None, name=None, joint_name=None, range=None,
                     friction=0., dumping=0., type='hinge', father_pose_type='mujoco'):
         # range  [a, b]
+        assert type in ['hinge', 'slider']
         link = self.builder.create_link_builder(father)
         link.set_name(name)
 
@@ -231,6 +262,10 @@ class SapienEnv(gym.Env):
         if density != 1000:
             #self.builder.update_link_mass_and_inertia(link, density)
             raise NotImplementedError
+
+    def add_force_actuator(self, name, low, high):
+        # pass
+        self.force_actuators.append([name, low, high])
 
     """
     def state_vector(self):

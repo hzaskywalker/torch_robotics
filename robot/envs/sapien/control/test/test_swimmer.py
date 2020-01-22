@@ -1,6 +1,8 @@
+import sys
 from robot.envs.sapien.control.swimmer import SwimmerEnv
 
 def test():
+    x = 0 if len(sys.argv) > 1 else 1
     swimmer = SwimmerEnv()
     print(swimmer.observation_space)
     print(swimmer.action_space)
@@ -8,7 +10,7 @@ def test():
     swimmer.reset()
     for i in range(10000):
         action = swimmer.action_space.sample()
-        swimmer.step(action)
+        swimmer.step(action * x)
         swimmer.render()
 
 
