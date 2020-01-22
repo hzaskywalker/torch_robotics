@@ -55,6 +55,7 @@ class SapienEnv(gym.Env):
 
         self.force_actuators = []
         self.build_render()
+        self._renderer.set_current_scene(self.sim)
 
         self.builder = self.sim.create_articulation_builder()
         self.model, self.root = self.build_model()
@@ -74,7 +75,6 @@ class SapienEnv(gym.Env):
             i = joint_name.index(name)
             assert joint_name[i] == name
             s = sum([joint_dof[j] for j in range(i)])
-            print(name, s)
             for j in range(joint_dof[i]):
                 self.actor_idx.append(s+j)
                 self.actor_bound.append((low, high))
@@ -86,6 +86,8 @@ class SapienEnv(gym.Env):
         self.init_qpos = self.get_qpos()
         self.init_qvel = self.get_qvel()
         self.seed()
+
+
 
         self._set_action_space()
         action = self.action_space.sample()
@@ -99,14 +101,14 @@ class SapienEnv(gym.Env):
 
     def get_qpos(self):
         if self.root is not None:
-            root = [self.root.get_global_pose().p, self.root.get_global_pose().q]
+            root = [self.root.pose.p, self.root.pose.q]
         else:
             root = []
         return np.concatenate(root + [self.model.get_qpos().ravel()])
 
     def get_qvel(self):
         if self.root is not None:
-            root = [self.root.get_linear_velocity(), self.root.get_angular_velocity()]
+            root = [self.root.velocity, self.root.angular_velocity]
         else:
             root = []
         return np.concatenate(root + [self.model.get_qpos().ravel()])
@@ -162,7 +164,11 @@ class SapienEnv(gym.Env):
 
     def set_state(self, qpos, qvel):
         if self.root is not None:
-            self.model.set_root_pose(qpos[:7], qvel[:6])
+            #TODO: set root velocity
+            self.model.set_root_pose(Pose(qpos[:3], qpos[3:7]))
+            #self.model.set_root_pose(qpos[:7], qvel[:6])
+            #self.root.set_)root()
+            #self.root.set_vel(qpos[:6])
             qpos = qpos[7:]
             qvel = qvel[6:]
         self.model.set_qpos(qpos)
@@ -204,10 +210,10 @@ class SapienEnv(gym.Env):
             body.add_capsule_shape(Pose(xpos, xquat), radius, half_length) #half length
         body.add_capsule_visual(Pose(xpos, xquat), radius, half_length, color, name) #half length
 
-    def add_sphere(self, builder, body, xpos, xquat, radius, color, name, shape=True):
+    def add_sphere(self, body, xpos, xquat, radius, color, name, shape=True):
         if shape:
-            builder.add_sphere_shape_to_link(body, Pose(xpos, xquat), radius) #half length
-        builder.add_sphere_visual_to_link(body, Pose(xpos, xquat), radius, color, name) #half length
+            body.add_sphere_shape(Pose(xpos, xquat), radius) #half length
+        body.add_sphere_visual(Pose(xpos, xquat), radius, color, name) #half length
 
     def my_add_link(self, father, link_pose, local_pose=None, name=None, joint_name=None, range=None,
                     friction=0., dumping=0., type='hinge', father_pose_type='mujoco'):
