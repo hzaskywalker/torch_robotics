@@ -218,11 +218,11 @@ class SapienEnv(gym.Env):
     def my_add_link(self, father, link_pose, local_pose=None, name=None, joint_name=None, range=None,
                     friction=0., dumping=0., type='hinge', father_pose_type='mujoco'):
         # range  [a, b]
-        assert type in ['hinge', 'slider']
         link = self.builder.create_link_builder(father)
         link.set_name(name)
 
         if father is not None:
+            assert type in ['hinge', 'slider']
             link_pose = np.array(link_pose[0]), np.array(link_pose[1])
             local_pose = np.array(local_pose[0]), np.array(local_pose[1])
             def parent_pose(xpos, xquat, ypos, yquat):
