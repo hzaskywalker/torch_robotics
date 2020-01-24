@@ -25,7 +25,8 @@ class Angular6d(Array):
 
         if is_batch:
             out = out.reshape(out.shape[0], -1)
-        else: out = out.reshape(-1)
+        else:
+            out = out.reshape(-1)
         return out.sum()
 
     def __repr__(self):

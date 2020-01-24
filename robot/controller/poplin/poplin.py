@@ -88,7 +88,7 @@ class WeightNetwork:
 class PoplinController(AgentBase):
     # Poplin-P
     # very slow??
-    def __init__(self, model, prior, horizon,
+    def __init__(self, model, extension, horizon,
                  inp_dim, oup_dim,
                  std=0.1 ** 0.5,
                  replan_period=1,
@@ -108,7 +108,7 @@ class PoplinController(AgentBase):
         self.cem = CEM(self.rollout, iter_num=iter_num, num_mutation=num_mutation, num_elite=num_elite,
                        std=std, **kwargs)
 
-        self.prior = prior
+        self.extension = extension
         self.model = model # model is a forward model
 
         self.w_buf = None
@@ -145,7 +145,7 @@ class PoplinController(AgentBase):
             t, _ = self.model.forward(obs, action) # NOTE that
             if len(t.shape) == 3:
                 t = t.mean(dim=0) # mean
-            reward = self.prior.cost(obs, action, t) + reward
+            reward = self.extension.cost(obs, action, t) + reward
             obs = t
         return reward
 

@@ -107,7 +107,6 @@ class Array(Space):
         return (d**2).sum(-1)
 
 
-
 class Discrete(Array):
     def __init__(self, low, high=None, shape=None):
         if high is None:
@@ -128,7 +127,6 @@ class Discrete(Array):
         return self.np_random.randint(self.low, self.high)
 
     def contains(self, x):
-        x = x.data
         if isinstance(x, list):
             x = np.array(x)
         assert isinstance(x, np.ndarray)

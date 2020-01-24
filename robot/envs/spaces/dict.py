@@ -17,6 +17,14 @@ class Dict(OrderedDict, Space):
     def shape(self):
         return OrderedDict([(i, v.shape) for i, v in self.items()])
 
+    @property
+    def observation_shape(self):
+        return OrderedDict([(i, v.observation_shape) for i, v in self.items()])
+
+    @property
+    def derivative_shape(self):
+        return OrderedDict([(i, v.derivative_shape) for i, v in self.items()])
+
     def serialize(self, state, is_batch=False):
         out = []
         for i, space in self.items():
@@ -35,7 +43,6 @@ class Dict(OrderedDict, Space):
         return out
 
     def id(self, state, index):
-        #return Frame(self.state[index], isinstance(index, tuple))
         return OrderedDict([(i, self[i].id(v, index)) for i, v in state.items()])
 
     def sample(self):
@@ -48,6 +55,7 @@ class Dict(OrderedDict, Space):
             if k not in x:
                 return False
             if not space.contains(x[k]):
+                print(k, x[k], space)
                 return False
         return True
 
@@ -73,6 +81,7 @@ class Dict(OrderedDict, Space):
         ans = 0
         for i, spec in self.items():
             ans = ans + spec.metric(a[i])
+            print(i, ans)
         return ans
 
     def __repr__(self):
@@ -82,6 +91,9 @@ class Dict(OrderedDict, Space):
         assert isinstance(state, OrderedDict)
         # return a Frame variable that help us to write the code...
         return DictFrame(self, state, scene, is_batch)
+
+    def __contains__(self, item):
+        return self.contains(item)
 
 
 
@@ -110,10 +122,4 @@ class DictFrame(Frame):
 
     @property
     def shape(self):
-        def get_shape(a):
-            if isinstance(a, np.ndarray) or isinstance(a, torch.Tensor):
-                return a.shape
-            else:
-                assert isinstance(a, OrderedDict)
-                return OrderedDict([(i, get_shape(v)) for i, v in a.items()])
-        return get_shape(self.state)
+        return self.space.get_shape(self.state)

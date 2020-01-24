@@ -177,21 +177,29 @@ class GraphNormalizer(nn.Module):
 
 class GNNForwardAgent(AgentBase):
     def __init__(self, lr, env, normalize=False, *args, **kwargs):
-        self.init_graph(env)
-        self.state_prior = env.state_info
+        self.global_space = env.global_space
+        self.scene = self.global_space(env.get_global(), is_batch=False).tensor('cuda:0')
+        self.node_attr = self.scene['node']
+        self.edge_attr = self.scene['edge']
+        self.graph = self.scene['graph']
 
-        node_dim = self.state_prior.d + self.node_attr.shape[-1]
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
 
-        assert len(env.action_space.shape) == 1
-        edge_dim = 1 + self.edge_attr.shape[-1]
+        inp_shape = self.observation_space.observation_shape
+        node_dim = inp_shape['node'][-1] # ndoe dim
+        edge_dim = 1 + inp_shape['edge'][-1]
+
+        self.oup_dims = [i[-1] for i in self.observation_space.derivative_shape.values()]
+        oup_dim = sum(self.oup_dims)
 
         if normalize:
             self.inp_norm = GraphNormalizer(node_dim, edge_dim) # normalize graph
-            self.oup_norm = Normalizer((self.state_prior.d,)) # normalize output
+            self.oup_norm = Normalizer((oup_dim,)) # normalize output
         else:
             self.inp_norm = self.oup_norm = None
 
-        model = GNResidule(node_dim, edge_dim, self.state_prior.d, 1, *args, **kwargs)
+        model = GNResidule(node_dim, edge_dim, oup_dim, 1, *args, **kwargs)
 
         super(GNNForwardAgent, self).__init__(model, lr)
 
@@ -200,55 +208,11 @@ class GNNForwardAgent(AgentBase):
         self.step = 0
 
 
-    def init_graph(self, env):
-        graph = env.get_graph()
-        node_attr = env.get_node_attr()
-        edge_attr = env.get_edge_attr()
-
-        if isinstance(node_attr, np.ndarray):
-            node_attr = torch.Tensor(node_attr)
-        if isinstance(edge_attr, np.ndarray):
-            edge_attr = torch.Tensor(edge_attr)
-        if isinstance(graph, np.ndarray):
-            graph = torch.LongTensor(graph)
-
-        graph = torch.cat((graph, torch.stack((graph[1], graph[0]))), dim=1)
-        self.graph = graph
-        self.node_attr = node_attr
-
-        # graph is a directed graph, connect parent to child
-        # add direction as feature and repeat the edge
-
-        edge_attr = torch.cat((edge_attr, edge_attr[:, -1:]*0+1), dim=1) # add sign
-        edge_attr = torch.cat((edge_attr, edge_attr), dim=0)
-        edge_attr[edge_attr.shape[0]//2, -1] *= -1
-        self.edge_attr = edge_attr
-        self.action_list = torch.LongTensor(env.action_to_edge())
-
-
     def build_graph(self, state, action, g=None):
         """
         :param state: (batch, n, d_x)
         :param action: (batch, e, action)
         """
-        if len(action.shape) == 2:
-            action = action[:, :, None]
-        batch_size = state.shape[0]
-        node = torch.cat((state, self.node_attr[None, :].expand(batch_size, -1, -1)), dim=2)
-
-        tmp = torch.zeros((action.shape[0], self.edge_attr.shape[0]//2, action.shape[-1]), device=action.device) # only half
-        tmp[:, self.action_list] = action
-        edge = torch.cat((tmp, tmp), dim=1) # duplicate actions
-        edge = torch.cat((edge, self.edge_attr[None,:].expand(batch_size, -1, -1)), dim=2)
-
-        _, n, d = node.shape
-        _, n_e, d_a = edge.shape
-
-        self.n = n
-
-        # flatten the graph
-        node = node.view(-1, d)
-        edge = edge.view(-1, d_a)
         graph, batch = batch_graphs(batch_size, n, self.graph)
         return Graph(node, edge, graph, batch, g)
 
@@ -278,9 +242,6 @@ class GNNForwardAgent(AgentBase):
         # support that s is encoded by state_format
         if self.training:
             self.optim.zero_grad()
-
-        s_node, _ = self.state_prior.decode(s)
-        t_node, _ = self.state_prior.decode(t)
 
         graph = self.build_graph(s_node, a)
         delta = self.state_prior.delete(t_node, s_node)

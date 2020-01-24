@@ -30,20 +30,6 @@ def test_env_show():
             break
 
 
-def test_graph_env():
-    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
-
-    x = env.reset()
-    while True:
-        a = env.action_space.sample()
-
-        img = env.render(mode='rgb_array') # or 'human
-        #cv2.imwrite('x.jpg', img)
-        cv2.imshow('x.jgp', img)
-        cv2.waitKey(1)
-        t, _, done, _ = env.step(a)
-        if done:
-            break
 
 
 def test_reset_geom1():
@@ -102,5 +88,55 @@ def test_render():
         cv2.waitKey(0)
 
 
+def test_graph_env():
+    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
+
+    x = env.reset()
+    while True:
+        a = env.action_space.sample()
+
+        img = env.render(mode='rgb_array') # or 'human
+        #cv2.imwrite('x.jpg', img)
+        cv2.imshow('x.jgp', img)
+        cv2.waitKey(1)
+        t, _, done, _ = env.step(a)
+        if done:
+            break
+
+
+def test_xx():
+    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
+
+    state_space = env.observation_space
+    action_space = env.action_space
+    global_space = env.global_space
+
+    scene = env.get_global()
+
+    state = env.reset()
+
+    frame = state_space(state, is_batch=False, scene=scene)
+    assert state in state_space
+
+    a = action_space.sample()
+    assert a in action_space
+
+    assert action_space.observe(a).shape == action_space.observation_shape
+
+    state2 = env.step(a)[0]
+    assert state2 in state_space
+
+    w_space = state_space['w']
+    h_space = state_space['p']
+
+    # derivate space
+    assert abs(state_space.metric(state_space.sub(state, state))) < 1e-5
+    derivative = state_space.sub(state2, state)
+    state3 = state_space.add(derivative, state)
+    assert abs(state_space.metric(state_space.sub(state2, state3))) < 1e-5
+
+
+
 if __name__ == '__main__':
-    test_graph_env()
+    #test_graph_env()
+    test_xx()

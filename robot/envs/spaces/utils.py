@@ -7,6 +7,7 @@ TYPE_DICT = {
     np.dtype('float32'): torch.float,
     np.dtype('float64'): torch.float,
     np.dtype('int64'): torch.long,
+    np.dtype('int32'): torch.long,
 }
 
 

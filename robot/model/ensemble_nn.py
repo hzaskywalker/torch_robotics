@@ -103,9 +103,9 @@ class EnBNN(nn.Module):
 class EnBNNAgent(AgentBase):
     def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01, npart=20,
                  ensemble_size=5, normalizer=True, *args, **kwargs):
-        state_prior = env.state_prior
+        extension = env.extension
 
-        inp_dim = state_prior.inp_dim
+        inp_dim = extension.inp_dim
         obs_dim = env.observation_space.shape[0]
         action_dim = env.action_space.shape[0]
 
@@ -124,7 +124,7 @@ class EnBNNAgent(AgentBase):
         self.weight_decay = weight_decay
         self.var_reg = var_reg
 
-        self.state_prior = state_prior # which is actually a config file of the environment
+        self.extension = extension # which is actually a config file of the environment
         self.ensemble_size = ensemble_size
 
     def cuda(self):
@@ -134,12 +134,12 @@ class EnBNNAgent(AgentBase):
         return super(EnBNNAgent, self).cuda()
 
     def get_predict(self, s, a):
-        inp = self.state_prior.encode(s)
+        inp = self.extension.encode_obs(s)
         if self.normalizer:
             inp = self.obs_norm(inp)
             a = self.action_norm(a)
         mean, log_var = self.forward_model(inp, a)
-        return self.state_prior.add(s, mean), log_var
+        return self.extension.add(s, mean), log_var
 
     def rollout(self, s, a):
         # s (inp_dim)
@@ -156,7 +156,7 @@ class EnBNNAgent(AgentBase):
                 mean, log_var = self.get_predict(s, act)
                 t = torch.randn_like(log_var) * torch.exp(log_var * 0.5) + mean # sample
                 outs.append(t)
-                rewards = self.state_prior.cost(s, act, t) + rewards
+                rewards = self.extension.cost(s, act, t) + rewards
                 s = t
             return torch.stack(outs, dim=2), rewards.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
@@ -168,7 +168,7 @@ class EnBNNAgent(AgentBase):
             t, _ = self.forward(obs, action) # NOTE that
             if len(t.shape) == 3:
                 t = t.mean(dim=0) # mean
-            reward = self.state_prior.cost(obs, action, t) + reward
+            reward = self.extension.cost(obs, action, t) + reward
             obs = t
         return obs, reward
 
@@ -183,7 +183,7 @@ class EnBNNAgent(AgentBase):
             # very strange function
             idx = 0
             for s, a, _ in data_gen:
-                s = self.state_prior.encode(s)
+                s = self.extension.encode_obs(s)
                 if idx == 0:
                     self.obs_norm.fit(s)
                     self.action_norm.fit(a)

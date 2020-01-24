@@ -15,6 +15,9 @@ class Space(GymSpace):
         self.np_random = None
         self.seed()
 
+        self._derivative_shape = self.shape
+        self._observation_shape = self.shape
+
     @property
     def size(self):
         # return the size of variable in this spaces
@@ -26,6 +29,13 @@ class Space(GymSpace):
     def shape(self):
         # return the shape of variable in this spaces
         return self._shape
+
+    def get_shape(self, state):
+        if isinstance(state, np.ndarray) or isinstance(state, torch.Tensor):
+            return state.shape
+        else:
+            assert isinstance(state, OrderedDict)
+            return OrderedDict([(i, self.get_shape(v)) for i, v in state.items()])
 
     def serialize(self, state, is_batch=False):
         # return the serialization
@@ -71,14 +81,14 @@ class Space(GymSpace):
         raise NotImplementedError
 
     @property
-    def derivative_space(self):
+    def derivative_shape(self):
         # the deriviative spaces will be the same as observation_space by default
-        return self.observation_space
+        return self._derivative_shape
 
     @property
-    def observation_space(self):
+    def observation_shape(self):
         # the observation spaces will be the same to self by default
-        return self
+        return self._observation_shape
 
     def __repr__(self):
         return "Space("+str(self.shape)+")"

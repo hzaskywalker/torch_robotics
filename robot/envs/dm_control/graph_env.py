@@ -1,63 +1,80 @@
+import torch
 from collections import OrderedDict
 import numpy as np
+import copy
 from .dm_env import DmControlWrapper
 from dm_control.mujoco.wrapper.mjbindings import mjlib
 from robot.utils.quaternion import qmul, qrot
 from ..spaces import Array, Dict, Discrete, Quaternion, Angular6d
 from ..spaces.utils import cat
+from ...utils import rot6d
 
 
 class GraphSpace(Dict):
-    def __init__(self, n, m, dim_edge, dim_node=None,
+    def __init__(self, n, m, dim_edge, dim_node,
                low_node=1, high_node=None,
-               low_edge=1, high_edge=None,
-               global_dim=None):
-        super(GraphSpace, self).__init__()
-        self.low_node = low_node
-
-        if m is None:
-            node = Dict(
-                p=Array(low=low_node, high=high_node, shape=(n, 3)),
-                v=Array(low=low_node, high=high_node, shape=(n, 3)),
-                w=Angular6d(low=-1., high=None, shape=(n, 6)),
-                dw=Array(low=low_node, high=high_node, shape=(n, 3)),
-            )
-        else:
-            node = Array(
-                low=low_node, high=high_node, shape=(n, m)
-            )
-
-        edge = Array(low_edge, high_edge, shape=(m, dim_edge))
+               low_edge=1, high_edge=None):
+        self.n = n
+        self.m = m
+        node = Array(low=low_node, high=high_node, shape=(n, dim_node))
+        edge = Array(low=low_edge, high=high_edge, shape=(m, dim_edge))
         graph = Discrete(n, shape=(2, m))
         super(GraphSpace, self).__init__(node=node, edge=edge, graph=graph)
 
-        if global_dim is not None:
-            self['global'] = Array(1, shape=(global_dim,))
 
-        self._observation_space = Dict(
-            node = Array(low=low_node, shape=(self['node'].size,)),
-            edge = self['edge'],
-            graph = self['graph']
-        )
-
-    @property
-    def observation_space(self):
-        return self._observation_space
+class ActionSpace(Array):
+    def __init__(self, action_space, action_list, output_dim):
+        self.action_list = np.array(action_list)
+        self.m = output_dim//2
+        super(ActionSpace, self).__init__(action_space.low, action_space.high)
+        self._observation_shape = (output_dim,)
 
     def observe(self, state, scene=None):
-        # state is deserialized
-        if isinstance(state):
-            import copy
-            k = copy.copy(state)
-            k['node'] = cat((
-                k['node']['p'],
-                k['node']['v'],
-                k['node']['w'],
-                k['node']['dw']
-            ), dim=-1)
-            return k
+        if isinstance(state, np.ndarray):
+            output = np.zeros(state.shape[:-1] + self._observation_shape, dtype=np.float32)
         else:
-            return state
+            output = torch.zeros(state.shape[:-1] + self._observation_shape, device=state.device)
+        cc = np.array(self.action_list) if isinstance(state, np.ndarray) else torch.LongTensor(self.action_list)
+        if len(state.shape) == 1:
+            output[cc] = state
+            output[cc + self.m] = state
+        else:
+            output[:, cc] = state
+            output[:, cc+self.m] = state
+        return output
+
+
+class StateSpace(Dict):
+    def __init__(self, n, scene_space):
+        low, high = -1000, 1000
+        super(StateSpace, self).__init__(
+            p=Array(low=low, high=high, shape=(n, 3)),
+            v=Array(low=low, high=high, shape=(n, 3)),
+            w=Angular6d(low=low, high=high, shape=(n, 6)),
+            dw=Array(low=low, high=high, shape=(n, 3)),
+        )
+        shape = copy.deepcopy(scene_space.shape)
+        dim = sum([v.shape[-1] for v in self.values()])
+        shape['node'] = (shape['node'][0], shape['node'][1] + dim)
+        self._observation_shape = shape
+        self._derivative_shape = self.shape
+
+    @property
+    def observation_shape(self):
+        return self._observation_shape
+
+    @property
+    def derivative_shape(self):
+        return self._derivative_shape
+
+    def observe(self, state, scene=None):
+        # observation will return a graph...
+        # scene is a OrderedDict
+        # assume scene is deserialized
+        assert isinstance(scene, OrderedDict)
+        output = copy.copy(scene)
+        output['node'] = cat(output['node'], state)
+        return output
 
 
 class GraphDmControlWrapper(DmControlWrapper):
@@ -67,31 +84,22 @@ class GraphDmControlWrapper(DmControlWrapper):
 
         self.init()
 
-        n = len(self.dmcenv.physics.data.xpos)
-
-        #d = 3 + 6 + 3 + 3
-        #dq = len(self.dmcenv.physics.data.qpos) + len(self.dmcenv.physics.data.qvel)
-        #self.state_prior = StatePrior(n, d, dq)
-        #self.dq = dq
-        #self.dq_pos = len(self.dmcenv.physics.data.qpos)
-        #high = np.zeros((n*d+dq,)) +np.inf
-        #self.observation_space = gym.spaces.Box(low=-high, high=high) # not information
         n, m = self._node.shape[0], self._edge.shape[0]
-        self.observation_space = GraphSpace(n, m, 1, None,
-                                            low_edge=10000, low_node=10000)
-        #self.action_space = ArraySpace(n, m, 1, 0)
+
         self.global_space = GraphSpace(n, m, self._edge.shape[1], self._node.shape[1],
                                        low_edge=10000, low_node=10000)
-
+        # global is always fixed
         self._fixed_graph = OrderedDict(
             node = self._node,
             edge = self._edge,
             graph = self._graph,
-        ) # global is always fixed
-        print(self.global_space(self._fixed_graph, is_batch=False).shape)
-        print(self.global_space)
+        )
         assert self._fixed_graph in self.global_space
-        raise NotImplementedError
+
+        self.observation_space = StateSpace(n, self.global_space)
+
+        self.action_space = ActionSpace(self.action_space, self.act2jnt, m)
+
 
     def get_global(self):
         return self._fixed_graph
@@ -170,26 +178,19 @@ class GraphDmControlWrapper(DmControlWrapper):
             edge_actuator[jnt, :-1] = act
             edge_actuator[jnt, -1] = 1
 
-        self._edge = np.concatenate((self._edge, edge_actuator), axis=1)
-        self.act2jnt = act_jntid[:, 0].copy()
+        self._edge = np.concatenate((self._edge, edge_actuator, edge_actuator[:, 0:1]*0), axis=1) #the last is the sign
+        inverse_edge = self._edge.copy()
+        inverse_edge[..., -1:] += 1
+        self._edge = np.concatenate((self._edge, inverse_edge), axis=0) # add sign
+        self._graph = np.concatenate((self._graph, self._graph[::-1]), axis=1)
 
-        #print('jnt dof parent', [model.dof_parentid[i] for i in model.jnt_dofadr]) I dont't know what's this
-        #print('dof parentid', model.dof_parentid)
-        #exit(0)
+        self.act2jnt = act_jntid[:, 0].copy()
 
         for idx in range(1, len(self._node)):
             if model.body_jntnum[idx] == 0:
                 # no joint, directly connected to the parent.
                 print("WARNING>>> no joint, no connection to the parent")
 
-
-    def action_to_edge(self):
-        # map action to edge
-        return self.act2jnt
-
-    def forward(self, x, u):
-        # the most import thing is to implement the forward function
-        raise NotImplementedError
 
     def getObservation(self, qua=False):
         phy = self.dmcenv.physics
@@ -208,10 +209,15 @@ class GraphDmControlWrapper(DmControlWrapper):
         else:
             angle = phy.data.xquat[:].copy()
 
-        return self.state_prior.encode(
-            np.concatenate((pos, angle, np.stack(vels)), axis=-1),
-            np.concatenate((phy.data.qpos.copy(), phy.data.qvel.copy()))
-        )
+        vels = np.array(vels)
+        p, w, v, dw = pos, angle, vels[:, 3:], vels[:, :3]
+        #return self.state_prior.encode(
+        #    np.concatenate((pos, angle, np.stack(vels)), axis=-1),
+        #    np.concatenate((phy.data.qpos.copy(), phy.data.qvel.copy()))
+        #)
+        #raise NotImplementedError
+        #return OrderedDict(p=p, v=v, w=w, dw=w)
+        return OrderedDict(p=p,v=v,w=w,dw=dw)
 
     def forward(self, u, qua=False):
         phy = self.dmcenv.physics
