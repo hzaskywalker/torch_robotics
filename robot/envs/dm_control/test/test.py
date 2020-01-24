@@ -71,10 +71,10 @@ def test_geom():
 
 def test_render():
     import cv2
-    env: GraphDmControlWrapper = make('Cheetah', mode='Graph')
+    env: GraphDmControlWrapper = make('Pendulum', mode='Graph')
 
     while True:
-        s, q = env.state_prior.decode(env.reset())
+        s = env.reset()
         img = env.render(mode='rgb_array')
 
         env.reset()
@@ -125,18 +125,12 @@ def test_xx():
 
     state2 = env.step(a)[0]
     assert state2 in state_space
-
-    w_space = state_space['w']
-    h_space = state_space['p']
-
-    # derivate space
-    assert abs(state_space.metric(state_space.sub(state, state))) < 1e-5
-    derivative = state_space.sub(state2, state)
-    state3 = state_space.add(derivative, state)
-    assert abs(state_space.metric(state_space.sub(state2, state3))) < 1e-5
+    assert state2 in env.observation_space
 
 
 
 if __name__ == '__main__':
     #test_graph_env()
-    test_xx()
+    #test_xx()
+    #test_reset_geom1()
+    test_render()

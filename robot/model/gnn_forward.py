@@ -185,13 +185,12 @@ class GNNForwardAgent(AgentBase):
 
         self.observation_space = env.observation_space
         self.action_space = env.action_space
+        self.extension = env.extension
 
-        inp_shape = self.observation_space.observation_shape
-        node_dim = inp_shape['node'][-1] # ndoe dim
-        edge_dim = 1 + inp_shape['edge'][-1]
-
-        self.oup_dims = [i[-1] for i in self.observation_space.derivative_shape.values()]
-        oup_dim = sum(self.oup_dims)
+        inp_shape = self.extension.observation_shape
+        node_dim = inp_shape[-1] +self.node_attr.shape[-1] # node dim
+        edge_dim = 1 + self.edge_attr.shape[-1]
+        oup_dim = self.extension.derivative_shape[-1]
 
         if normalize:
             self.inp_norm = GraphNormalizer(node_dim, edge_dim) # normalize graph
@@ -213,7 +212,20 @@ class GNNForwardAgent(AgentBase):
         :param state: (batch, n, d_x)
         :param action: (batch, e, action)
         """
+        batch_size = state.shape[0]
+        node = self.extension.encode_obs(state)
+        edge = self.extension.encode_action(action)
+
+        node = torch.cat((node, self.node_attr[None, :].expand(batch_size, -1, -1)), dim=2)
+        edge = torch.cat((edge[:, :, None], self.edge_attr[None,:].expand(batch_size, -1, -1)), dim=2)
+
+        _, n, d = node.shape
+        _, _, d_a = edge.shape
+        node = node.view(-1, d)
+        edge = edge.view(-1, d_a)
+        self.n = n
         graph, batch = batch_graphs(batch_size, n, self.graph)
+
         return Graph(node, edge, graph, batch, g)
 
     def decode_node(self, graph):
@@ -224,7 +236,6 @@ class GNNForwardAgent(AgentBase):
         self.edge_attr = self.edge_attr.to(device)
         self.node_attr = self.node_attr.to(device)
         self.graph = self.graph.to(device)
-        self.action_list = self.action_list.to(device)
 
         if self.inp_norm is not None:
             self.inp_norm.cuda()
@@ -243,8 +254,8 @@ class GNNForwardAgent(AgentBase):
         if self.training:
             self.optim.zero_grad()
 
-        graph = self.build_graph(s_node, a)
-        delta = self.state_prior.delete(t_node, s_node)
+        graph = self.build_graph(s, a)
+        delta = self.extension.sub(t, s)
 
         if self.inp_norm is not None:
             graph = self.inp_norm(graph)
@@ -252,7 +263,7 @@ class GNNForwardAgent(AgentBase):
             delta = self.oup_norm(delta)
 
         output = self.decode_node(self.forward_model(graph))
-        loss = self.state_prior.dist(output, delta).mean()
+        loss = self.extension.distance(output, delta).mean()
 
         if self.training:
             if self.inp_norm is not None:
@@ -269,32 +280,24 @@ class GNNForwardAgent(AgentBase):
 
         return {
             'loss': tocpu(loss),
-            'st_distance': tocpu(self.state_prior.dist(s_node, t_node).mean()),
+            'st_distance': tocpu(self.extension.distance(s, t).mean()),
         }
 
     def get_predict(self, s, a):
-        if len(s.shape) == 2:
-            s_node, xx = self.state_prior.decode(s)
-        else:
-            s_node = s
-            xx = None
-        graph = self.build_graph(s_node, a)
+        graph = self.build_graph(s, a)
         if self.inp_norm is not None:
             graph = self.inp_norm(graph)
         delta = self.decode_node(self.forward_model(graph))
 
         if self.oup_norm is not None:
             delta = self.oup_norm.denorm(delta)
-        out = self.state_prior.add(s_node, delta)
-        if xx is not None:
-            out = self.state_prior.encode(out, xx)
+        out = self.extension.add(s, delta)
         return out
-
 
     def visualize(self, prefix, data, dic, env, **kwargs):
         s, a, t = data
-        predict = self.state_prior.decode(self.get_predict(s, a))[0]
-        t_node, _ = self.state_prior.decode(t)
+        predict = self.get_predict(s, a)
+        t_node = t
 
         imgs = []
         idx = 0

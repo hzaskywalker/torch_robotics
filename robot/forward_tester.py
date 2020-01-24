@@ -13,7 +13,7 @@ DATASET = {
 class ForwardModelTester:
     def __init__(self, env, path=None, num_traj=100, timestep=1000):
         self.path = path
-        self.state_format = env.state_format
+        self.extension = env.extension
         self.render_state = env.render_state
 
         @cache(self.path)
@@ -39,17 +39,17 @@ class ForwardModelTester:
     def dist(self, state, gt):
         if len(state.shape) == 2:
             # make it into nodes
-            state = self.state_format.decode(state)[0]
+            state = self.extension.decode(state)[0]
 
         if len(gt.shape) == 2:
-            gt = self.state_format.decode(gt)[0]
+            gt = self.extension.decode(gt)[0]
         state = torch.Tensor(state)
         gt = torch.Tensor(gt)
 
         x = slice(3)
-        w = slice(3, 9)
-        dw = slice(9, 12)
-        dx = slice(12, 15)
+        dx = slice(3, 6)
+        w = slice(6, 12)
+        dw = slice(12, 15)
         assert state.shape == gt.shape, f"state.shape {state.shape} gt.shape {gt.shape}"
         out = (((state[..., x] - gt[..., x])**2).sum(dim=-1),
                rot6d.rdist(state[..., w], gt[..., w]),
@@ -70,14 +70,14 @@ class ForwardModelTester:
 
         idx = 0
         yield np.concatenate(
-            (self.render_state(self.state_format.decode(s)[0]),
-             self.render_state(self.state_format.decode(self.trajs[0][0][idx])[0])), axis=0)
+            (self.render_state(self.extension.decode(s)[0]),
+             self.render_state(self.extension.decode(self.trajs[0][0][idx])[0])), axis=0)
         for i in a:
             s = ag(s, i)
             idx += 1
             yield np.concatenate(
-                (self.render_state(self.state_format.decode(s)[0]),
-                 self.render_state(self.state_format.decode(self.trajs[0][0][idx])[0])), axis=0)
+                (self.render_state(self.extension.decode(s)[0]),
+                 self.render_state(self.extension.decode(self.trajs[0][0][idx])[0])), axis=0)
 
     def test(self, agent, t=1):
         f = as_input(2)(batch_runner(128, show=False)(agent.rollout))

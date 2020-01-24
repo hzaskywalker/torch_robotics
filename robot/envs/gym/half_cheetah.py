@@ -14,8 +14,8 @@ import torch
 class HalfCheetahPrior(ExtensionBase):
     def __init__(self):
         super(HalfCheetahPrior, self).__init__()
-        self.inp_dim = 18
-        self.oup_dim = 18
+        self.observation_shape = (18,)
+        self.derivative_shape = (18,)
         self.TASK_HORIZON = 1000
 
     def encode_obs(self, obs):

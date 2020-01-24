@@ -1,10 +1,14 @@
 class ExtensionBase:
     observation_shape = None
     action_shape = None
+    derivative_shape = None
 
     def add(self, obs, delta):
         # change the delta
         return obs + delta
+
+    def sub(self, obs, other):
+        raise NotImplementedError
 
     def encode_obs(self, obs):
         # change the observation

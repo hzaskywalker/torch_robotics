@@ -22,59 +22,62 @@ class GraphSpace(Dict):
         super(GraphSpace, self).__init__(node=node, edge=edge, graph=graph)
 
 
-class ActionSpace(Array):
-    def __init__(self, action_space, action_list, output_dim):
+from ..extension import ExtensionBase
+
+class Extension(ExtensionBase):
+    def __init__(self, n, action_list, output_dim):
         self.action_list = np.array(action_list)
         self.m = output_dim//2
-        super(ActionSpace, self).__init__(action_space.low, action_space.high)
-        self._observation_shape = (output_dim,)
 
-    def observe(self, state, scene=None):
-        if isinstance(state, np.ndarray):
-            output = np.zeros(state.shape[:-1] + self._observation_shape, dtype=np.float32)
+        self.x = slice(0, 3)
+        self.dx = slice(3, 6)
+        self.w = slice(6, 12)
+        self.dw = slice(12, 15)
+        self.observation_shape = (n, 15)
+        self.derivative_shape = (n, 15)
+        self.action_shape = (output_dim,)
+
+    def encode_obs(self, obs):
+        return obs
+
+    def encode_action(self, action):
+        if isinstance(action, np.ndarray):
+            output = np.zeros(action.shape[:-1] + self.action_shape, dtype=np.float32)
         else:
-            output = torch.zeros(state.shape[:-1] + self._observation_shape, device=state.device)
-        cc = np.array(self.action_list) if isinstance(state, np.ndarray) else torch.LongTensor(self.action_list)
-        if len(state.shape) == 1:
-            output[cc] = state
-            output[cc + self.m] = state
+            output = torch.zeros(action.shape[:-1] + self.action_shape, device=action.device)
+        cc = np.array(self.action_list) if isinstance(action, np.ndarray) else torch.LongTensor(self.action_list)
+        if len(action.shape) == 1:
+            output[cc] = action
+            output[cc + self.m] = action
         else:
-            output[:, cc] = state
-            output[:, cc+self.m] = state
+            output[:, cc] = action
+            output[:, cc+self.m] = action
         return output
 
 
-class StateSpace(Dict):
-    def __init__(self, n, scene_space):
-        low, high = -1000, 1000
-        super(StateSpace, self).__init__(
-            p=Array(low=low, high=high, shape=(n, 3)),
-            v=Array(low=low, high=high, shape=(n, 3)),
-            w=Angular6d(low=low, high=high, shape=(n, 6)),
-            dw=Array(low=low, high=high, shape=(n, 3)),
-        )
-        shape = copy.deepcopy(scene_space.shape)
-        dim = sum([v.shape[-1] for v in self.values()])
-        shape['node'] = (shape['node'][0], shape['node'][1] + dim)
-        self._observation_shape = shape
-        self._derivative_shape = self.shape
+    def add(self, a, b):
+        return torch.cat([
+            a[..., self.x] + b[..., self.x], # update coordinates
+            rot6d.rmul(a[..., self.w], b[..., self.w]),
+            a[..., self.dw] + b[..., self.dw],
+            a[..., self.dx] + b[..., self.dx],
+        ], dim=-1)
 
-    @property
-    def observation_shape(self):
-        return self._observation_shape
 
-    @property
-    def derivative_shape(self):
-        return self._derivative_shape
+    def sub(self, a, b):
+        return torch.cat([
+            a[..., self.x] - b[..., self.x], # update coordinates
+            rot6d.rmul(a[..., self.w], rot6d.inv(b[..., self.w])),
+            a[..., self.dw] - b[..., self.dw],
+            a[..., self.dx] - b[..., self.dx],
+            ], dim=-1)
 
-    def observe(self, state, scene=None):
-        # observation will return a graph...
-        # scene is a OrderedDict
-        # assume scene is deserialized
-        assert isinstance(scene, OrderedDict)
-        output = copy.copy(scene)
-        output['node'] = cat(output['node'], state)
-        return output
+
+    def distance(self, state, gt, is_batch=True):
+        return ((state[..., self.x] - gt[..., self.x])**2).sum(dim=-1) + \
+               rot6d.rdist(state[..., self.w], gt[..., self.w]) + \
+               ((state[..., self.dw] - gt[..., self.dw]) ** 2).sum(dim=-1) + \
+               ((state[..., self.dx] - gt[..., self.dx]) ** 2).sum(dim=-1)
 
 
 class GraphDmControlWrapper(DmControlWrapper):
@@ -95,10 +98,10 @@ class GraphDmControlWrapper(DmControlWrapper):
             graph = self._graph,
         )
         assert self._fixed_graph in self.global_space
-
-        self.observation_space = StateSpace(n, self.global_space)
-
-        self.action_space = ActionSpace(self.action_space, self.act2jnt, m)
+        self.observation_space = Array(
+            low=np.inf, shape=(n, 3+6+3+3)
+        )
+        self.extension = Extension(n, self.act2jnt, m)
 
 
     def get_global(self):
@@ -211,13 +214,7 @@ class GraphDmControlWrapper(DmControlWrapper):
 
         vels = np.array(vels)
         p, w, v, dw = pos, angle, vels[:, 3:], vels[:, :3]
-        #return self.state_prior.encode(
-        #    np.concatenate((pos, angle, np.stack(vels)), axis=-1),
-        #    np.concatenate((phy.data.qpos.copy(), phy.data.qvel.copy()))
-        #)
-        #raise NotImplementedError
-        #return OrderedDict(p=p, v=v, w=w, dw=w)
-        return OrderedDict(p=p,v=v,w=w,dw=dw)
+        return np.concatenate([p, v, w, dw], axis=1)
 
     def forward(self, u, qua=False):
         phy = self.dmcenv.physics
@@ -234,7 +231,7 @@ class GraphDmControlWrapper(DmControlWrapper):
         quat = []
         for i in xpos:
             q = np.zeros((4,), dtype=dtype)
-            m = rot6d.rmat(torch.Tensor(i[3:9])).detach().numpy().astype(dtype)
+            m = rot6d.rmat(torch.Tensor(i[6:12])).detach().numpy().astype(dtype)
             mjlib.mju_mat2Quat(q, m.reshape(-1))
             quat.append(q)
         return pos, np.stack(quat)

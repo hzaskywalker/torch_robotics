@@ -33,7 +33,6 @@ register(
 
 
 def make(env_name):
-    from .priors import PRIORS
     env = gym.make(env_name)
     #env.state_prior = PRIORS[env_name]
     return env

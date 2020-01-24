@@ -16,8 +16,10 @@ class CartPoleExtension(ExtensionBase):
 
     def __init__(self):
         super(CartPoleExtension, self).__init__()
-        self.inp_dim = 5
-        self.oup_dim = 4
+        #self.inp_dim = 5
+        #self.oup_dim = 4
+        self.observation_shape = (5,)
+        self.derivative_shape = (4,)
         self.ee_sub = torch.tensor([0.0, 0.6], dtype=torch.float)
         self.TASK_HORIZON = 200
 

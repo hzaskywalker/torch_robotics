@@ -10,7 +10,12 @@ class as_input:
         self.batch_dim = batch_dim
 
     def __call__(self, f):
-        self.start = 1 if inspect.getfullargspec(f).args[0] == 'self' else 0
+        self.start = 0
+        args = inspect.getfullargspec(f).args
+        if len(args) > 0:
+            if args[0] == 'self':
+                self.start = 1
+
         def wrapped_f(*args):
             is_single = len(args[self.start].shape) < self.dim
             is_np = isinstance(args[self.start], np.ndarray)
