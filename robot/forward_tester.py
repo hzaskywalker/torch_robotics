@@ -37,12 +37,6 @@ class ForwardModelTester:
         return np.concatenate(S), np.concatenate(A), np.concatenate(T)
 
     def dist(self, state, gt):
-        if len(state.shape) == 2:
-            # make it into nodes
-            state = self.extension.decode(state)[0]
-
-        if len(gt.shape) == 2:
-            gt = self.extension.decode(gt)[0]
         state = torch.Tensor(state)
         gt = torch.Tensor(gt)
 
