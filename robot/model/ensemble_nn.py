@@ -104,7 +104,7 @@ class EnBNNAgent(AgentBase):
     def __init__(self, lr, env, weight_decay=0.0002, var_reg=0.01, npart=20,
                  ensemble_size=5, normalizer=True, *args, **kwargs):
         extension = env.extension
-        inp_dim = extension.observation_space[0]
+        inp_dim = extension.observation_shape[0]
 
         obs_dim = env.observation_space.shape[0]
         action_dim = env.action_space.shape[0]

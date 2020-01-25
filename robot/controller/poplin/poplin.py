@@ -188,7 +188,7 @@ class PoplinController(AgentBase):
         self.w_buf = None
 
 
-    @as_input(2)
+    @as_input(2, classmethod=True)
     def __call__(self, obs):
         assert len(obs.shape) == 2 and obs.shape[0] == 1
         if self.w_buf is not None:

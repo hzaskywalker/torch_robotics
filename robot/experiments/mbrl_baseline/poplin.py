@@ -88,7 +88,7 @@ def main():
         model=model,
         extension=extension,
         horizon=30, #30,
-        inp_dim=extension.inp_dim,
+        inp_dim=extension.observation_shape[-1],
         oup_dim=env.action_space.shape[0],
         iter_num=5,
         num_mutation=500,
@@ -115,7 +115,7 @@ def main():
     )
 
     mb_controller = MBController(
-        model, controller2, timestep=1000, #int(extension.TASK_HORIZON * 0.1),
+        model, controller, timestep=1000, #int(extension.TASK_HORIZON * 0.1),
         path='/tmp/poplin_{}'.format(env_name),
         batch_size=32,
         valid_ratio=0.0,

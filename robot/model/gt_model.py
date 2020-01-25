@@ -15,7 +15,6 @@ class Rollout:
         for s, a in zip(s, a):
             s[0] = 0
             self.env.set_state(s[:d], s[d:])
-            #self.env.reset_state(s)
 
             is_forward = len(a.shape) == 1
             if is_forward:

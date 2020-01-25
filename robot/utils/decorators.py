@@ -4,18 +4,13 @@ import os
 import numpy as np
 
 class as_input:
-    def __init__(self, dim=2, device='cuda:0', batch_dim=0):
+    def __init__(self, dim=2, device='cuda:0', batch_dim=0, classmethod=False):
         self.dim = dim
         self.device = device
         self.batch_dim = batch_dim
+        self.start = 0 if not classmethod else 1
 
     def __call__(self, f):
-        self.start = 0
-        args = inspect.getfullargspec(f).args
-        if len(args) > 0:
-            if args[0] == 'self':
-                self.start = 1
-
         def wrapped_f(*args):
             is_single = len(args[self.start].shape) < self.dim
             is_np = isinstance(args[self.start], np.ndarray)

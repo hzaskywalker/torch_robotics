@@ -60,18 +60,18 @@ class ForwardModelTester:
     def render(self, agent, t=20):
         s = np.array(self.trajs[0][0][0])
         a = np.array(self.trajs[0][1][:t])
-        ag = as_input(2)(agent)
+        ag = as_input(dim=3)(agent)
 
         idx = 0
         yield np.concatenate(
-            (self.render_state(self.extension.decode(s)[0]),
-             self.render_state(self.extension.decode(self.trajs[0][0][idx])[0])), axis=0)
+            (self.render_state(s),
+             self.render_state(self.trajs[0][0][idx])), axis=0)
         for i in a:
             s = ag(s, i)
             idx += 1
             yield np.concatenate(
-                (self.render_state(self.extension.decode(s)[0]),
-                 self.render_state(self.extension.decode(self.trajs[0][0][idx])[0])), axis=0)
+                (self.render_state(s),
+                 self.render_state(self.trajs[0][0][idx])), axis=0)
 
     def test(self, agent, t=1):
         f = as_input(2)(batch_runner(128, show=False)(agent.rollout))
