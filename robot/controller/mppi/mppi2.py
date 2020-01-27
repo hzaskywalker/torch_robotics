@@ -61,11 +61,11 @@ class MPPIoptimizer:
         R = (rewards * gamma[None, :]).sum(axis=1)
         return R
 
-    def __call__(self, scene, base_act):
+    def __call__(self, state, base_act):
         for idx in range(self.niter):
             act = self.generate_perturbed_actions(base_act) # (num_mutation, T, action_dim)
 
-            R = self.eval_function(scene, act) # (num_mutation, T)
+            R = self.eval_function(state, act) # (num_mutation, T)
             R[R != R] = self.inf
             R = self.score(R)
             S = np.exp(self.kappa * (R - np.max(R))) #(num_mutation,)

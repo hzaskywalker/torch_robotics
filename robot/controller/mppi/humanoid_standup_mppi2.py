@@ -39,8 +39,9 @@ def set_state(e, s):
 
 start = get_state(e)
 print(start)
+N_ITER = 5
 agent = MPPIController(16, e.action_space, get_environment, ENV_NAME,
-                       1, N_ITER, 40, kappa=25., gamma=1., sigma=1., num_process=1,
+                       1, N_ITER, 200, kappa=25., gamma=1., sigma=1., num_process=20,
                        beta_0=0.25, beta_1=0.8, beta_2=0.0, seed=SEED)
 
 
