@@ -141,16 +141,17 @@ class MovoEnv(robot_env.RobotEnv):
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
         x2z = np.array([0.7071068, 0, 0.7071068, 0])
 
-        x = 1.3
+        tabel_heigh = 0.4
+
         x = 0.9
         table = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world", contype=1, conaffinity=1) # root coordinates #free
-        table.add_box_shape(Pose([x, 0, 0.25]), np.array((0.5, 0.8, 0.25)))
-        table.add_box_visual(Pose([x, 0, 0.25]), size=np.array((0.5, 0.8, 0.25)), color=np.array([0., 0., 1.]))
+        table.add_box_shape(Pose([x, 0, tabel_heigh/2]), np.array((0.5, 0.8, tabel_heigh/2)))
+        table.add_box_visual(Pose([x, 0, tabel_heigh/2]), size=np.array((0.5, 0.8, tabel_heigh/2)), color=np.array([0., 0., 1.]))
 
         if self.has_object:
             size = 0.05
             size = 0.1
-            obj_slidey = self.my_add_link(table, ([x, 0., 0.5 + size], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidery", [-2, 2], damping=0.1, type='slider')
+            obj_slidey = self.my_add_link(table, ([x, 0., tabel_heigh + size], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidery", [-2, 2], damping=0.1, type='slider')
             obj_slidez = self.my_add_link(obj_slidey, ([0, 0, 0], PxIdentity), ((0, 0, 0), PxIdentity), "obj_slidex", "obj_sliderx", [-2, 2], damping=0.1, type='slider')
             obj = self.my_add_link(obj_slidez, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), x2z), "obj", "obj_sliderz", [-2, 2], damping=0.1, type='slider', contype=1)
             self.add_box(obj, (0, 0, 0), PxIdentity, (size, size, size), (1, 0, 0), "object", density=0.000001)
@@ -243,11 +244,11 @@ class MovoEnv(robot_env.RobotEnv):
         self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
         # MODE 1
-        #self.viewer.camera.set_position([3, -1.5, 1.65])
-        #self.viewer.camera.rotate_yaw_pitch(-3.14 - 0.5, -0.2)
+        self.viewer.camera.set_position([3, -1.5, 1.65])
+        self.viewer.camera.rotate_yaw_pitch(-3.14 - 0.5, -0.2)
 
         # MODE 2
-        self.viewer.camera.set_position([1.3, -3, 1.65])
-        self.viewer.camera.rotate_yaw_pitch(-3.14 - 1.57, -0.2)
+        #self.viewer.camera.set_position([1.3, -3, 1.65])
+        #self.viewer.camera.rotate_yaw_pitch(-3.14 - 1.57, -0.2)
 
         self.viewer.set_current_scene(self.sim)
