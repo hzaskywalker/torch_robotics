@@ -49,16 +49,22 @@ class FetchEnv(MovoEnv):
         self.set_state(state)
         return out
 
+    def _reset_sim(self):
+        flag = MovoEnv._reset_sim(self)
+        self.integral = 0
+        return flag
+
+    def _step_callback(self):
+        super(FetchEnv, self)._step_callback()
+        self.integral += self.dt * (self.targets - self.model.get_qpos()[self._actuator_index])
+        #print(self.integral)
+
     def _set_action(self, action):
         assert action.shape == (4,)
         action = action.copy()  # ensure that we don't change the action outside of this scope
         pos_ctrl, gripper_ctrl = action[:3], action[3]
-        #print('action', action)
 
-        #pos_ctrl /= self.dt
         pos_ctrl *= 1
-        #pos_ctrl *= 0.1  # limit maximum change in position
-        #rot_ctrl = [1., 0., 1., 0.]  # fixed rotation of the end effector, expressed as a quaternion
         rot_ctrl = np.array([1, 0, 0, 0])
         gripper_ctrl = np.array([gripper_ctrl, gripper_ctrl])
         assert gripper_ctrl.shape == (2,)
@@ -66,35 +72,26 @@ class FetchEnv(MovoEnv):
             gripper_ctrl = np.zeros_like(gripper_ctrl)
         else:
             raise NotImplementedError
-        #action = np.concatenate([pos_ctrl, rot_ctrl, gripper_ctrl])
 
         # TODO: only xyz control now
         jac = self.model.compute_jacobian()[self.ee_idx] # in joint space
         #finite_jac = self.finite_jacobian(self.model.get_qpos())
-        #print(finite_jac[0], jac[0])
-        #print(finite_jac[1], jac[1])
-        #print(finite_jac[2], jac[2])
-        #exit(0)
-        #jac = finite_jac
-        #jac2 = self.model.compute_jacobian().reshape(-1, 6, 13)
-        #x = (jac2 - jac[None,:])
-        #print(np.abs(x).sum(axis=(1, 2)))
-        #print(np.abs(x).sum(axis=(1, 2)).argmin(), self.ee_idx)
-        #exit(0)
-
 
         jac = jac[:3, self._actuator_index]
         delta = np.linalg.lstsq(jac, pos_ctrl)[0] # in joint space
-        #targets = self.model.get_qpos()[self._actuator_index] + delta * 5 # target qpos
         targets = self.model.get_qpos()[self._actuator_index] + delta * 10
 
         joints = self.model.get_joints()
         for target, index in zip(targets, self._actuator_joint_map):
-            joints[index].set_drive_property(1000000, 1000000)
+            joints[index].set_drive_property(10000, 10000)
             joints[index].set_drive_target(target)
-        #super(FetchEnv, self)._set_action(real_action)
-        #joints = self.model.get_links().get_joint()
+
+        qf = self.model.compute_passive_force() # compute the passive force
+        qf[self._actuator_index] += self.integral * 250
+        self.model.set_qf(qf)
+
+        self.targets = targets
 
 
-    def _load_scene(self) -> None:
-        return None
+    #def _load_scene(self) -> None:
+    #    return None

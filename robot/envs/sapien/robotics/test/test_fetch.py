@@ -9,7 +9,7 @@ def test():
     args = parser.parse_args()
 
     init_qpos = np.array([0., -1.381, 0, 0.05, -0.9512, 0.387, 0.608, 2.486, 0.986, 0.986, 0.986, 0., 0.])
-    env = FetchEnv("all_robot", n_substeps=1, initial_qpos=init_qpos, block_gripper=True, has_object=False)
+    env = FetchEnv("all_robot", n_substeps=1, initial_qpos=init_qpos, block_gripper=True, has_object=True)
 
     print(env.action_space)
     print(env.observation_space)
@@ -25,10 +25,11 @@ def test():
             cv2.imshow('x', img)
             cv2.waitKey(2)
         else:
-            img = env.render()
+            env.render()
 
         a = env.action_space.sample()
-        a = np.array([0.8, -0.3, 0.8, 0])
+        #a = np.array([0.8, -0.3, 0.5, 0])
+        a = np.array([0.5, 0., 1., 0])
         a[:3] -= env.gripper_link.pose.p
         #a = np.array([0., 0, 0.1, 0.])
         t, r, d, _ = env.step(a)

@@ -107,6 +107,8 @@ class MovoEnv(robot_env.RobotEnv):
         #for qname, joint in zip(self._q_names, joints):
 
         self._actuator_joint_map =  []
+        self._fixed_joint = []
+        self._fixed_value = []
         dof_count, joint_id = 0, 0
         for joint_id, joint in enumerate(joints):
             if joint.get_dof() == 0:
@@ -115,16 +117,16 @@ class MovoEnv(robot_env.RobotEnv):
             flag = 'right' in qname
             if self.block_gripper and 'gripper' in qname:
                 flag = False
+            assert joint.get_dof() == 1, "joint dof {} {}".format(joint.name, joint.get_dof())
             if flag:
                 #TODO: current I only support the joint with dof 1..
-                assert joint.get_dof() == 1, "joint dof {} {}".format(joint.name, joint.get_dof())
                 self.add_force_actuator(qname, -50, 50)
                 self._actuator_joint_map.append(joint_id)
             elif joint.get_dof() > 0:
-                joint.set_drive_property(1000000, 1000000)
-                joint.set_drive_target(0 if 'gripper' not in qname else 0.986)
-                #joint.set_limits(np.array([[0, 0.0001]]))
+                self._fixed_joint.append(dof_count)
+                self._fixed_value.append(0 if 'gripper' not in qname else 0.986)
             dof_count += joint.get_dof()
+        self._fixed_value = np.array(self._fixed_value)
         return model
 
     def _load_scene(self) -> None:
@@ -161,12 +163,10 @@ class MovoEnv(robot_env.RobotEnv):
             return -d
 
     def _step_callback(self):
-        # 13 dof
-        # 180 6x link num
-        #linear_velocity angular_velocy
-        #print(self.model.compute_jacobian().shape)
-        #exit(0)
-        pass
+        # set the linear base to be fixed
+        q = self.model.get_qpos()
+        q[self._fixed_joint] = self._fixed_value
+        self.model.set_qpos(q)
 
     def _set_action(self, a):
         assert len(a) == len(self._actuator_index), "Action dimension must equal to the number of actuator"
