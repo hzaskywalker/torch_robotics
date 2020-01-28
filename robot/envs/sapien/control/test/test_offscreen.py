@@ -1,22 +1,41 @@
+import argparse
 from robot.envs.sapien.control.halfcheetah import HalfCheetahEnv
+from robot.envs.sapien.control.ant import AntEnv
+from robot.envs.sapien.control.swimmer import SwimmerEnv
 import tqdm
+from robot.utils import write_video
 
 def test_cheetah():
-    cheetah = HalfCheetahEnv()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--onscreen', default=0, type=int)
+    args = parser.parse_args()
+
+    #cheetah = HalfCheetahEnv()
+    #cheetah = AntEnv()
+    cheetah = SwimmerEnv()
 
     print(cheetah.observation_space)
     print(cheetah.action_space)
 
     cheetah.reset()
-    for i in tqdm.trange(1000):
-        action = cheetah.action_space.sample()
+    def work():
+        for i in tqdm.trange(1000):
+            action = cheetah.action_space.sample()
 
-        cheetah.step(action)
+            cheetah.step(action)
 
-        img = cheetah.render(mode='rgb_array')
-        import cv2
-        cv2.imshow('x', img)
-        cv2.waitKey(1)
+            if not args.onscreen:
+                img = cheetah.render(mode='rgb_array')
+                #print(img.shape, img.dtype, img.min(), img.max())
+                #yield img
+                print(img.min(), img.max())
+                import cv2
+                cv2.imshow('x', img)
+                cv2.waitKey(2)
+            else:
+                img = cheetah.render()
+    work()
+    #write_video(work(), path='tmp.avi')
 
 
 if __name__ == '__main__':

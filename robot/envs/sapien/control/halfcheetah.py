@@ -24,6 +24,9 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         self._renderer.set_camera_position(0, -8, 4)
         self._renderer.set_camera_rotation(np.pi/2, -0.5)
 
+        #self._renderer.set_camera_position(0, 0, 10)
+        #self._renderer.set_camera_rotation(-2, -np.pi/2)
+
 
     def build_model(self):
         builder = self.builder

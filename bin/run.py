@@ -14,7 +14,7 @@ def main():
     if args.run:
         print('copy code and command...')
         if args.copy:
-            os.system("kubectl cp /home/hza/mp hza-try:/cephfs/hza/")
+            os.system("kubectl cp /home/hza/Robotics hza-try:/cephfs/hza/")
         os.system("kubectl cp {} hza-try:/cephfs/hza/tmp/".format(args.file))
 
     basename = os.path.basename(args.file)

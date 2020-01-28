@@ -23,19 +23,19 @@ spec:
         memory: "8Gi"
         nvidia.com/gpu: 0
     volumeMounts:
-      - name: cephfs-vol
+      - name: cephfs
         mountPath: /cephfs
+      - name: dshm
+        mountPath: /dev/shm
   volumes:
-  - name: cephfs-vol
-    flexVolume:
-      driver: ceph.rook.io/rook
-      fsType: ceph
-      options:
-        fsName: nautilusfs
-        clusterNamespace: rook
-        path: /ucsd-haosulab
-        mountUser: ucsd-haosulab
-        mountSecret: ceph-fs-secret
+    - name: dshm  # shared memory
+      emptyDir:
+        medium: Memory
+    - name: cephfs
+      persistentVolumeClaim:
+        claimName: haosulab-cephfs
+  restartPolicy: Never
+
 
   tolerations:
   - effect: NoSchedule

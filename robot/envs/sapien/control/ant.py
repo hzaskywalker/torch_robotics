@@ -18,7 +18,7 @@ class AntEnv(SapienEnv, utils.EzPickle):
         self.sim.add_point_light([2, -2, 2], [1, 1, 1])
         self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        self._renderer.set_camera_position([0, 1, 10])
+        self._renderer.set_camera_position(0, 1, 10)
         #self._renderer.camera.set_forward(np.array([0, 1, 0]))
         #self._renderer.camera.set_up(np.array([0, 0, 1]))
         self._renderer.set_camera_rotation(0, -1.5)

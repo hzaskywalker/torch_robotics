@@ -196,7 +196,7 @@ class SapienEnv(gym.Env):
                 #self.viewer = mujoco_py.MjViewer(self.sim)
                 self._renderer = sapien_core.OptifuserController(self._renderer2)
             elif mode == 'rgb_array':
-                self._renderer = CameraRender(self.sim, mode, width=640, height=480)
+                self._renderer = CameraRender(self.sim, mode, width=512, height=512)
 
             self.viewer_setup()
             if mode == 'human':

@@ -18,7 +18,7 @@ class CameraRender:
 
     def render(self):
         self.camera.take_picture()
-        return self.camera.get_color_rgba()
+        return (self.camera.get_color_rgba()[:,:,:3] * 255).astype(np.uint8)
 
     def set_camera_position(self, x, y, z):
         pose = self.actor.pose
@@ -26,7 +26,8 @@ class CameraRender:
         self.actor.set_pose(pose)
 
     def set_camera_rotation(self, yaw, pitch):
-        quat = transforms3d.euler.euler2quat(yaw, pitch, 0)
+        #yaw += 1.57 * 4
+        quat = transforms3d.euler.euler2quat(0, -pitch, yaw)
         pose = self.actor.pose
         q = pose.q
         pose = Pose(pose.p, transforms3d.quaternions.qmult(quat, q))

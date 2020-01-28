@@ -161,13 +161,7 @@ class RobotEnv(gym.GoalEnv, SapienEnv):
 
     def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE):
         self._render_callback()
-
-        self.sim.update_render()
-
-        if mode == 'rgb_array':
-            raise NotImplementedError
-        elif mode == 'human':
-            self._get_viewer(mode).render()
+        return self._get_viewer(mode).render()
 
     def _get_viewer(self, mode):
         self.viewer = self._viewers.get(mode)
@@ -176,13 +170,17 @@ class RobotEnv(gym.GoalEnv, SapienEnv):
                 #self.viewer = mujoco_py.MjViewer(self.sim)
                 self.viewer = sapien_core.OptifuserController(self._renderer2)
             elif mode == 'rgb_array':
-                #self.viewer = mujoco_py.MjRenderContextOffscreen(self.sim, device_id=-1)
-                raise NotImplementedError
+                from ..camera import CameraRender
+                self.viewer = CameraRender(self.sim, mode, width=512, height=512)
+
             self._viewer_setup()
             if mode == 'human':
                 self.viewer.show_window()
 
+            self.viewer.set_current_scene(self.sim)
             self._viewers[mode] = self.viewer
+
+        self.sim.update_render()
         return self.viewer
 
     # Extension methods
