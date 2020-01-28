@@ -4,6 +4,7 @@ from gym.utils import seeding
 import gym
 from gym import spaces
 from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
+from ..camera import CameraRender
 
 DEFAULT_SIZE = 500
 
@@ -48,14 +49,10 @@ class SapienEnv(gym.Env):
         self._sim = sapien_core.Simulation()
         self._renderer2 = sapien_core.OptifuserRenderer()
         self._sim.set_renderer(self._renderer2)
-
         self.sim = self._sim.create_scene(gravity=np.array(gravity))
         self.sim.set_timestep(timestep)
-        self._renderer = sapien_core.OptifuserController(self._renderer2)
 
         self.force_actuators = []
-        self.build_render()
-        self._renderer.set_current_scene(self.sim)
 
         self.builder = self.sim.create_articulation_builder()
 
@@ -99,8 +96,6 @@ class SapienEnv(gym.Env):
 
         self._set_observation_space(observation)
         self.seed()
-
-        self.create_window = False
 
     def get_qpos(self):
         if self.root is not None:
@@ -155,9 +150,7 @@ class SapienEnv(gym.Env):
         Optionally implement this method, if you need to tinker with camera position
         and so forth.
         """
-        if not self.create_window:
-            self._renderer.show_window()
-            self.create_window = True
+        self.build_render()
 
     # -----------------------------
 
@@ -191,17 +184,28 @@ class SapienEnv(gym.Env):
 
 
     def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE):
-        self.viewer_setup()
-        if mode == 'human':
-            self.sim.update_render()
-            self._renderer.render()
-        else:
-            raise NotImplementedError
+        return self._get_viewer(mode).render()
 
     def close(self):
         pass
 
     def _get_viewer(self, mode):
+        self._renderer = self._viewers.get(mode)
+        if self._renderer is None:
+            if mode == 'human':
+                #self.viewer = mujoco_py.MjViewer(self.sim)
+                self._renderer = sapien_core.OptifuserController(self._renderer2)
+            elif mode == 'rgb_array':
+                self._renderer = CameraRender(self.sim, mode, width=640, height=480)
+
+            self.viewer_setup()
+            if mode == 'human':
+                self._renderer.show_window()
+
+            self._renderer.set_current_scene(self.sim)
+            self._viewers[mode] = self._renderer
+
+        self.sim.update_render()
         return self._renderer
 
     def get_body_com(self, body_name):
@@ -329,3 +333,7 @@ class SapienEnv(gym.Env):
             self.get_qpos().flat,
             self.get_qvel().flat,
         ])
+
+    def __del__(self):
+        self.sim = None
+        self._sim = None

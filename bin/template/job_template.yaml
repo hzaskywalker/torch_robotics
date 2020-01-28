@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hza-try-job
+  namespace: ucsd-haosulab
+  labels:
+    user: hza
+spec:
+  ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
+  template:
+    spec:
+      containers:
+      - name: gpu-container
+        image: hzaskywalker/kissshot
+        # imagePullPolicy: Always
+        command:
+        - "bash"
+        args: ["-c", "export PATH=/root/anaconda3/bin:$PATH; export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco200/bin; /cephfs/hza/mp/kube_install.sh; cd /cephfs/hza/mp/mp; /cephfs/hza/mp/mp/scripts/cem.sh" ]
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8Gi"
+            nvidia.com/gpu: 1
+          limits:
+            cpu: "2"
+            memory: "8Gi"
+            nvidia.com/gpu: 1
+        volumeMounts:
+          - name: cephfs-vol
+            mountPath: /cephfs
+      volumes:
+      - name: dshm  # shared memory
+        emptyDir:
+          medium: Memory
+      - name: cephfs-vol
+        flexVolume:
+          driver: ceph.rook.io/rook
+          fsType: ceph
+          options:
+            fsName: nautilusfs
+            clusterNamespace: rook
+            path: /ucsd-haosulab
+            mountUser: ucsd-haosulab
+            mountSecret: ceph-fs-secret
+      restartPolicy: Never
+
+      tolerations:
+      - effect: NoSchedule
+        key: nautilus.io/haosu
+        operator: Exists
+
+  backoffLimit: 0

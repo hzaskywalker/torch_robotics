@@ -17,7 +17,6 @@ class MovoEnv(robot_env.RobotEnv):
             has_object=False, target_in_the_air=False, target_offset=0.0, obj_range=0.15, target_range=0.15,
             distance_threshold=0.01, initial_qpos=None, reward_type=None,
     ):
-        #self._init_qpos = [0.25, -1.381, 0, 0.05, -0.9512, 0.387, 0.608, 2.486, 1.05, -1.16, 0, 0, 0]
         self.block_gripper = block_gripper
         self.has_object = has_object
         self.distance_threshold = distance_threshold
@@ -39,12 +38,10 @@ class MovoEnv(robot_env.RobotEnv):
         for _ in range(10):
             self.sim.step()
 
-        #print(self.model.get_joints())
         for i in self.model.get_links():
             if i.name == 'right_gripper_base_link':
                 self.gripper_link = i
         self.initial_gripper_xpos = np.concatenate((self.gripper_link.pose.p, self.gripper_link.pose.q))
-        #self.gripper_joint.get_global_pose()
 
         l, r, count = 1000, 0, 0
         for i in self.model.get_joints():
@@ -56,26 +53,6 @@ class MovoEnv(robot_env.RobotEnv):
 
         if self.has_object:
             self.height_offset = self.obj.pose.p[2]
-        #exit(0)
-        """
-        for name, value in initial_qpos.items():
-            self.sim.data.set_joint_qpos(name, value)
-        utils.reset_mocap_welds(self.sim)
-        self.sim.forward()
-
-        # Move end effector into position.
-        gripper_target = np.array([-0.498, 0.005, -0.431 + self.gripper_extra_height]) + self.sim.data.get_site_xpos('robot0:grip')
-        gripper_rotation = np.array([1., 0., 1., 0.])
-        self.sim.data.set_mocap_pos('robot0:mocap', gripper_target)
-        self.sim.data.set_mocap_quat('robot0:mocap', gripper_rotation)
-        for _ in range(10):
-            self.sim.step()
-
-        # Extract information for sampling goals.
-        self.initial_gripper_xpos = self.sim.data.get_site_xpos('robot0:grip').copy()
-        if self.has_object:
-            self.height_offset = self.sim.data.get_site_xpos('object0')[2]
-            """
 
     def _reset_sim(self):
         # set robot state
@@ -86,16 +63,13 @@ class MovoEnv(robot_env.RobotEnv):
             object_xpos = self.initial_gripper_xpos[:2]
             while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < 0.1:
                 object_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
-            #object_qpos = self.sim.data.get_joint_qpos('object0:joint')
+
             object_qpos = self.scene.get_qpos()
 
             #TODO: in the current implementation, the box has no orientation...
             assert object_qpos.shape == (3,) #object qpos is 3
             object_qpos[:2] = object_xpos
             self.scene.set_qpos(object_qpos)
-            #self.sim.data.set_joint_qpos('object0:joint', object_qpos)
-            #self.obj.set
-            #raise NotImplementedError
 
         self.sim.step()
         return True
@@ -118,22 +92,31 @@ class MovoEnv(robot_env.RobotEnv):
 
     def _load_robot(self, urdf_path: str, material: sapien_core.PxMaterial) -> None:
         # By default, the robot will loaded with balanced passive force
-        self.loader.fix_base = True
+        #self.loader.fix_base = True
+        self.loader.fix_root_link = True
         model: sapien_core.Articulation = self.loader.load(urdf_path, material)
         model.set_root_pose(sapien_core.Pose([0, 0, 0], [1, 0, 0, 0]))
 
         # Link mapping, remember to set the self._base_link_name if your robot base is not that name
         joints = model.get_joints()
-        self._q_names = [j.name for j in joints if j.get_dof()]
+        self._q_names = [j.name for j in joints if j.get_dof() > 0]
         self._base_link_name = "base_link"
+        self._dof = sum([j.get_dof() for j in joints])
 
         # Setup actuator
-        for qname, joint in zip(self._q_names, joints):
-            if 'right' in qname:
-                print(qname)
+        #for qname, joint in zip(self._q_names, joints):
+
+        for joint in joints:
+            qname = joint.name
+            flag = 'right' in qname
+            if self.block_gripper and 'gripper' in qname:
+                flag = False
+            if flag:
                 self.add_force_actuator(qname, -50, 50)
             elif joint.get_dof() > 0:
-                joint.set_drive_property(100000, 0)
+                joint.set_drive_property(1000000, 1000000)
+                joint.set_drive_target(0 if 'gripper' not in qname else 0.986)
+                #joint.set_limits(np.array([[0, 0.0001]]))
         return model
 
     def _load_scene(self) -> None:
@@ -170,44 +153,28 @@ class MovoEnv(robot_env.RobotEnv):
             return -d
 
     def _step_callback(self):
-        if self.block_gripper:
-            raise NotImplementedError
-            #self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', 0.)
-            #self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', 0.)
-            #self.sim.forward()
+        # 13 dof
+        # 180 6x link num
+        #linear_velocity angular_velocy
+        #print(self.model.compute_jacobian().shape)
+        #exit(0)
+        pass
 
     def _set_action(self, a):
         assert len(a) == len(self._actuator_index), "Action dimension must equal to the number of actuator"
-        qf = np.zeros(len(self._q_names))
+        qf = np.zeros(self._dof)
         qf[self._actuator_index] = a
         self.model.set_qf(qf)
 
     def _get_obs(self):
-        # positions
-        #grip_pos = self.sim.data.get_site_xpos('robot0:grip')
+
         grip_pos = np.concatenate((self.gripper_link.pose.p, self.gripper_link.pose.q))[:3]
         dt = self.dt
-        #grip_velp = self.sim.data.get_site_xvelp('robot0:grip') * dt
-        #print(type(self.gripper_link))
-        #print(self.gripper_link.velocity)
-        grip_velp = np.concatenate((self.gripper_link.velocity, self.gripper_link.angular_velocity))[:3] * dt
-        #print(grip_velp.shape)
 
-        #robot_qpos, robot_qvel = robot_utils.robot_get_obs(self.sim)
+        grip_velp = np.concatenate((self.gripper_link.velocity, self.gripper_link.angular_velocity))[:3] * dt
+
         robot_qpos, robot_qvel = self.model.get_qpos(), self.model.get_qvel()
         if self.has_object:
-            """
-            object_pos = self.sim.data.get_site_xpos('object0')
-            # rotations
-            object_rot = rotations.mat2euler(self.sim.data.get_site_xmat('object0'))
-            # velocities
-            object_velp = self.sim.data.get_site_xvelp('object0') * dt
-            object_velr = self.sim.data.get_site_xvelr('object0') * dt
-            # gripper state
-            object_rel_pos = object_pos - grip_pos
-            object_velp -= grip_velp
-            """
-            #raise NotImplementedError
             object_pos, object_rot = self.obj.pose.p, self.obj.pose.q
             object_velp = self.obj.velocity * dt
             object_velr = self.obj.angular_velocity * dt
@@ -244,8 +211,8 @@ class MovoEnv(robot_env.RobotEnv):
         self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
         # MODE 1
-        self.viewer.camera.set_position([3, -1.5, 1.65])
-        self.viewer.camera.rotate_yaw_pitch(-3.14 - 0.5, -0.2)
+        self.viewer.set_camera_position(3, -1.5, 1.65)
+        self.viewer.set_camera_rotation(-3.14-0.5, -0.2)
 
         # MODE 2
         #self.viewer.camera.set_position([1.3, -3, 1.65])
