@@ -79,7 +79,7 @@ class FetchEnv(MovoEnv):
 
         jac = jac[:3, self._actuator_index]
         delta = np.linalg.lstsq(jac, pos_ctrl)[0] # in joint space
-        targets = self.model.get_qpos()[self._actuator_index] + delta * 10
+        targets = self.model.get_qpos()[self._actuator_index] + delta * 50
 
         joints = self.model.get_joints()
         for target, index in zip(targets, self._actuator_joint_map):
@@ -87,7 +87,8 @@ class FetchEnv(MovoEnv):
             joints[index].set_drive_target(target)
 
         qf = self.model.compute_passive_force() # compute the passive force
-        qf[self._actuator_index] += self.integral * 250
+        #if self.has_object:
+        #    qf[self._actuator_index] += self.integral * 250
         self.model.set_qf(qf)
 
         self.targets = targets
