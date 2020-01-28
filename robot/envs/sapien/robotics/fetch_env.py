@@ -69,13 +69,24 @@ class FetchEnv(MovoEnv):
         #action = np.concatenate([pos_ctrl, rot_ctrl, gripper_ctrl])
 
         # TODO: only xyz control now
-        #jac = self.model.compute_jacobian()[self.ee_idx] # in joint space
-        finite_jac = self.finite_jacobian(self.model.get_qpos())
-        jac = finite_jac
+        jac = self.model.compute_jacobian()[self.ee_idx] # in joint space
+        #finite_jac = self.finite_jacobian(self.model.get_qpos())
+        #print(finite_jac[0], jac[0])
+        #print(finite_jac[1], jac[1])
+        #print(finite_jac[2], jac[2])
+        #exit(0)
+        #jac = finite_jac
+        #jac2 = self.model.compute_jacobian().reshape(-1, 6, 13)
+        #x = (jac2 - jac[None,:])
+        #print(np.abs(x).sum(axis=(1, 2)))
+        #print(np.abs(x).sum(axis=(1, 2)).argmin(), self.ee_idx)
+        #exit(0)
+
 
         jac = jac[:3, self._actuator_index]
         delta = np.linalg.lstsq(jac, pos_ctrl)[0] # in joint space
-        targets = self.model.get_qpos()[self._actuator_index] + delta * 5 # target qpos
+        #targets = self.model.get_qpos()[self._actuator_index] + delta * 5 # target qpos
+        targets = self.model.get_qpos()[self._actuator_index] + delta * 10
 
         joints = self.model.get_joints()
         for target, index in zip(targets, self._actuator_joint_map):

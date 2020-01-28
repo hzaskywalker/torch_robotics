@@ -28,7 +28,7 @@ def test():
             img = env.render()
 
         a = env.action_space.sample()
-        a = np.array([0.5, 0., 0.5, 0])
+        a = np.array([0.8, -0.3, 0.8, 0])
         a[:3] -= env.gripper_link.pose.p
         #a = np.array([0., 0, 0.1, 0.])
         t, r, d, _ = env.step(a)
