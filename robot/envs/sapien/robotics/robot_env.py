@@ -128,6 +128,7 @@ class RobotEnv(gym.GoalEnv, SapienEnv):
         return obs, reward, done, info
 
     def get_state(self):
+        #TODO: add global pose and scene
         return np.stack(
             [self.model.get_qpos(), self.model.get_qvel(), self.model.get_qacc(), self.model.get_qf()], axis=0)
 
