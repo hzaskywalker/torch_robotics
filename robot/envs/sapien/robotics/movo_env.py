@@ -106,17 +106,25 @@ class MovoEnv(robot_env.RobotEnv):
         # Setup actuator
         #for qname, joint in zip(self._q_names, joints):
 
-        for joint in joints:
+        self._actuator_joint_map =  []
+        dof_count, joint_id = 0, 0
+        for joint_id, joint in enumerate(joints):
+            if joint.get_dof() == 0:
+                continue
             qname = joint.name
             flag = 'right' in qname
             if self.block_gripper and 'gripper' in qname:
                 flag = False
             if flag:
+                #TODO: current I only support the joint with dof 1..
+                assert joint.get_dof() == 1, "joint dof {} {}".format(joint.name, joint.get_dof())
                 self.add_force_actuator(qname, -50, 50)
+                self._actuator_joint_map.append(joint_id)
             elif joint.get_dof() > 0:
                 joint.set_drive_property(1000000, 1000000)
                 joint.set_drive_target(0 if 'gripper' not in qname else 0.986)
                 #joint.set_limits(np.array([[0, 0.0001]]))
+            dof_count += joint.get_dof()
         return model
 
     def _load_scene(self) -> None:
