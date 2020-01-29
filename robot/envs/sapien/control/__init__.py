@@ -9,7 +9,7 @@ def make(env_name):
     if env_name == 'cartpole':
         return TimeLimit(CartpoleEnv(), 200)
     elif env_name == 'halfcheetah':
-        return HalfCheetahEnv()
+        return TimeLimit(HalfCheetahEnv(), 1000)
     elif env_name == 'humanoid':
         return HumanoidEnv()
     elif env_name == 'pusher':

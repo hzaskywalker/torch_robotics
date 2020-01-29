@@ -6,11 +6,6 @@ import argparse
 from robot.envs.sapien.exp.utils import make
 from robot.controller.cem import CEM
 
-def rollout(env, s, t):
-    # pass
-    env.set_state(s)
-    raise NotImplementedError
-
 def get_state(env):
     return env.state_vector()
 
@@ -28,6 +23,7 @@ def calibrate(env, env_gt, num_env, timestep, vis=False):
         b = env_gt.render(mode='rgb_array')
         return np.concatenate((a, b), axis=1)
     assert env.action_space.shape == env_gt.action_space.shape
+
 
     def play(start, actions):
         set_state(env, start)
@@ -82,7 +78,7 @@ def calibrate(env, env_gt, num_env, timestep, vis=False):
             losses.append(loss)
         return torch.tensor(np.array(losses), dtype=torch.float)
 
-    init = torch.tensor(np.array([0, 0]), dtype=torch.float)
+    init = torch.tensor(np.array([0, 0] * env.action_space.shape[0]), dtype=torch.float)
     cem = CEM(measure, 5, 50, 5, std=0.3)
     out = cem((starts, actions), init)
     out = out.reshape(2, -1).detach().cpu().numpy()
@@ -94,7 +90,7 @@ def main():
     parser.add_argument('env_name', type=str)
     parser.add_argument('gt_env_name', type=str)
     parser.add_argument('--num_env', type=int, default=20)
-    parser.add_argument('--timestep', type=int, default=100)
+    parser.add_argument('--timestep', type=int, default=40)
     args = parser.parse_args()
 
     env = make(args.env_name)

@@ -12,7 +12,7 @@ def main():
     parser.add_argument('--env_name', type=str, default='cartpole')
     parser.add_argument('--start_timesteps', type=int, default=10000)
     parser.add_argument('--eval_freq', type=int, default=5000)
-    parser.add_argument('--max_timesteps', type=int, default=100000)
+    parser.add_argument('--max_timesteps', type=int, default=1000000)
     parser.add_argument('--expl_noise', type=float, default=0.1)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--discount', type=float, default=0.99)

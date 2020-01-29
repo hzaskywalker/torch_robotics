@@ -21,9 +21,9 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         return self._get_obs()
 
     def step(self, a):
-        a = a * 108
+        a = a
         reward = 1.0
-        self.do_simulation(a, self.frame_skip)
+        self.do_simulation(a * 108, self.frame_skip)
         ob = self._get_obs()
         notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= .2)
         done = not notdone

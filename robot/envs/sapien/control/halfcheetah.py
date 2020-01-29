@@ -18,14 +18,8 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         self.sim.add_point_light([2, -2, 2], [1, 1, 1])
         self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        #self._renderer.camera.set_position(np.array([0, -10, 10]))
-        #self._renderer.camera.rotate_yaw_pitch(0, -1.)
-
         self._renderer.set_camera_position(0, -8, 4)
         self._renderer.set_camera_rotation(np.pi/2, -0.5)
-
-        #self._renderer.set_camera_position(0, 0, 10)
-        #self._renderer.set_camera_rotation(-2, -np.pi/2)
 
 
     def build_model(self):
@@ -36,21 +30,13 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
         #density = 5
 
         root1 = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "root1")
-        root2 = self.add_link(root1, Pose(np.array([0, 0, 0]), PxIdentity), "root2", "fake1",
-                                sapien_core.ArticulationJointType.PRISMATIC, np.array([[-np.inf, np.inf]]),
-                                Pose(np.array([0, 0, 0]), x2z), Pose(np.array([0, 0, 0]), x2z))
-        root3 = self.add_link(root2, Pose(np.array([0, 0, 0]), PxIdentity), "root3", "fake2",
-                                sapien_core.ArticulationJointType.PRISMATIC, np.array([[-np.inf, np.inf]]))
-        torso = self.add_link(root3, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "torso",
-                                sapien_core.ArticulationJointType.REVOLUTE, np.array([[-np.inf, np.inf]]),
-                                Pose(np.array([0, 0, 0]), x2y), Pose(np.array([0, 0, 0]), x2y))                     
+        root2 = self.my_add_link(root1, ((0, 0, 0.7), PxIdentity), ((0, 0, 0), PxIdentity), name='rootx', damping=0, stiffness=0, type='slider', range=[-np.inf, np.inf], joint_name='rootx')
+        root3 = self.my_add_link(root2, ((0, 0, 0), PxIdentity), ((0, 0, 0), x2z), name='rootz', damping=0, stiffness=0, type='slider', range=[-np.inf, np.inf], joint_name='rootz')
+        torso = self.my_add_link(root3, ((0, 0, 0), PxIdentity), ((0, 0, 0), x2y), name='torso', damping=0, stiffness=0, type='hinge', range=[-np.inf, np.inf], joint_name='rooty')
 
-        self.add_capsule(torso, np.array([0, 0, 0]), PxIdentity, 0.046, 0.5,
-                                          np.array([1, 1, 1]), "torso")
-        
+        self.fromto(torso, "-0.5 0 0 0.5 0 0", 0.046, np.array([0.4, 0.6, 0.8]), "torso")
         self.add_capsule(torso,  np.array([0.6, 0, 0.1]),
-                                        np.array([0.939236, 0.000000, -0.343272, 0.000000]), 0.046, 0.15,
-                                          np.array([1, 1, 1]), "head")
+                                        np.array([0.939236, 0.000000, -0.343272, 0.000000]), 0.046, 0.15, np.array([0.4, 0.6, 0.8]), "head")
 
         bthigh = self.add_link(torso, Pose(np.array([0, 0, 0]), PxIdentity), "bthigh", "bthigh",
                                  sapien_core.ArticulationJointType.REVOLUTE, np.array([[-0.52, 1.05]]),
@@ -104,36 +90,30 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
                                             np.array([0.9, 0.6, 0.6]), "ffoot")
 
         wrapper = builder.build(True)
-        self.add_force_actuator("bthigh", -120, 120)
-        self.add_force_actuator("bshin", -90, 90)
-        self.add_force_actuator("bfoot", -60, 60)
-        self.add_force_actuator("fthigh", -120, 120)
-        self.add_force_actuator("fshin", -60, 60)
-        self.add_force_actuator("ffoot", -30, 30)
+        self.add_force_actuator("bthigh", -1, 1)
+        self.add_force_actuator("bshin", -1, 1)
+        self.add_force_actuator("bfoot", -1, 1)
+        self.add_force_actuator("fthigh", -1, 1)
+        self.add_force_actuator("fshin", -1, 1)
+        self.add_force_actuator("ffoot", -1, 1)
 
-        #self.root_link = torso
-        #self.init_root_pose_p = self.root_link.get_global_pose().p
-        #self.init_root_pose_q = self.root_link.get_global_pose().q
-        #self.add_object(torso)
-
-        torso = wrapper.get_links()[0]
-        wrapper.set_root_pose(Pose([0, 0, 2]))
-        ground = self.sim.add_ground(-1)
-        return wrapper, torso
+        self.torso = wrapper.get_links()[0]
+        wrapper.set_root_pose(Pose([0, 0, 0]))
+        ground = self.sim.add_ground(0)
+        return wrapper, None
 
     def step(self, a):
-        xposbefore = self.root.pose.p[0]
-        self.do_simulation(a, self.frame_skip)
-        xposafter = self.root.pose.p[0]
+        dd = np.array([120 * 0.84, 90 * 0.800, 60 * 0.766, 120 * 0.98, 60 * 0.875, 30 * 0.947])
+        xposbefore = self.get_qpos()[0]
+        self.do_simulation(a * dd, self.frame_skip)
+        xposafter = self.get_qpos()[0]
 
-        forward_reward = (xposafter - xposbefore)/self.dt
-        ctrl_cost = -.1 * np.square(a / np.array([120, 90, 60, 120, 60, 30])).sum()
-        reward = forward_reward + ctrl_cost 
         ob = self._get_obs()
+        reward_ctrl = - 0.1 * np.square(a).sum()
+        reward_run = (xposafter - xposbefore) / self.dt
+        reward = reward_ctrl + reward_run
         done = False
-        return ob, reward, done, dict(
-            reward_run=forward_reward,
-            reward_ctrl=-ctrl_cost)
+        return ob, reward, done, dict(reward_run=reward_run, reward_ctrl=reward_ctrl)
 
     def _get_obs(self):
         return np.concatenate([
@@ -143,15 +123,9 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
 
     def reset_model(self):
         qpos = self.init_qpos.copy()
-        qpos[7:] += self.np_random.uniform(size=9, low=-.1, high=.1)
+        qpos += self.np_random.uniform(size=9, low=-.1, high=.1)
         qvel = self.init_qvel.copy()
-        qvel[6:] += self.np_random.randn(9) * .1
-        #self.model.set_qpos(qpos)
-        #self.model.set_qvel(qvel)
-        #root_pose_p = self.init_root_pose_p #+ self.np_random.uniform(size=3, low=-.1, high=.1)
-        #root_pose_q = self.init_root_pose_q #+ self.np_random.uniform(size=4, low=-.1, high=.1)
-        #self.model.set_root_pose(root_pose_p, root_pose_q)
+        qvel += self.np_random.randn(9) * .1
         self.set_state(qpos, qvel)
-        # TODO: reset root_velocity
         return self._get_obs()
 

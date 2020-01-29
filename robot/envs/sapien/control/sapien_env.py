@@ -238,7 +238,7 @@ class SapienEnv(gym.Env):
         body.add_box_visual(Pose(xpos, xquat), np.array(size), color, name=name)
 
     def my_add_link(self, father, link_pose, local_pose=None, name=None, joint_name=None, range=None,
-                    friction=0., damping=0., type='hinge', father_pose_type='mujoco', contype=1, conaffinity=1):
+                    friction=0., damping=0., stiffness=0., type='hinge', father_pose_type='mujoco', contype=1, conaffinity=1):
         # range  [a, b]
         link = self.builder.create_link_builder(father)
         link.set_name(name)
@@ -293,7 +293,7 @@ class SapienEnv(gym.Env):
             raise NotImplementedError
 
 
-    def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None, contype=1, conaffinity=1, friction=0., damping=0.):
+    def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None, contype=1, conaffinity=1, friction=0., damping=0., stiffness=0.):
         types = {
             sapien_core.ArticulationJointType.PRISMATIC: 'slider',
             sapien_core.ArticulationJointType.REVOLUTE: 'hinge',
@@ -310,7 +310,7 @@ class SapienEnv(gym.Env):
                 local_pose = (local_pose.p, local_pose.q)
             else:
                 local_pose = ([0, 0, 0], [1, 0, 0, 0])
-        return self.my_add_link(father, father_pose, local_pose, name=name, joint_name=joint_name, range=range, type=types[joint_type], father_pose_type='sapien', contype=contype, conaffinity=conaffinity, friction=friction, damping=damping)
+        return self.my_add_link(father, father_pose, local_pose, name=name, joint_name=joint_name, range=range, type=types[joint_type], father_pose_type='sapien', contype=contype, conaffinity=conaffinity, friction=friction, damping=damping, stiffness=stiffness)
 
 
     def add_force_actuator(self, name, low, high):
