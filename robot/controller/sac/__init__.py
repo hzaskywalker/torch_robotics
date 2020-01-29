@@ -2,6 +2,7 @@ from .sac import SAC
 from .replay_buffer import ReplayMemory
 import itertools
 
+
 def sac(env, num_steps=1000001, replay_size=1000000, start_steps=10000, batch_size=256, updates_per_step=1, eval=False, **kwargs):
     # Agent
     agent = SAC(env.observation_space.shape[0], env.action_space, **kwargs)

@@ -131,6 +131,8 @@ class TD3(object):
         critic_loss.backward()
         self.critic_optimizer.step()
 
+        out = {'critic_loss': critic_loss.detach().cpu().numpy()}
+
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
 
@@ -148,6 +150,10 @@ class TD3(object):
 
             for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+            out['actor_loss'] = actor_loss.detach().cpu().numpy()
+
+        return out
 
     def save(self, filename):
         torch.save(self.critic.state_dict(), filename + "_critic")

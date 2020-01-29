@@ -35,7 +35,8 @@ def eval_policy(policy, env_name, seed, eval_episodes=10):
 
 def td3(env, seed=0, start_timesteps=10000, eval_freq=5000,
         max_timesteps=1000000, expl_noise=0.1, batch_size=256,
-        discount=0.99, tau=0.005, policy_noise=0.2, noise_clip=0.5, policy_freq=2):
+        discount=0.99, tau=0.005, policy_noise=0.2, noise_clip=0.5,
+        policy_freq=2, recorder=None):
 
     # Set seeds
     env.seed(seed)
@@ -70,6 +71,7 @@ def td3(env, seed=0, start_timesteps=10000, eval_freq=5000,
     episode_timesteps = 0
     episode_num = 0
 
+    network_loss = []
     for t in range(int(max_timesteps)):
 
         episode_timesteps += 1
@@ -95,12 +97,17 @@ def td3(env, seed=0, start_timesteps=10000, eval_freq=5000,
 
         # Train agent after collecting sufficient data
         if t >= start_timesteps:
-            policy.train(replay_buffer, batch_size)
+            network_loss.append(
+                policy.train(replay_buffer, batch_size)
+            )
 
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             print(
                 f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+            if recorder is not None:
+                recorder.step(policy, episode_reward, episode_timesteps, network_loss)
+            network_loss = []
             # Reset environment
             state, done = env.reset(), False
             episode_reward = 0
@@ -108,7 +115,7 @@ def td3(env, seed=0, start_timesteps=10000, eval_freq=5000,
             episode_num += 1
 
         # Evaluate episode
-        if (t + 1) % eval_freq == 0:
-            evaluations.append(eval_policy(policy, env, seed))
+        #if (t + 1) % eval_freq == 0:
+        #    evaluations.append(eval_policy(policy, env, seed))
 
     return policy

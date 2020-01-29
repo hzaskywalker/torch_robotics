@@ -209,7 +209,7 @@ class SapienEnv(gym.Env):
         return self._renderer
 
     def get_body_com(self, body_name):
-    #    return self.data.get_body_xpos(body_name)
+        #    return self.data.get_body_xpos(body_name)
         pass
 
     def add_capsule(self, body, xpos, xquat, radius, half_length, color, name, shape=True, density=None):
