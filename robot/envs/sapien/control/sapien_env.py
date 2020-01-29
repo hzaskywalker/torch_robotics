@@ -109,7 +109,7 @@ class SapienEnv(gym.Env):
             root = [self.root.velocity, self.root.angular_velocity]
         else:
             root = []
-        return np.concatenate(root + [self.model.get_qpos().ravel()])
+        return np.concatenate(root + [self.model.get_qvel().ravel()])
 
     def _set_action_space(self):
         #bounds = self.model.get_force_actuator_range().copy()
@@ -169,6 +169,9 @@ class SapienEnv(gym.Env):
             qvel = qvel[6:]
         self.model.set_qpos(qpos)
         self.model.set_qvel(qvel)
+        #print('qpos', qpos, 'qvel', qvel)
+        #print(self.model.get_qpos())
+        #print(self.model.get_qvel())
 
 
     @property
@@ -196,7 +199,7 @@ class SapienEnv(gym.Env):
                 #self.viewer = mujoco_py.MjViewer(self.sim)
                 self._renderer = sapien_core.OptifuserController(self._renderer2)
             elif mode == 'rgb_array':
-                self._renderer = CameraRender(self.sim, mode, width=512, height=512)
+                self._renderer = CameraRender(self.sim, mode, width=500, height=500)
 
             self.viewer_setup()
             if mode == 'human':
@@ -290,7 +293,7 @@ class SapienEnv(gym.Env):
             raise NotImplementedError
 
 
-    def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None, contype=1, conaffinity=1):
+    def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None, contype=1, conaffinity=1, friction=0., damping=0.):
         types = {
             sapien_core.ArticulationJointType.PRISMATIC: 'slider',
             sapien_core.ArticulationJointType.REVOLUTE: 'hinge',
@@ -307,7 +310,7 @@ class SapienEnv(gym.Env):
                 local_pose = (local_pose.p, local_pose.q)
             else:
                 local_pose = ([0, 0, 0], [1, 0, 0, 0])
-        return self.my_add_link(father, father_pose, local_pose, name=name, joint_name=joint_name, range=range, type=types[joint_type], father_pose_type='sapien', contype=contype, conaffinity=conaffinity)
+        return self.my_add_link(father, father_pose, local_pose, name=name, joint_name=joint_name, range=range, type=types[joint_type], father_pose_type='sapien', contype=contype, conaffinity=conaffinity, friction=friction, damping=damping)
 
 
     def add_force_actuator(self, name, low, high):

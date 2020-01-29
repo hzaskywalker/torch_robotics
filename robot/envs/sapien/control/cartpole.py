@@ -21,6 +21,7 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         return self._get_obs()
 
     def step(self, a):
+        a = a * 108
         reward = 1.0
         self.do_simulation(a, self.frame_skip)
         ob = self._get_obs()
@@ -53,11 +54,11 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
 
         cart = self.add_link(rail, Pose(np.array([0, 0, 0]), PxIdentity), "cart", "slider",
                                  sapien_core.ArticulationJointType.PRISMATIC, np.array([[-1., 1.]]),
-                                 Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity))
+                                 Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity), damping=True)
         self.add_capsule(cart, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.1, 0.1,
                          np.array([0., 1., 0.]), "cart")
 
-        pole = self.my_add_link(cart, ((0, 0, 0), PxIdentity), ((0, 0, 0), x2y), 'pole', 'hinge', range=[-np.pi/2, np.pi/2], type='hinge')
+        pole = self.my_add_link(cart, ((0, 0, 0), PxIdentity), ((0, 0, 0), x2y), 'pole', 'hinge', range=[-np.pi/2, np.pi/2], type='hinge', damping=True)
         self.fromto(pole, "0 0 0 0.001 0 0.6", size=0.049, rgb=np.array([0., 0.7, 0.7]), name='cpole')
 
         wrapper = builder.build(True)
