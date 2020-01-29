@@ -27,8 +27,12 @@ def calc_accuracy_recall(info, tp, fp, fn, tn):
     return info
 
 def merge_training_output(train_outputs, prefix=None):
-    train_info = {i: np.mean([j[i] for j in train_outputs])
-                  for i in train_outputs[0] if train_outputs[0][i].size == 1}
+    keys = []
+    for j in train_outputs[:3]:
+        keys += [i for i in keys if j[i].size == 1]
+    keys = set(keys)
+    train_info = {i: np.mean([j[i] for j in train_outputs if i in j])
+                  for i in keys}
 
     if 'tp' in train_info:
         keys = ['tp', 'fp', 'fn', 'tn']

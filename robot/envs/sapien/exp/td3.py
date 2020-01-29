@@ -9,6 +9,7 @@ from robot.envs.sapien.exp.utils import make, RLRecorder
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--env_name', type=str, default='cartpole')
     parser.add_argument('--start_timesteps', type=int, default=10000)
     parser.add_argument('--eval_freq', type=int, default=5000)
     parser.add_argument('--max_timesteps', type=int, default=100000)
@@ -23,7 +24,7 @@ def main():
     parser.add_argument('--path', type=str, default='/tmp/tmp')
     args = parser.parse_args()
 
-    env = make('cartpole')
+    env = make(args.env_name)
     print(env.action_space)
     print(env.observation_space)
 

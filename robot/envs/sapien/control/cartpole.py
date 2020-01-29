@@ -4,8 +4,6 @@ from . import sapien_env
 import numpy as np
 
 class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
-    PENDULUM_LENGTH = 0.6
-
     def __init__(self):
         sapien_env.SapienEnv.__init__(self, 2, timestep=0.02)
         utils.EzPickle.__init__(self)
@@ -17,22 +15,18 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         ])
 
     def reset_model(self):
-        qpos = self.init_qpos + np.random.normal(0, 0.1, np.shape(self.init_qpos))
-        qvel = self.init_qvel + np.random.normal(0, 0.1, np.shape(self.init_qvel))
+        qpos = self.init_qpos + self.np_random.uniform(low=-0.01, high=0.01, size=np.shape(self.init_qpos))
+        qvel = self.init_qvel + self.np_random.uniform(low=-0.01, high=0.01, size=np.shape(self.init_qvel))
         self.set_state(qpos, qvel)
-        return  self._get_obs()
+        return self._get_obs()
 
     def step(self, a):
+        reward = 1.0
         self.do_simulation(a, self.frame_skip)
         ob = self._get_obs()
+        notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= .2)
+        done = not notdone
 
-        cost_lscale = CartpoleEnv.PENDULUM_LENGTH
-        reward = np.exp(
-            -np.sum(np.square(self._get_ee_pos(ob) - np.array([0.0, CartpoleEnv.PENDULUM_LENGTH]))) / (cost_lscale ** 2)
-        )
-        reward -= 0.01 * np.sum(np.square(a))
-
-        done = False
         return ob, reward, done, {}
 
     def build_render(self):
@@ -42,19 +36,8 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         self.sim.add_point_light([2, -2, 2], [1, 1, 1])
         self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        #self._renderer.camera.set_forward(np.array([0, 1, 0]))
-        #self._renderer.camera.set_up(np.array([0, 0, 1]))
-
         self._renderer.set_camera_position(0, -3, 2)
         self._renderer.set_camera_rotation(1.57, -0.5)
-
-    @staticmethod
-    def _get_ee_pos(x):
-        x0, theta = x[0], x[1]
-        return np.array([
-            x0 - CartpoleEnv.PENDULUM_LENGTH * np.sin(theta),
-            -CartpoleEnv.PENDULUM_LENGTH * np.cos(theta)
-        ])
 
     def build_model(self):
         builder = self.builder
@@ -64,26 +47,20 @@ class CartpoleEnv(sapien_env.SapienEnv, utils.EzPickle):
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
 
         rail = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "rail") # world root
-
-        cart = self.add_link(rail, Pose(np.array([0, 0, 0]), PxIdentity), "cart", "slider",
-                                 sapien_core.ArticulationJointType.PRISMATIC, np.array([[-2.5, 2.5]]),
-                                 Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity))
-
-        pole = self.add_link(cart, Pose(np.array([0, 0, 0]), PxIdentity), "torso", "torso",
-                                 sapien_core.ArticulationJointType.REVOLUTE, np.array([[-np.pi/2, np.pi/2]]),
-                                 Pose(np.array([0, 0, 0]), x2y), Pose(np.array([-0.28, 0., 0]), x2z))
-
-        self.add_capsule(rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 3,
+        self.add_capsule(rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 1,
                          np.array([1., 0., 0.]), "rail", shape=False)
 
+
+        cart = self.add_link(rail, Pose(np.array([0, 0, 0]), PxIdentity), "cart", "slider",
+                                 sapien_core.ArticulationJointType.PRISMATIC, np.array([[-1., 1.]]),
+                                 Pose(np.array([0, 0, 0]), PxIdentity), Pose(np.array([0, 0, 0]), PxIdentity))
         self.add_capsule(cart, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.1, 0.1,
                          np.array([0., 1., 0.]), "cart")
 
-        self.add_capsule(pole, np.array([0.0, 0., 0.]), np.array([1., 0, 0., 0.]), 0.049, 0.3,
-                         np.array([0, 0, 1.]), "cpole")
+        pole = self.my_add_link(cart, ((0, 0, 0), PxIdentity), ((0, 0, 0), x2y), 'pole', 'hinge', range=[-np.pi/2, np.pi/2], type='hinge')
+        self.fromto(pole, "0 0 0 0.001 0 0.6", size=0.049, rgb=np.array([0., 0.7, 0.7]), name='cpole')
 
         wrapper = builder.build(True)
-        self.add_force_actuator("slider", -100, 100)
-
+        self.add_force_actuator("slider", -3, 3)
         self.sim.add_ground(-1)
         return wrapper, None
