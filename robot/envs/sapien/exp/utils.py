@@ -27,11 +27,14 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
         out = None
         while not done:
             if episode_id < save_video:
-                img = eval_env.render(mode='rgb_array')
-                if out is None:
-                    out = cv2.VideoWriter(
-                        video_path.format(episode_id), cv2.VideoWriter_fourcc(*'XVID'), 20.0, (img.shape[1], img.shape[0]))
-                out.write(img)
+                if video_path[-3:] == 'mp4':
+                    img = eval_env.render(mode='rgb_array')
+                    if out is None:
+                        out = cv2.VideoWriter(
+                            video_path.format(episode_id), cv2.VideoWriter_fourcc(*'MJPG'), 20.0, (img.shape[1], img.shape[0]))
+                    out.write(img)
+                else:
+                    eval_env.render()
 
             action = policy(np.array(state))
             state, reward, done, _ = eval_env.step(action)

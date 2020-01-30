@@ -28,7 +28,6 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         x2z = np.array([0.7071068, 0, 0.7071068, 0])
 
 
-        # TODO: default friction... should be closed
         root1 = self.my_add_link(None,  (np.array([0, 0, 0]), PxIdentity), None, "root1")
         root2 = self.my_add_link(root1, ([0, 0, 0], PxIdentity), ([0, 0, 0], PxIdentity), "root2", "slider1",
                                  [-np.inf, np.inf], type='slider', father_pose_type='sapien')
@@ -42,7 +41,6 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         density = 1000.
         self.fromto(torso, "1.5 0 0 0.5 0 0", 0.1, np.array([1., 0, 0]), "torso", density=density)
 
-        #TODO: we use damping to simulate the
         range = [np.radians(-100), np.radians(100)]
         mid = self.my_add_link(torso, ([0.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "mid", "rot2", range, damping=0.)
         self.fromto(mid, "0 0 0 -1 0 0", 0.1, np.array([0., 1., 0]), "mid", density=density)
@@ -58,18 +56,39 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         self.sim.add_ground(0)
         return wrapper, None
 
+    def get_position(self, force, torque):
+        # return r x f = torque
+        l = np.dot(force, force)
+        if np.abs(l) < 1e-6:
+            r = np.array((0, 0, 0))
+        else:
+            r = np.cross(force, torque) / l
+        return r
+
     def do_simulation(self, a, n_frames):
         qf = np.zeros((self._dof), np.float32)
         qf[self.actor_idx] = a
         viscosity = 0.1
+        density = 4000
+        s = (1, 0.1, 0.1) # 1 x 0.1 x 0.1
+        d = np.mean(s)
         for _ in range(n_frames):
             for link in self._viscosity_links:
                 pose = link.pose
                 cmass_local_pose = link.cmass_local_pose
-                cmass_= Pose(pose.p + transforms3d.quaternions.rotate_vector(cmass_local_pose.p, pose.q),
-                            transforms3d.quaternions.qmult(pose.q, cmass_local_pose.q))
-                #link.add_force_at_point()
-                raise NotImplementedError
+                cmass = pose.p + transforms3d.quaternions.rotate_vector(cmass_local_pose.p, pose.q)
+
+                v = link.velocity
+                w = link.angular_velocity
+                # axb = c -> b=(cxa)/(a, a) + ta
+
+                force = -3 * viscosity * np.pi * d * v
+                torque = -viscosity * np.pi * d * d * d * w
+                link.add_force_at_point(force, cmass + self.get_position(force, torque))
+
+                force = -0.5 * density * np.array([0.1, 0.1, 0.01]) * np.abs(v) * v
+                torque = -1/64 * density * np.array(s) * np.array((2e-4, 1.+1e-4, 1.+1e-4)) * np.abs(w) * w
+                link.add_force_at_point(force, cmass + self.get_position(force, torque))
 
             self.model.set_qf(qf)
             self.sim.step()
@@ -77,7 +96,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
     def step(self, a):
         ctrl_cost_coeff = 0.0001
         xposbefore = self.model.get_qpos()[0]
-        self.do_simulation(a * np.array([150 * 0.5, 150 * 0.5]), self.frame_skip)
+        self.do_simulation(a * np.array([150, 150]), self.frame_skip)
         xposafter = self.model.get_qpos()[0]
         reward_fwd = (xposafter - xposbefore) / self.dt
         reward_ctrl = - ctrl_cost_coeff * np.square(a).sum()
