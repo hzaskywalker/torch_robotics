@@ -1,7 +1,8 @@
 from gym import utils, spaces
 # from gym.envs.mujoco import mujoco_env
-from .sapien_env import SapienEnv
+from .sapien_env import SapienEnv, Pose
 import numpy as np
+import transforms3d
 
 class SwimmerEnv(SapienEnv, utils.EzPickle):
     def __init__(self):
@@ -43,19 +44,35 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
 
         #TODO: we use damping to simulate the
         range = [np.radians(-100), np.radians(100)]
-        mid = self.my_add_link(torso, ([0.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "mid", "rot2", range, damping=0.2)
+        mid = self.my_add_link(torso, ([0.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "mid", "rot2", range, damping=0.)
         self.fromto(mid, "0 0 0 -1 0 0", 0.1, np.array([0., 1., 0]), "mid", density=density)
 
-        back = self.my_add_link(mid, ([-1., 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "back", "rot3", range, damping=0.2)
+        back = self.my_add_link(mid, ([-1., 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "back", "rot3", range, damping=0.)
         self.fromto(back, "0 0 0 -1 0 0", 0.1, np.array([0., 0., 1.]), "back", density=density)
 
         wrapper = builder.build(True) #fix base = True
         self.add_force_actuator("rot2", -1, 1)
         self.add_force_actuator("rot3", -1, 1)
 
-        self.sim.add_ground(-1)
+        self._viscosity_links = [i for i in wrapper.get_links() if i.name in ['torso', 'mid', 'back']]
+        self.sim.add_ground(0)
         return wrapper, None
 
+    def do_simulation(self, a, n_frames):
+        qf = np.zeros((self._dof), np.float32)
+        qf[self.actor_idx] = a
+        viscosity = 0.1
+        for _ in range(n_frames):
+            for link in self._viscosity_links:
+                pose = link.pose
+                cmass_local_pose = link.cmass_local_pose
+                cmass_= Pose(pose.p + transforms3d.quaternions.rotate_vector(cmass_local_pose.p, pose.q),
+                            transforms3d.quaternions.qmult(pose.q, cmass_local_pose.q))
+                #link.add_force_at_point()
+                raise NotImplementedError
+
+            self.model.set_qf(qf)
+            self.sim.step()
 
     def step(self, a):
         ctrl_cost_coeff = 0.0001
