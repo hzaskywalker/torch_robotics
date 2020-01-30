@@ -41,16 +41,17 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         density = 1000.
         self.fromto(torso, "1.5 0 0 0.5 0 0", 0.1, np.array([1., 0, 0]), "torso", density=density)
 
+        #TODO: we use damping to simulate the
         range = [np.radians(-100), np.radians(100)]
-        mid = self.my_add_link(torso, ([0.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "mid", "rot2", range)
+        mid = self.my_add_link(torso, ([0.5, 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "mid", "rot2", range, damping=0.2)
         self.fromto(mid, "0 0 0 -1 0 0", 0.1, np.array([0., 1., 0]), "mid", density=density)
 
-        back = self.my_add_link(mid, ([-1., 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "back", "rot3", range)
+        back = self.my_add_link(mid, ([-1., 0, 0], [1, 0, 0, 0]), ([0, 0, 0], x2z), "back", "rot3", range, damping=0.2)
         self.fromto(back, "0 0 0 -1 0 0", 0.1, np.array([0., 0., 1.]), "back", density=density)
 
         wrapper = builder.build(True) #fix base = True
-        self.add_force_actuator("rot2", -100, 100)
-        self.add_force_actuator("rot3", -100, 100)
+        self.add_force_actuator("rot2", -1, 1)
+        self.add_force_actuator("rot3", -1, 1)
 
         self.sim.add_ground(-1)
         return wrapper, None
@@ -59,7 +60,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
     def step(self, a):
         ctrl_cost_coeff = 0.0001
         xposbefore = self.model.get_qpos()[0]
-        self.do_simulation(a, self.frame_skip)
+        self.do_simulation(a * np.array([150 * 0.5, 150 * 0.5]), self.frame_skip)
         xposafter = self.model.get_qpos()[0]
         reward_fwd = (xposafter - xposbefore) / self.dt
         reward_ctrl = - ctrl_cost_coeff * np.square(a).sum()

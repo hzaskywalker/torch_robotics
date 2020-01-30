@@ -10,12 +10,12 @@ def make(env_name):
         return TimeLimit(CartpoleEnv(), 200)
     elif env_name == 'halfcheetah':
         return TimeLimit(HalfCheetahEnv(), 1000)
-    elif env_name == 'humanoid':
-        return HumanoidEnv()
     elif env_name == 'pusher':
         return PusherEnv()
+    elif env_name == 'humanoid':
+        return HumanoidEnv()
     elif env_name == 'swimmer':
-        return SwimmerEnv()
+        return TimeLimit(SwimmerEnv(), 1000)
     else:
         raise NotImplementedError
 
