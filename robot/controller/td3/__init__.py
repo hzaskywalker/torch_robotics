@@ -21,6 +21,7 @@ def eval_policy(policy, env_name, seed, eval_episodes=10):
     for _ in range(eval_episodes):
         state, done = eval_env.reset(), False
         while not done:
+            #eval_env.render()
             action = policy.select_action(np.array(state))
             state, reward, done, _ = eval_env.step(action)
             avg_reward += reward
@@ -86,6 +87,7 @@ def td3(env, seed=0, start_timesteps=10000, eval_freq=5000,
             ).clip(-max_action, max_action)
 
         # Perform action
+        #env.render()
         next_state, reward, done, _ = env.step(action)
         done_bool = float(done) if episode_timesteps < env._max_episode_steps else 0
 

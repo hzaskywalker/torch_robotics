@@ -15,7 +15,7 @@ def set_state(env, state):
     return env
 
 
-def calibrate(env, env_gt, num_env, timestep, vis=False, write_video=0):
+def calibrate(env, env_gt, num_env, timestep, vis=True, write_video=0):
     env = env.unwrapped
     env_gt = env_gt.unwrapped
     def render():
@@ -29,16 +29,16 @@ def calibrate(env, env_gt, num_env, timestep, vis=False, write_video=0):
         set_state(env, start)
         set_state(env_gt, start)
 
-        for j in tqdm.trange(400):
+        for j in tqdm.trange(1000):
             a = env_gt.action_space.sample()
             env.step(a)
             env_gt.step(a)
             img = render()
-            if write_video:
-                yield img
-            else:
-                cv2.imshow('x', img)
-                cv2.waitKey(0)
+            #if write_video:
+            #    yield img
+            #else:
+            cv2.imshow('x', img)
+            cv2.waitKey(0)
 
     if vis:
         for i in range(10):
@@ -61,6 +61,7 @@ def calibrate(env, env_gt, num_env, timestep, vis=False, write_video=0):
     if not write_video:
         play(starts[0], actions[0])
     else:
+        raise NotImplementedError
         from robot.utils import write_video
         write_video(play(starts[0], actions[0]), 'video.mp4')
 
