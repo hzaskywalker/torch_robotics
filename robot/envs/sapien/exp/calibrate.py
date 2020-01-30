@@ -15,7 +15,7 @@ def set_state(env, state):
     return env
 
 
-def calibrate(env, env_gt, num_env, timestep, vis=False):
+def calibrate(env, env_gt, num_env, timestep, vis=False, write_video=0):
     env = env.unwrapped
     env_gt = env_gt.unwrapped
     def render():
@@ -29,12 +29,16 @@ def calibrate(env, env_gt, num_env, timestep, vis=False):
         set_state(env, start)
         set_state(env_gt, start)
 
-        for j in tqdm.trange(timestep):
-            env.step(actions[j])
-            env_gt.step(actions[j])
+        for j in tqdm.trange(400):
+            a = env_gt.action_space.sample()
+            env.step(a)
+            env_gt.step(a)
             img = render()
-            cv2.imshow('x', img)
-            cv2.waitKey(0)
+            if write_video:
+                yield img
+            else:
+                cv2.imshow('x', img)
+                cv2.waitKey(0)
 
     if vis:
         for i in range(10):
@@ -54,7 +58,11 @@ def calibrate(env, env_gt, num_env, timestep, vis=False):
     starts = np.array(starts)
     actions = np.array([[env_gt.action_space.sample() for _ in range(timestep)] for i in range(num_env)])
 
-    play(starts[0], actions[0])
+    if not write_video:
+        play(starts[0], actions[0])
+    else:
+        from robot.utils import write_video
+        write_video(play(starts[0], actions[0]), 'video.mp4')
 
     def measure(scene, params):
         starts, actions = scene
@@ -91,12 +99,13 @@ def main():
     parser.add_argument('gt_env_name', type=str)
     parser.add_argument('--num_env', type=int, default=20)
     parser.add_argument('--timestep', type=int, default=40)
+    parser.add_argument('--write_video', type=int, default=0)
     args = parser.parse_args()
 
     env = make(args.env_name)
     env_gt = make(args.gt_env_name)
 
-    print(calibrate(env, env_gt, args.num_env, args.timestep))
+    print(calibrate(env, env_gt, args.num_env, args.timestep, write_video=args.write_video))
 
 
 if __name__ == '__main__':

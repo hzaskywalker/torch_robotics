@@ -70,25 +70,31 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         qf[self.actor_idx] = a
         viscosity = 0.1
         density = 4000
-        s = (1, 0.1, 0.1) # 1 x 0.1 x 0.1
+        s = (1, 0.2, 0.2) # 1 x 0.1 x 0.1
         d = np.mean(s)
         for _ in range(n_frames):
             for link in self._viscosity_links:
                 pose = link.pose
                 cmass_local_pose = link.cmass_local_pose
-                cmass = pose.p + transforms3d.quaternions.rotate_vector(cmass_local_pose.p, pose.q)
+                #cmass = pose.p + transforms3d.quaternions.rotate_vector(cmass_local_pose.p, pose.q)
 
-                v = link.velocity
-                w = link.angular_velocity
-                # axb = c -> b=(cxa)/(a, a) + ta
+                w_local = transforms3d.quaternions.rotate_vector(link.angular_velocity, pose.q)
+                v_local = transforms3d.quaternions.rotate_vector(link.velocity, pose.q) + np.cross(pose.p, w_local)
 
-                force = -3 * viscosity * np.pi * d * v
-                torque = -viscosity * np.pi * d * d * d * w
-                link.add_force_at_point(force, cmass + self.get_position(force, torque))
+                def apply_local_force_torque(force, torque):
+                    point_local = cmass_local_pose.p + self.get_position(force, torque)
+                    point = pose.p + transforms3d.quaternions.rotate_vector(point_local, pose.q)
+                    # TODO: force only rotation?
+                    force = transforms3d.quaternions.rotate_vector(point_local, pose.q)
+                    link.add_force_at_point(force, point)
 
-                force = -0.5 * density * np.array([0.1, 0.1, 0.01]) * np.abs(v) * v
-                torque = -1/64 * density * np.array(s) * np.array((2e-4, 1.+1e-4, 1.+1e-4)) * np.abs(w) * w
-                link.add_force_at_point(force, cmass + self.get_position(force, torque))
+                force_local = -3 * viscosity * np.pi * d * v_local
+                torque_local = -viscosity * np.pi * d * d * d * w_local
+                apply_local_force_torque(force_local, torque_local)
+
+                force_local = -0.5 * density * np.array([0.04, 0.2, 0.2]) * np.abs(v_local) * v_local
+                torque_local = -1/64 * density * np.array(s) * np.array((2 * 0.2**4, 1.+0.2**4, 1.+0.2**4)) * np.abs(w_local) * w_local
+                apply_local_force_torque(force_local, torque_local)
 
             self.model.set_qf(qf)
             self.sim.step()
