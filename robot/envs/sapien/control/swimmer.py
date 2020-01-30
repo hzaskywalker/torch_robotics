@@ -53,7 +53,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         self.add_force_actuator("rot3", -1, 1)
 
         self._viscosity_links = [i for i in wrapper.get_links() if i.name in ['torso', 'mid', 'back']]
-        self.sim.add_ground(0)
+        self.sim.add_ground(-1)
         return wrapper, None
 
     def get_position(self, force, torque):
@@ -66,36 +66,61 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         return r
 
     def do_simulation(self, a, n_frames):
-        qf = np.zeros((self._dof), np.float32)
-        qf[self.actor_idx] = a
         viscosity = 0.1
         density = 4000
-        s = (1, 0.2, 0.2) # 1 x 0.1 x 0.1
+        #density *= 10
+        #viscosity *= 10
+        s = (0.8, 0.2, 0.2) # 1 x 0.1 x 0.1
         d = np.mean(s)
         for _ in range(n_frames):
             for link in self._viscosity_links:
                 pose = link.pose
-                cmass_local_pose = link.cmass_local_pose
+
+                pose = Pose(pose.p + link.cmass_local_pose.p, pose.q) # pose is the frame associated with center of mass
                 #cmass = pose.p + transforms3d.quaternions.rotate_vector(cmass_local_pose.p, pose.q)
 
-                w_local = transforms3d.quaternions.rotate_vector(link.angular_velocity, pose.q)
-                v_local = transforms3d.quaternions.rotate_vector(link.velocity, pose.q) + np.cross(pose.p, w_local)
+                inverse_q = transforms3d.quaternions.qinverse(pose.q)
+                inverse_p = -transforms3d.quaternions.rotate_vector(pose.p, inverse_q)
+                w_local = transforms3d.quaternions.rotate_vector(link.angular_velocity, inverse_q) # to center of the mass
+                v_local = transforms3d.quaternions.rotate_vector(link.velocity, inverse_q) + np.cross(inverse_p, w_local)
+
+                """
+                #sanity check here
+                bw = transforms3d.quaternions.rotate_vector(w_local, pose.q)
+                bv = transforms3d.quaternions.rotate_vector(v_local, pose.q) + np.cross(pose.p, bw)
+
+                assert np.linalg.norm(bw - link.angular_velocity) < 1e-6
+                assert np.linalg.norm(bv - link.velocity) < 1e-6
+                """
 
                 def apply_local_force_torque(force, torque):
-                    point_local = cmass_local_pose.p + self.get_position(force, torque)
-                    point = pose.p + transforms3d.quaternions.rotate_vector(point_local, pose.q)
+                    #print(force)
+                    r = self.get_position(force, torque)
+                    point = pose.p + transforms3d.quaternions.rotate_vector(r, pose.q)
                     # TODO: force only rotation?
-                    force = transforms3d.quaternions.rotate_vector(point_local, pose.q)
+                    force = transforms3d.quaternions.rotate_vector(force, pose.q)
+                    #print(pose.q)
+                    #print(force, link.velocity, v_local)
                     link.add_force_at_point(force, point)
 
-                force_local = -3 * viscosity * np.pi * d * v_local
-                torque_local = -viscosity * np.pi * d * d * d * w_local
-                apply_local_force_torque(force_local, torque_local)
+                viscosity_force = -3 * viscosity * np.pi * d * v_local
+                viscosity_torque = -viscosity * np.pi * d * d * d * w_local
+                #viscosity_force = - v_local
+                #viscosity_torque = - w_local
+                apply_local_force_torque(viscosity_force, viscosity_torque)
 
-                force_local = -0.5 * density * np.array([0.04, 0.2, 0.2]) * np.abs(v_local) * v_local
-                torque_local = -1/64 * density * np.array(s) * np.array((2 * 0.2**4, 1.+0.2**4, 1.+0.2**4)) * np.abs(w_local) * w_local
-                apply_local_force_torque(force_local, torque_local)
+                #if np.max(np.abs(v_local)) > 10:
+                #    print(v_local, w_local)
+                #    exit(0)
 
+                density_force = -0.5 * density * np.array([s[1]*s[2], s[0]*s[2], s[0]*s[1]]) * np.abs(v_local) * v_local
+                density_torque = -1/64 * density * np.array(s) * np.array((s[1]**4+s[2]**4, s[0]**4 + s[2]**4,
+                                                                         s[0]**4+s[1] ** 4)) * np.abs(w_local) * w_local
+
+                apply_local_force_torque(density_force, density_torque)
+
+            qf = np.zeros((self._dof), np.float32)
+            qf[self.actor_idx] = a
             self.model.set_qf(qf)
             self.sim.step()
 

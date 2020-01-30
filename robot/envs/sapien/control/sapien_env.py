@@ -286,11 +286,7 @@ class SapienEnv(gym.Env):
         if isinstance(vec, str):
             vec = np.array(list(map(float, vec.split(' '))))
         l, pose = vec2pose((vec[3:]-vec[:3])/2)
-        self.add_capsule(link, (vec[3:] + vec[:3])/2, pose, size, l, rgb, name)
-
-        if density != 1000:
-            #self.builder.update_link_mass_and_inertia(link, density)
-            raise NotImplementedError
+        self.add_capsule(link, (vec[3:] + vec[:3])/2, pose, size, l, rgb, name, density=density)
 
 
     def add_link(self, father, root_pose, name, joint_name=None, joint_type=None, range=None, father_pose=None, local_pose=None, contype=1, conaffinity=1, friction=0., damping=0., stiffness=0.):
