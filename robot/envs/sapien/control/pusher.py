@@ -84,7 +84,8 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
         obj_slidey = self.my_add_link(world, ([0.45, -0.05, -0.275], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidey", [-10.3213, 10.3], damping=0.5, type='slider')
         obj = self.my_add_link(obj_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "object", "obj_slidex", [-10.3213, 10.3], damping=0.5, type='slider', contype=1)
-        self.add_box(obj, (0, 0, 0), PxIdentity, np.array((0.05, 0.05, 0.05)), (1, 1, 1), "object", density=0.0001)
+        #self.add_box(obj, (0, 0, 0), PxIdentity, np.array((0.05, 0.03, 0.05)), (1, 1, 1), "object", density=0.0001)
+        self.add_capsule(obj, (0, 0, 0), x2z, 0.05, 0.05, (1, 1, 1), "object", density=0.0001)
 
         goal_slidey = self.my_add_link(world, ([0.45, -0.05, -0.323], PxIdentity), ((0, 0, 0), x2y), "goal_slidey", "goal_slidey", [-10.3213, 10.3], damping=0.5, type='slider')
         goal = self.my_add_link(goal_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "goal", "goal_sliderx", [-10.3213, 10.3], damping=0.5, type='slider', contype=0, conaffinity=0)
