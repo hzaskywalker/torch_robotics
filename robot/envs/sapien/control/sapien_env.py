@@ -234,7 +234,7 @@ class SapienEnv(gym.Env):
             density = self._default_density
 
         if shape:
-            body.add_box_shape(Pose(xpos, xquat), np.array(size))
+            body.add_box_shape(Pose(xpos, xquat), np.array(size), density=density)
         body.add_box_visual(Pose(xpos, xquat), np.array(size), color, name=name)
 
     def my_add_link(self, father, link_pose, local_pose=None, name=None, joint_name=None, range=None,

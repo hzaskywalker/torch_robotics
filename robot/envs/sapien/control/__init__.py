@@ -11,7 +11,7 @@ def make(env_name):
     elif env_name == 'halfcheetah':
         return TimeLimit(HalfCheetahEnv(), 1000)
     elif env_name == 'pusher':
-        return PusherEnv()
+        return TimeLimit(PusherEnv(), 100)
     elif env_name == 'humanoid':
         return HumanoidEnv()
     elif env_name == 'swimmer':

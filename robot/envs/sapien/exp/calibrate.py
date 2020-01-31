@@ -18,6 +18,8 @@ def set_state(env, state):
 def calibrate(env, env_gt, num_env, timestep, vis=True, write_video=0):
     env = env.unwrapped
     env_gt = env_gt.unwrapped
+    print(env.get_qpos().shape, env.get_qvel().shape)
+    print(env_gt.state_vector().shape)
     def render():
         a = env.render(mode='rgb_array')
         b = env_gt.render(mode='rgb_array')

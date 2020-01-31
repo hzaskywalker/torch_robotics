@@ -15,12 +15,9 @@ class PusherEnv(SapienEnv, utils.EzPickle):
     def build_render(self):
         self.sim.set_ambient_light([.4, .4, .4])
         self.sim.set_shadow_light([1, -1, -1], [.5, .5, .5])
-        self.sim.add_point_light([2, 2, 2], [1, 1, 1])
-        self.sim.add_point_light([2, -2, 2], [1, 1, 1])
-        self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        self._renderer.camera.set_position(np.array([4, 0, 4]))
-        self._renderer.camera.rotate_yaw_pitch(-np.pi, -0.5)
+        self._renderer.set_camera_position(0.8, -2.2, 2)
+        self._renderer.set_camera_rotation(-np.pi-np.pi/2, -0.9)
 
     def build_model(self):
         builder = self.builder
@@ -35,10 +32,12 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
         cur = world = self.add_link(None,  Pose(np.array([0, 0, 0]), PxIdentity), "world", contype=1, conaffinity=1) # root coordinates #free
         #table
-        world.add_box_shape(Pose([0., 0.5, -0.325]), np.array((1., 1., 0.1)))
-        world.add_box_visual(Pose([0., 0.5, -0.325]), size=np.array((1., 1., 0.1)), color=np.array([1., 1., 1.]))
+        world.add_box_shape(Pose([0., 0.5, -0.325-0.01]), np.array((1., 1., 0.01)))
+        world.add_box_visual(Pose([0., 0.5, -0.325-0.01]), size=np.array((1., 1., 0.01)), color=np.array([0.5, 0.5, 0.5]))
 
-        cur = r_shoulder_pan_link = self.my_add_link(cur, ([0, -0.6, 0], PxIdentity), ([0, 0, 0], x2z),
+
+
+        cur = r_shoulder_pan_link = self.my_add_link(world, ([0, -0.6, 0], PxIdentity), ([0, 0, 0], x2z),
                                                "r_shoulder_pan_link", "r_shoulder_pan_joint", [-2.2854, 1.714602], contype=0, conaffinity=0, damping=1.)
         self.add_sphere(cur, np.array([-0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e1")
         self.add_sphere(cur,  np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
@@ -81,36 +80,47 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         self.fromto(cur, "0 -0.1 0. 0.1 -0.1 0", 0.02, default_rgb, "hand2")
         self.fromto(cur, "0 +0.1 0. 0.1 +0.1 0", 0.02, default_rgb, "hand3")
 
-        obj_slidey = self.my_add_link(world, ([0.45, -0.05, -0.275], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidery", [-10.3213, 10.3], damping=0.5, type='slider')
-        obj = self.my_add_link(obj_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "obj", "obj_sliderx", [-10.3213, 10.3], damping=0.5, type='slider', contype=1)
-        self.add_box(obj, (0, 0, 0), PxIdentity, (0.05, 0.05, 0.05), (1, 0, 0), "object", density=0.0001)
+
+
+        obj_slidey = self.my_add_link(world, ([0.45, -0.05, -0.275], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidey", [-10.3213, 10.3], damping=0.5, type='slider')
+        obj = self.my_add_link(obj_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "object", "obj_slidex", [-10.3213, 10.3], damping=0.5, type='slider', contype=1)
+        self.add_box(obj, (0, 0, 0), PxIdentity, np.array((0.05, 0.05, 0.05)), (1, 1, 1), "object", density=0.0001)
+
+        goal_slidey = self.my_add_link(world, ([0.45, -0.05, -0.323], PxIdentity), ((0, 0, 0), x2y), "goal_slidey", "goal_slidey", [-10.3213, 10.3], damping=0.5, type='slider')
+        goal = self.my_add_link(goal_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "goal", "goal_sliderx", [-10.3213, 10.3], damping=0.5, type='slider', contype=0, conaffinity=0)
+        self.add_box(goal, (0, 0, 0), PxIdentity, np.array((0.08, 0.08, 0.001)), (1, 0, 0), "goal", density=0.0001)
+
 
 
         wrapper = builder.build(True) #fix base = True
-        ground = self.sim.add_ground(-1)
+        #ground = self.sim.add_ground(-1)
         wrapper.set_root_pose(Pose([0., 0., 0.]))
 
-        limit = 20
+        limit = 2.
         self.add_force_actuator("r_shoulder_pan_joint", -limit, limit)
-        self.add_force_actuator("r_wrist_flex_joint", -limit, limit)
+        self.add_force_actuator("r_shoulder_lift_joint", -limit, limit)
         self.add_force_actuator("r_upper_arm_roll_joint", -limit, limit)
         self.add_force_actuator("r_elbow_flex_joint", -limit, limit)
         self.add_force_actuator("r_forearm_roll_joint", -limit, limit)
         self.add_force_actuator("r_wrist_flex_joint", -limit, limit)
         self.add_force_actuator("r_wrist_roll_joint", -limit, limit)
+
+        self._link_dict = {i.name: i for i in wrapper.get_links()}
         return wrapper, None
 
+    def get_body_com(self, body_name):
+        if body_name == 'tips_arm':
+            return self._link_dict['r_wrist_roll_link'].pose.p
+        else:
+            return self._link_dict[body_name].pose.p
 
     def step(self, a):
-        #vec_1 = self.get_body_com("object") - self.get_body_com("tips_arm")
-        #vec_2 = self.get_body_com("object") - self.get_body_com("goal")
+        vec_1 = self.get_body_com("object") - self.get_body_com("tips_arm")
+        vec_2 = self.get_body_com("object") - self.get_body_com("goal")
 
-        #reward_near = - np.linalg.norm(vec_1)
-        #reward_dist = - np.linalg.norm(vec_2)
-        #reward_ctrl = - np.square(a).sum()
-        reward_near = 0
-        reward_dist = 0
-        reward_ctrl = 0
+        reward_near = - np.linalg.norm(vec_1)
+        reward_dist = - np.linalg.norm(vec_2)
+        reward_ctrl = - np.square(a).sum()
         reward = reward_dist + 0.1 * reward_ctrl + 0.5 * reward_near
 
         self.do_simulation(a, self.frame_skip)
@@ -121,8 +131,6 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
 
     def reset_model(self):
-        return self._get_obs()
-
         qpos = self.init_qpos
 
         self.goal_pos = np.asarray([0, 0])
@@ -145,7 +153,7 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         return np.concatenate([
             self.model.get_qpos().flat[:7],
             self.model.get_qpos().flat[:7],
-            #self.get_body_com("tips_arm"),
-            #self.get_body_com("object"),
-            #self.get_body_com("goal"),
+            self.get_body_com("tips_arm"),
+            self.get_body_com("object"),
+            self.get_body_com("goal"),
         ])
