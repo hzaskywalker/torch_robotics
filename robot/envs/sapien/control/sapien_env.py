@@ -69,8 +69,8 @@ class SapienEnv(gym.Env):
         self._dof = len(self.model.get_qf())
         assert self._dof == sum(joint_dof)
 
-        print(joint_name)
-        print(joint_dof)
+        #print(joint_name)
+        #print(joint_dof)
         for (name, low, high) in self.force_actuators:
             i = joint_name.index(name)
             assert joint_name[i] == name
@@ -80,8 +80,8 @@ class SapienEnv(gym.Env):
                 self.actor_bound.append((low, high))
         self.actor_bound = np.array(self.actor_bound)
         self.actor_idx = np.array(self.actor_idx)
-        print(self.actor_idx)
-        print(self.actor_bound)
+        #print(self.actor_idx)
+        #print(self.actor_bound)
 
         self.init_qpos = self.get_qpos()
         self.init_qvel = self.get_qvel()
@@ -113,6 +113,10 @@ class SapienEnv(gym.Env):
 
     def _set_action_space(self):
         #bounds = self.model.get_force_actuator_range().copy()
+        if len(self.actor_bound) == 0:
+            #print("WARNING>>>>>>>>  NO ACTION!!!!!!!!!!!!")
+            self.action_space = spaces.Box(low=np.array((-1,)), high=np.array((0,)), dtype=np.float32)
+            return self.action_space
         bounds = np.array(self.actor_bound)
         low = bounds[:, 0]
         high = bounds[:, 1]
@@ -232,7 +236,6 @@ class SapienEnv(gym.Env):
     def add_box(self, body, xpos, xquat, size, color, name, shape=True, density=None):
         if density is None:
             density = self._default_density
-
         if shape:
             body.add_box_shape(Pose(xpos, xquat), np.array(size), density=density)
         body.add_box_visual(Pose(xpos, xquat), np.array(size), color, name=name)

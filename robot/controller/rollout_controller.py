@@ -48,4 +48,4 @@ class RolloutCEM:
 
         self.ac_buf, self.prev_actions = torch.split(self.prev_actions, [self.replan_period, self.horizon-self.replan_period])
         self.prev_actions = torch.cat((self.prev_actions, self.init_actions(self.replan_period)))
-        return self.__call__(obs)
+        return self.__call__(obs).detach().cpu().numpy()

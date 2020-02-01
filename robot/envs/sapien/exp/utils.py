@@ -1,4 +1,5 @@
 import gym
+import tqdm
 import cv2
 import os
 import numpy as np
@@ -12,8 +13,15 @@ def make(env_name):
     else:
         return sapien_make(env_name)
 
+def get_state(env):
+    return env.state_vector()
 
-def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.mp4"):
+def set_state(env, state):
+    l = (state.shape[0] + 1)//2
+    env.set_state(state[:l], state[l:])
+    return env
+
+def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.avi", use_hidden_state=False, progress_episode=False):
     if isinstance(env_name, str):
         eval_env = make(env_name)
         eval_env.seed(seed + 100)
@@ -21,21 +29,27 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
         eval_env = env_name
 
     avg_reward = 0.
-    for episode_id in range(eval_episodes):
+    ran = range if not progress_episode else tqdm.trange
+    for episode_id in ran(eval_episodes):
         state, done = eval_env.reset(), False
 
         out = None
+        if isinstance(policy, object):
+            if 'reset' in policy.__dir__():
+                policy.reset()
         while not done:
             if episode_id < save_video:
-                if video_path[-3:] == 'mp4':
+                if video_path[-3:] == 'avi':
                     img = eval_env.render(mode='rgb_array')
                     if out is None:
                         out = cv2.VideoWriter(
-                            video_path.format(episode_id), cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (img.shape[1], img.shape[0]))
+                            video_path.format(episode_id), cv2.VideoWriter_fourcc(*'MJPG'), 20.0, (img.shape[1], img.shape[0]))
                     out.write(img)
                 else:
                     eval_env.render()
 
+            if use_hidden_state:
+                state = get_state(eval_env)
             action = policy(np.array(state))
             state, reward, done, _ = eval_env.step(action)
             avg_reward += reward

@@ -3,16 +3,8 @@ import cv2
 import torch
 import tqdm
 import argparse
-from robot.envs.sapien.exp.utils import make
+from robot.envs.sapien.exp.utils import make, get_state, set_state
 from robot.controller.cem import CEM
-
-def get_state(env):
-    return env.state_vector()
-
-def set_state(env, state):
-    l = (state.shape[0] + 1)//2
-    env.set_state(state[:l], state[l:])
-    return env
 
 
 def calibrate(env, env_gt, num_env, timestep, vis=True, write_video=0):
@@ -33,8 +25,9 @@ def calibrate(env, env_gt, num_env, timestep, vis=True, write_video=0):
 
         for j in tqdm.trange(1000):
             a = env_gt.action_space.sample()
-            env.step(a)
-            env_gt.step(a)
+            r1 = env.step(a)[1]
+            r2 = env_gt.step(a)[1]
+            print(r1, r2)
             img = render()
             #if write_video:
             #    yield img
@@ -46,7 +39,8 @@ def calibrate(env, env_gt, num_env, timestep, vis=True, write_video=0):
         for i in range(10):
             env_gt.reset()
             s = get_state(env_gt)
-            s[:2] += np.random.uniform(low=-0.3, high=0.3, size=(2,))
+            s[:2] += np.random.uniform(low=-0.5, high=0.5, size=(2,))
+            print(s[0])
             set_state(env, s)
             set_state(env_gt, s)
             img = render()

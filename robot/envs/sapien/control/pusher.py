@@ -9,7 +9,7 @@ def mass_center(model, sim):
 
 class PusherEnv(SapienEnv, utils.EzPickle):
     def __init__(self):
-        SapienEnv.__init__(self, 5, gravity=[0, 0, 0])
+        SapienEnv.__init__(self, 10, timestep=0.005, gravity=[0, 0, 0])
         utils.EzPickle.__init__(self)
 
     def build_render(self):
@@ -25,7 +25,7 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
         PxIdentity = np.array([1, 0, 0, 0])
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
-        x2z = np.array([0.7071068, 0, 0.7071068, 0])
+        x2z = np.array([0.7071068, 0, -0.7071068, 0])
         rgb = np.array([0.1, 0.1, 0.1])
         rgb2 = np.array([0.6, 0.6, 0.6])
         default_rgb = np.array([0.5, 0.5, 0.5])
@@ -36,11 +36,12 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         world.add_box_visual(Pose([0., 0.5, -0.325-0.01]), size=np.array((1., 1., 0.01)), color=np.array([0.5, 0.5, 0.5]))
 
 
+        tmp_contype = 1
 
         cur = r_shoulder_pan_link = self.my_add_link(world, ([0, -0.6, 0], PxIdentity), ([0, 0, 0], x2z),
                                                "r_shoulder_pan_link", "r_shoulder_pan_joint", [-2.2854, 1.714602], contype=0, conaffinity=0, damping=1.)
         self.add_sphere(cur, np.array([-0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e1")
-        self.add_sphere(cur,  np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
+        self.add_sphere(cur, np.array([0.06, 0.05, 0.2]), PxIdentity, 0.05, rgb2, "e2")
         self.add_sphere(cur, np.array([-0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e1p")
         self.add_sphere(cur, np.array([0.06, 0.09, 0.2]), PxIdentity, 0.03, rgb, "e2p")
         self.fromto(cur, "0 0 -0.4 0 0 0.2", 0.1, default_rgb, "sp")
@@ -82,10 +83,11 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
 
 
-        obj_slidey = self.my_add_link(world, ([0.45, -0.05, -0.275], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidey", [-10.3213, 10.3], damping=0.5, type='slider')
-        obj = self.my_add_link(obj_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "object", "obj_slidex", [-10.3213, 10.3], damping=0.5, type='slider', contype=1)
-        #self.add_box(obj, (0, 0, 0), PxIdentity, np.array((0.05, 0.03, 0.05)), (1, 1, 1), "object", density=0.0001)
-        self.add_capsule(obj, (0, 0, 0), x2z, 0.05, 0.05, (1, 1, 1), "object", density=0.0001)
+        obj_slidey = self.my_add_link(world, ([0.45, -0.05, -0.225+0.01], PxIdentity), ((0, 0, 0), x2y), "obj_slidey", "obj_slidey", [-10.3213, 10.3], damping=10, type='slider', contype=0, conaffinity=0)
+        obj_slidey.set_mass_and_inertia(1e-6, Pose(), [1, 1, 1])
+        obj = self.my_add_link(obj_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "object", "obj_slidex", [-10.3213, 10.3], damping=10, type='slider', contype=1, conaffinity=1)
+        self.add_capsule(obj, (0, 0, 0), x2z, 0.05, 0.05, (1, 1, 1), "object", density=567)
+        #self.add_box(obj, (0, 0, 0), x2z, (0.05, 0.05, 0.05), (1, 1, 1), "object", density=0.0001)
 
         goal_slidey = self.my_add_link(world, ([0.45, -0.05, -0.323], PxIdentity), ((0, 0, 0), x2y), "goal_slidey", "goal_slidey", [-10.3213, 10.3], damping=0.5, type='slider')
         goal = self.my_add_link(goal_slidey, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), PxIdentity), "goal", "goal_sliderx", [-10.3213, 10.3], damping=0.5, type='slider', contype=0, conaffinity=0)
@@ -107,6 +109,8 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         self.add_force_actuator("r_wrist_roll_joint", -limit, limit)
 
         self._link_dict = {i.name: i for i in wrapper.get_links()}
+        for _, link in self._link_dict.items():
+            link.set_inertia(np.array(link.inertia) + 0.04)
         return wrapper, None
 
     def get_body_com(self, body_name):
@@ -129,6 +133,14 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         done = False
         return ob, reward, done, dict(reward_dist=reward_dist,
                 reward_ctrl=reward_ctrl)
+
+    def do_simulation(self, a, n_frames):
+        qf = np.zeros((self._dof), np.float32)
+        qf[self.actor_idx] = a
+        for _ in range(n_frames):
+            #self._link_dict['object'].add_force_torque([-0.1, -0.1, 0], [0, 0, 0])
+            self.model.set_qf(qf)
+            self.sim.step()
 
 
     def reset_model(self):

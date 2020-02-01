@@ -25,7 +25,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         PxIdentity = np.array([1, 0, 0, 0])
 
         x2y = np.array([0.7071068, 0, 0, 0.7071068])
-        x2z = np.array([0.7071068, 0, 0.7071068, 0])
+        x2z = np.array([0.7071068, 0, -0.7071068, 0])
 
 
         root1 = self.my_add_link(None,  (np.array([0, 0, 0]), PxIdentity), None, "root1")

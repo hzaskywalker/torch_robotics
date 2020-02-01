@@ -20,8 +20,8 @@ class HumanoidEnv(SapienEnv, utils.EzPickle):
         self.sim.add_point_light([2, -2, 2], [1, 1, 1])
         self.sim.add_point_light([-2, 0, 2], [1, 1, 1])
 
-        self._renderer.camera.set_position(np.array([0, -4, 4]))
-        self._renderer.camera.rotate_yaw_pitch(-np.pi-np.pi/2, -0.5)
+        self._renderer.set_camera_position(0, -4, 4)
+        self._renderer.set_camera_rotation(-np.pi-np.pi/2, -0.5)
 
     def build_model(self):
         def parent_pose(xpos, xquat, ypos, yquat):
@@ -105,8 +105,8 @@ class HumanoidEnv(SapienEnv, utils.EzPickle):
 
             l, quat = vec2pose(vec)
             # TODO: there will be no collision between, ideally it should be thigh, but not hip_x
-            th = hip_x
-            #th = thigh
+            #th = hip_x
+            th = thigh
 
             self.add_capsule(th, vec, quat, 0.06, l, default_rgb, f"{dir}_thigh1")
 
@@ -147,8 +147,8 @@ class HumanoidEnv(SapienEnv, utils.EzPickle):
                                           Pose(*local_pos), Pose(*local_pos),
                                           )  # end in local pos
             #TODO: should be upper_arm actaully
-            #arm = upper_arm
-            arm = shoulder_1
+            arm = upper_arm
+            #arm = shoulder_1
 
             if dir == 'right':
                 vec = np.array([0.16, -0.16, -0.16])/2
@@ -184,9 +184,6 @@ class HumanoidEnv(SapienEnv, utils.EzPickle):
 
             pos = np.array([0.18, 0.18, 0.18]) if dir == 'right' else np.array([0.18, -0.18, 0.18])
             self.add_sphere(lower_arm, pos, PxIdentity, 0.04, default_rgb, f"{dir}_hand")
-
-        #TODO: tendon
-
 
         wrapper = builder.build(True) #fix base = True
         self.add_force_actuator("abdomen_z", -100, 100)
