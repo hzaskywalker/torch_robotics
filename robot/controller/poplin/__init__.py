@@ -1,1 +1,1 @@
-from .poplin import PoplinController
+from .poplin import PoplinController, WeightNetwork

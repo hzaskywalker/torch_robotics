@@ -48,8 +48,8 @@ class WeightNetwork:
             self.b.append(slice(start, r))
             start = r
 
-        print(self.w)
-        print(self.b)
+        #print(self.w)
+        #print(self.b)
 
     def init_weights(self):
         weights = []
@@ -142,10 +142,13 @@ class PoplinController(AgentBase):
         for i in range(weights.shape[1]):
             # in (500, 1, x) out ideally (5, 500, x)
             action = self.network_control(obs[:, None], weights[:, i])[:, 0]
-            t, _ = self.model.forward(obs, action) # NOTE that
+            t, r = self.model.forward(obs, action) # NOTE that
             if len(t.shape) == 3:
                 t = t.mean(dim=0) # mean
-            reward = self.extension.cost(obs, action, t) + reward
+            if self.extension is not None:
+                reward = self.extension.cost(obs, action, t) + reward
+            else:
+                reward = r + reward
             obs = t
         return reward
 
