@@ -5,8 +5,9 @@ import torch
 from .cem import CEM
 
 class RolloutCEM:
-    def __init__(self, model, action_space, horizon, replan_period=1, device='cuda:0',
+    def __init__(self, model, action_space, horizon, replan_period=1, add_actions=True, initial_iter=None, device='cuda:0', std=None,
                  *args, **kwargs):
+        # add actions=0 means we plan for the whole trajectory
         assert 'rollout' in model.__dir__()
         self.model = model
         self.action_space = action_space
@@ -14,7 +15,15 @@ class RolloutCEM:
 
         self.horizon = horizon
         self.replan_period = replan_period
-        self.init_std = torch.tensor((action_space.high - action_space.low)/4, device=device, dtype=torch.float)
+        self.add_actions = add_actions
+        self._iter = self.optimizer.iter_num
+        if initial_iter is not None and initial_iter > 0:
+            self.optimizer.iter_num = initial_iter
+
+        if std is None:
+            self.init_std = torch.tensor((action_space.high - action_space.low)/4, device=device, dtype=torch.float)
+        else:
+            self.init_std = torch.tensor(action_space.low * 0 + std, device=device, dtype=torch.float)
         self.device = device
 
     def cost(self, x, a):
@@ -45,7 +54,16 @@ class RolloutCEM:
                 return act
         obs = torch.tensor(obs, device=self.init_std.device, dtype=torch.float)
         self.prev_actions = self.optimizer(obs, self.prev_actions, self.init_std)
+        self.optimizer.iter_num = self._iter
 
-        self.ac_buf, self.prev_actions = torch.split(self.prev_actions, [self.replan_period, self.horizon-self.replan_period])
-        self.prev_actions = torch.cat((self.prev_actions, self.init_actions(self.replan_period)))
+        self.ac_buf, self.prev_actions = torch.split(self.prev_actions, [self.replan_period, self.prev_actions.shape[0]-self.replan_period])
+        if self.add_actions:
+            self.prev_actions = torch.cat((self.prev_actions, self.init_actions(self.replan_period)))
+
+        #import numpy as np
+        #for i in range(1, len(self.prev_actions)):
+        #    if np.random.random() < 0.2:
+        #        self.prev_actions[i] = self.init_actions(1)[0]
+        #k = self.prev_actions.shape[0]//2
+        #self.prev_actions[k:] = self.init_actions(self.prev_actions.shape[0] - k)
         return self.__call__(obs).detach().cpu().numpy()

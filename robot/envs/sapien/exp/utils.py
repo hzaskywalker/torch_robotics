@@ -21,7 +21,7 @@ def set_state(env, state):
     env.set_state(state[:l], state[l:])
     return env
 
-def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.avi", use_hidden_state=False, progress_episode=False):
+def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.avi", use_hidden_state=False, progress_episode=False, timestep=np.inf, start_state=None):
     if isinstance(env_name, str):
         eval_env = make(env_name)
         eval_env.seed(seed + 100)
@@ -32,12 +32,17 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
     ran = range if not progress_episode else tqdm.trange
     for episode_id in ran(eval_episodes):
         state, done = eval_env.reset(), False
+        if start_state is not None:
+            set_state(eval_env, start_state)
 
         out = None
         if isinstance(policy, object):
             if 'reset' in policy.__dir__():
                 policy.reset()
-        while not done:
+
+        #while not done:
+        cc = 0
+        for i in ran(timestep):
             if episode_id < save_video:
                 if video_path[-3:] == 'avi':
                     img = eval_env.render(mode='rgb_array')
@@ -50,9 +55,19 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
 
             if use_hidden_state:
                 state = get_state(eval_env)
+            #print()
+            #print(','.join(map(lambda x: f"{x:.6f}", list(state))) )
+            #print()
             action = policy(np.array(state))
             state, reward, done, _ = eval_env.step(action)
             avg_reward += reward
+            cc += reward
+            if done:
+                break
+
+        if progress_episode:
+            print(f'episode {episode_id}:', cc)
+
         if out is not None:
             out.release()
 
