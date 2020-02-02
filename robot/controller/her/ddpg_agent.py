@@ -44,16 +44,17 @@ class AsyncDDPGAgent:
         inp_dim = observation_space['observation'].shape[0] + observation_space['desired_goal'].shape[0]
         action_dim, self.action_max = action_space.shape[0], action_space.high.max()
 
-        self.critic = critic(inp_dim + action_dim, self.action_max).to(self.device)
         self.actor = actor(inp_dim, action_dim, self.action_max).to(self.device)
+        self.critic = critic(inp_dim + action_dim, self.action_max).to(self.device)
         self.target_critic, self.target_actor = None, None
-        self.normalizer = Normalizer((inp_dim,)).to(self.device)
+        self.normalizer = Normalizer((inp_dim,), default_clip_range=5).to(self.device)
+        self.normalizer.count += 1
         self.clip_critic = clip_critic
 
         critic_lr = critic_lr if critic_lr is not None else lr
 
-        self.optim_actor = torch.optim.Adam(self.actor.parameters(), lr)  # 之后之间换个decorator就好了
-        self.optim_critic = torch.optim.Adam(self.critic.parameters(), critic_lr)  # 之后之间换个decorator就好了
+        self.optim_actor = torch.optim.Adam(self.actor.parameters(), lr)
+        self.optim_critic = torch.optim.Adam(self.critic.parameters(), critic_lr)
         self.gamma = gamma
         self.tau, self.update_target_period = tau, update_target_period
 
@@ -76,6 +77,8 @@ class AsyncDDPGAgent:
         if self.pipe is not None:
             #self.pipe.send(1)
             grad = _get_flat_params_or_grads(net, mode='grad')
+            #if self.seed == 124:
+            #    print(self.seed-123, (grad**2).sum().detach().cpu().numpy())
             self.pipe.send(grad)
             grad = self.pipe.recv()
             _set_flat_params_or_grads(net, grad, mode='grad')
@@ -87,8 +90,8 @@ class AsyncDDPGAgent:
             self.pipe.send(data)
             s, sq, count = self.pipe.recv()
             self.normalizer.add(
-                torch.tensor(s, dtype=torch.float, device=self.device),
-                torch.tensor(sq, dtype=torch.float, device=self.device),
+                torch.tensor(s, dtype=torch.float32, device=self.device),
+                torch.tensor(sq, dtype=torch.float32, device=self.device),
                 torch.tensor(count, dtype=torch.long, device=self.device),
             )
 
@@ -96,60 +99,76 @@ class AsyncDDPGAgent:
     def _update(self, obs, action, t, reward, done):
         #with Timer("update time"):
         if isinstance(obs, np.ndarray):
-            obs = torch.tensor(obs, dtype=torch.float, device=self.device)
-            action = torch.tensor(action, dtype=torch.float, device=self.device)
+            obs = torch.tensor(obs, dtype=torch.float32, device=self.device)
+            action = torch.tensor(action, dtype=torch.float32, device=self.device)
             t = torch.tensor(t, dtype=torch.float, device=self.device)
-            reward = torch.tensor(reward, dtype=torch.float, device=self.device)
+            reward = torch.tensor(reward, dtype=torch.float32, device=self.device)
             if isinstance(done, np.ndarray):
-                done = torch.tensor(done, dtype=torch.float, device=self.device)
+                done = torch.tensor(done, dtype=torch.float32, device=self.device)
 
         # update actor
         if self.target_actor is None:
             self.target_critic = copy.deepcopy(self.critic)
             self.target_actor = copy.deepcopy(self.actor)
 
-        if self.normalizer is not None:
-            obs = self.normalizer(obs)
-            t = self.normalizer(t)
+        xx = obs
+        obs = self.normalizer(obs)
+
+        #if self.seed == 124:
+        #    print(obs[:,:-3].sum())
+        #    print(self.normalizer.mean, self.normalizer.std)
+        #    print(xx[1][:-3])
+        #    print(obs[1][:-3], obs[1,:-3].sum())
+        #exit(0)
+        t = self.normalizer(t)
 
         with torch.no_grad():
             nextV = self.target_critic(t, self.target_actor(t))
             target = nextV * (1-done) * self.gamma + reward
             if self.clip_critic:
                 target = target.clamp(-1/(1-self.gamma), 0) # clip the q value
-
         predict = self.critic(obs, action)
         assert predict.shape == target.shape
         critic_loss = torch.nn.functional.mse_loss(predict, target)
+        #print('reward sum', self.seed, reward.sum())
+        #print(self.seed-123, critic_loss)
+        action = self.actor(obs)
+        actor_loss = -self.critic(obs, action).mean()
+        #if self.seed == 123 + 1:
+        #    oo = obs[:,:-3]
+        #    print(critic_loss)
+        #    print(((action/self.action_max)**2).mean(), actor_loss, oo.sum(), oo.shape, reward.sum(), self.normalizer.mean, self.normalizer.std)
+        actor_loss += ((action/self.action_max)**2).mean() # TODO: action regulariation
 
-        self.optim_critic.zero_grad()
-        critic_loss.backward()
-
-        #with Timer('sync'):
-        self.sync_grads(self.critic)
-        self.optim_critic.step()
-
-        actor_loss = -self.critic(obs, self.actor(obs)).mean()
+        #if self.seed == 123 + 1:
+        #    print(actor_loss)
 
         self.optim_actor.zero_grad()
         actor_loss.backward()
         self.sync_grads(self.actor)
         self.optim_actor.step()
 
+        self.optim_critic.zero_grad()
+        critic_loss.backward()
+        self.sync_grads(self.critic)
+        self.optim_critic.step()
+
+
         if (self.update_step+1) % self.update_target_period == 0:
             soft_update(self.target_actor, self.actor, self.tau)
             soft_update(self.target_critic, self.target_critic, self.tau)
+        self.update_step += 1
 
         out = dict(
-            critic_loss = critic_loss.detach().cpu().numpy(),
-            actor_loss = actor_loss.detach().cpu().numpy(),
+            critic_loss=critic_loss.detach().cpu().numpy(),
+            actor_loss=actor_loss.detach().cpu().numpy(),
         )
         return out
 
     def __call__(self, inp):
         with torch.no_grad():
             if isinstance(inp, np.ndarray):
-                inp = torch.tensor(inp, dtype=torch.float, device=self.device)
+                inp = torch.tensor(inp, dtype=torch.float32, device=self.device)
             inp = inp[None, :]
             if self.normalizer is not None:
                 inp = self.normalizer(inp)
@@ -164,7 +183,7 @@ class Worker(multiprocessing.Process):
     SET_PARAM = 5
 
     def __init__(self, make, env_name, timestep, replay_buffer_size=int(1e6),
-                 noise_eps=0.1, random_eps=0.2,
+                 noise_eps=0.2, random_eps=0.3,
                  batch_size=256, future_K=4, seed=0, **kwargs):
         super(Worker, self).__init__()
         self.make = make
@@ -187,7 +206,15 @@ class Worker(multiprocessing.Process):
         # initialize
         self.env = self.make(self.env_name)
         self.env.seed(self.seed)
+        self.env.reset()
+        import random
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
+
         self.agent = AsyncDDPGAgent(self.env.observation_space, self.env.action_space, **self.kwargs, pipe=self.worker_pipe)
+        self.agent.seed = self.seed
         self.action_max = self.agent.action_max
         self.her_module = HERSampler('future', self.future_K, self.env.compute_reward)
         self.buffer = ReplayBuffer(self.env, self.T, self.replay_buffer_size, self.her_module.sample_her_transitions)
@@ -246,18 +273,21 @@ class Worker(multiprocessing.Process):
                 inp = np.concatenate((obs, g))
                 action = self.add_noise(self.agent(inp), self.noise_eps, self.random_eps, self.action_max)
                 # feed the actions into the environment
-                observation_new, r, _, info = self.env.step(action)
+                observation_new, r, done, info = self.env.step(action)
                 total_reward += r
                 obs_new, ag_new = observation_new['observation'], observation_new['achieved_goal']
                 ep_obs.append(obs.copy()); ep_ag.append(ag.copy()); ep_g.append(g.copy()); ep_actions.append(action.copy())
                 obs, ag = obs_new, ag_new
+            assert done
 
             ep_obs.append(obs.copy()); ep_ag.append(ag.copy())
             mb_obs.append(ep_obs); mb_ag.append(ep_ag); mb_g.append(ep_g); mb_actions.append(ep_actions)
 
+
         batch = [np.array(i) for i in [mb_obs, mb_ag, mb_g, mb_actions]]
         # store the episodes
         self.buffer.store_episode(batch)
+        self.her_module.seed = self.seed - 123
         self._update_normalizer(batch)
 
         train_output = []
@@ -285,10 +315,10 @@ class Worker(multiprocessing.Process):
 
 
 class DDPGAgent:
-    def __init__(self, n, num_epoch, n_rollout, timestep, n_batch=50, *args, recorder=None, **kwargs):
+    def __init__(self, n, num_epoch, n_rollout, timestep, n_batch=50, *args, recorder=None, seed=123, **kwargs):
         self.workers = []
         for i in range(n):
-            self.workers.append(Worker(*args, timestep=timestep, **kwargs, seed=i))
+            self.workers.append(Worker(*args, timestep=timestep, **kwargs, seed=seed + i))
         self.recorder = recorder
         self.start(num_epoch, n_rollout, timestep, n_batch)
 
@@ -305,8 +335,9 @@ class DDPGAgent:
             self.update_normalizer()
 
             for i in range(n_batch):
-                self.reduce(mode='mean') # for critic
-                self.reduce(mode='mean') # for actor
+                #TODO: mode is sum here to be the same as the open source code..
+                self.reduce(mode='sum') # for critic
+                self.reduce(mode='sum') # for actor
 
             for i in self.workers[1:]:
                 i.recv(); i.send(start_command)
@@ -332,10 +363,11 @@ class DDPGAgent:
             i.send(grad)
 
     def update_normalizer(self):
-        s, sq, count = 0, 0, 0
+        s, sq, count, n = 0, 0, 0, len(self.workers)
         for i in self.workers:
             _s, _sq, _count = i.recv()
             s += _s; sq += _sq; count += _count
+        s /= n; sq /= n; count /= n
         for i in self.workers:
             i.send([s, sq, count])
 

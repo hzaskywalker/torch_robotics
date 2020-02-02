@@ -30,6 +30,7 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
 
     avg_reward = 0.
     ran = range if not progress_episode else tqdm.trange
+    acc = []
     for episode_id in ran(eval_episodes):
         state, done = eval_env.reset(), False
         if start_state is not None:
@@ -61,11 +62,13 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
             if isinstance(state, dict): pass
             else: state = np.array(state)
             action = policy(state)
-            state, reward, done, _ = eval_env.step(action)
+            state, reward, done, info = eval_env.step(action)
             avg_reward += reward
             cc += reward
             if done:
                 break
+        if 'is_success' in info:
+            acc.append(info['is_success'])
 
         if progress_episode:
             print(f'episode {episode_id}:', cc)
@@ -77,6 +80,8 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
 
     print("---------------------------------------")
     print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
+    if len(acc) > 0:
+        print(f"Evaluation success rate over {eval_episodes} episodes: {np.mean(acc):.3f}")
     print("---------------------------------------")
     return avg_reward
 

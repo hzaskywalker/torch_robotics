@@ -29,7 +29,7 @@ def main():
     # TODO: note we use the same environment for testing... which is troublesome.
     # TODO: if we can run multiple env together, we can must
     recorder = RLRecorder(env, args.path, save_model=slice(0, None, 10), network_loss=slice(0, None, 10),
-                          evaluate=slice(0, None, 10), save_video=1, max_timestep=args.max_timesteps)
+                          evaluate=slice(10, None, 10), save_video=1, max_timestep=args.max_timesteps)
 
     #td3(env, args.seed, args.start_timesteps, args.eval_freq, args.max_timesteps, args.expl_noise, args.batch_size,
     #    args.discount, args.tau, args.policy_noise, args.noise_clip, args.policy_freq, recorder=recorder)
