@@ -58,7 +58,9 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
             #print()
             #print(','.join(map(lambda x: f"{x:.6f}", list(state))) )
             #print()
-            action = policy(np.array(state))
+            if isinstance(state, dict): pass
+            else: state = np.array(state)
+            action = policy(state)
             state, reward, done, _ = eval_env.step(action)
             avg_reward += reward
             cc += reward

@@ -18,8 +18,8 @@ class ReplayBuffer:
         self.sample_func = sample_func
         # create the buffer to store info
         self.buffers = {'obs': np.empty([self.size, self.T + 1, observation_space['observation'].shape[0]]),
-                        'ag': np.empty([self.size, self.T + 1, observation_space['goal'].shape[0]]),
-                        'g': np.empty([self.size, self.T, observation_space['goal'].shape[0]]),
+                        'ag': np.empty([self.size, self.T + 1, observation_space['desired_goal'].shape[0]]),
+                        'g': np.empty([self.size, self.T, observation_space['achieved_goal'].shape[0]]),
                         'actions': np.empty([self.size, self.T, action_space.shape[0]]),
                         }
         # thread lock

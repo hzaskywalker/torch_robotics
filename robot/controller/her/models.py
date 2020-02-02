@@ -28,7 +28,7 @@ class critic(nn.Module):
     def __init__(self, inp_dim, action_max):
         super(critic, self).__init__()
         self.max_action = action_max
-        self.fc1 = nn.Linear(inp_dim +, 256)
+        self.fc1 = nn.Linear(inp_dim, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 256)
         self.q_out = nn.Linear(256, 1)
