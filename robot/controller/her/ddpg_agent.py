@@ -7,7 +7,7 @@ import numpy as np
 #from mpi4py import MPI
 from .models import actor, critic
 from robot.utils.normalizer import Normalizer
-from robot.utils import soft_update
+from robot.utils import soft_update, Timer
 from .replay_buffer import ReplayBuffer
 from .her import HERSampler
 import multiprocessing
@@ -18,7 +18,8 @@ def _get_flat_params_or_grads(network, mode='params'):
     include two kinds: grads and params
     """
     attr = 'data' if mode == 'params' else 'grad'
-    return np.concatenate([getattr(param, attr).cpu().numpy().flatten() for param in network.parameters()])
+    #return np.concatenate([getattr(param, attr).cpu().numpy().flatten() for param in network.parameters()])
+    return torch.cat([getattr(param, attr).reshape(-1).cpu() for param in network.parameters()])
 
 
 def _set_flat_params_or_grads(network, flat_params, mode='params'):
@@ -29,7 +30,8 @@ def _set_flat_params_or_grads(network, flat_params, mode='params'):
     # the pointer
     pointer = 0
     for param in network.parameters():
-        getattr(param, attr).copy_(torch.tensor(flat_params[pointer:pointer + param.data.numel()]).view_as(param.data))
+        #getattr(param, attr).copy_(torch.tensor(flat_params[pointer:pointer + param.data.numel()]).view_as(param.data))
+        getattr(param, attr).copy_(flat_params[pointer:pointer + param.data.numel()].view_as(param.data))
         pointer += param.data.numel()
 
 
@@ -42,10 +44,10 @@ class AsyncDDPGAgent:
         inp_dim = observation_space['observation'].shape[0] + observation_space['desired_goal'].shape[0]
         action_dim, self.action_max = action_space.shape[0], action_space.high.max()
 
-        self.critic = critic(inp_dim + action_dim, self.action_max)
-        self.actor = actor(inp_dim, action_dim, self.action_max)
+        self.critic = critic(inp_dim + action_dim, self.action_max).to(self.device)
+        self.actor = actor(inp_dim, action_dim, self.action_max).to(self.device)
         self.target_critic, self.target_actor = None, None
-        self.normalizer = Normalizer((inp_dim,))
+        self.normalizer = Normalizer((inp_dim,)).to(self.device)
         self.clip_critic = clip_critic
 
         critic_lr = critic_lr if critic_lr is not None else lr
@@ -72,6 +74,7 @@ class AsyncDDPGAgent:
 
     def sync_grads(self, net):
         if self.pipe is not None:
+            #self.pipe.send(1)
             grad = _get_flat_params_or_grads(net, mode='grad')
             self.pipe.send(grad)
             grad = self.pipe.recv()
@@ -91,6 +94,7 @@ class AsyncDDPGAgent:
 
 
     def _update(self, obs, action, t, reward, done):
+        #with Timer("update time"):
         if isinstance(obs, np.ndarray):
             obs = torch.tensor(obs, dtype=torch.float, device=self.device)
             action = torch.tensor(action, dtype=torch.float, device=self.device)
@@ -120,6 +124,8 @@ class AsyncDDPGAgent:
 
         self.optim_critic.zero_grad()
         critic_loss.backward()
+
+        #with Timer('sync'):
         self.sync_grads(self.critic)
         self.optim_critic.step()
 
@@ -159,7 +165,7 @@ class Worker(multiprocessing.Process):
 
     def __init__(self, make, env_name, timestep, replay_buffer_size=int(1e6),
                  noise_eps=0.1, random_eps=0.2,
-                 batch_size=256, future_K=4, **kwargs):
+                 batch_size=256, future_K=4, seed=0, **kwargs):
         super(Worker, self).__init__()
         self.make = make
         self.env_name = env_name
@@ -168,6 +174,7 @@ class Worker(multiprocessing.Process):
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.batch_size = batch_size
+        self.seed = seed
 
         self.future_K= future_K
 
@@ -179,6 +186,7 @@ class Worker(multiprocessing.Process):
     def run(self):
         # initialize
         self.env = self.make(self.env_name)
+        self.env.seed(self.seed)
         self.agent = AsyncDDPGAgent(self.env.observation_space, self.env.action_space, **self.kwargs, pipe=self.worker_pipe)
         self.action_max = self.agent.action_max
         self.her_module = HERSampler('future', self.future_K, self.env.compute_reward)
@@ -280,7 +288,7 @@ class DDPGAgent:
     def __init__(self, n, num_epoch, n_rollout, timestep, n_batch=50, *args, recorder=None, **kwargs):
         self.workers = []
         for i in range(n):
-            self.workers.append(Worker(*args, timestep=timestep, **kwargs))
+            self.workers.append(Worker(*args, timestep=timestep, **kwargs, seed=i))
         self.recorder = recorder
         self.start(num_epoch, n_rollout, timestep, n_batch)
 
@@ -315,11 +323,11 @@ class DDPGAgent:
         return self.workers[0].recv()
 
     def reduce(self, mode='mean'):
-        grad = 0
-        for i in self.workers:
+        grad = self.workers[0].recv()
+        for i in self.workers[1:]:
             grad = grad + i.recv()
         if mode == 'mean':
-            grad /= len(self.workers)
+            grad = grad / len(self.workers)
         for i in self.workers:
             i.send(grad)
 

@@ -151,13 +151,12 @@ class RLRecorder:
             end = max_timestep + stop
 
         if step > 0:
-            if stop is not None and x >= stop:
+            if stop is not None and x >= stop or x < start:
                 return False
             return (x - start) % step == 0
         elif step < 0:
-            if start is not None and x < start:
-                return False
-            return (stop - x) % step == 0
+            #TODO: this is a little complex, we just don't support such operator..
+            raise NotImplementedError
         else:
             raise NotImplementedError
 
