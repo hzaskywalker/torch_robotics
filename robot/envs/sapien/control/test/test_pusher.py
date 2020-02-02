@@ -1,4 +1,4 @@
-from robot.envs.sapien.control import PusherEnv
+from robot.envs.sapien import PusherEnv
 
 def test():
     pusher = PusherEnv()

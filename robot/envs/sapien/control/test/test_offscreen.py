@@ -1,5 +1,5 @@
 import argparse
-from robot.envs.sapien.control import SwimmerEnv
+from robot.envs.sapien import SwimmerEnv
 import tqdm
 
 

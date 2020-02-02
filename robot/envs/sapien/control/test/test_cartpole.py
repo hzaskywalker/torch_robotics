@@ -1,4 +1,4 @@
-from robot.envs.sapien.control import CartpoleEnv
+from robot.envs.sapien import CartpoleEnv
 
 def test():
     cartpole = CartpoleEnv()

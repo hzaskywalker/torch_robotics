@@ -1,4 +1,4 @@
-from robot.envs.sapien.control import AntEnv
+from robot.envs.sapien.control.ant import AntEnv
 
 def test():
     ant = AntEnv()

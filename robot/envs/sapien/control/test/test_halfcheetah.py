@@ -1,4 +1,4 @@
-from robot.envs.sapien.control import HalfCheetahEnv
+from robot.envs.sapien import HalfCheetahEnv
 
 def test_cheetah():
     cheetah = HalfCheetahEnv()

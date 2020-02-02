@@ -1,10 +1,7 @@
 import numpy as np
 
-#from gym.envs.robotics import rotations, robot_env, utils
 from . import robot_env
 from .robot_env import sapien_core, Pose
-from . import robot_utils
-import warnings
 
 
 def goal_distance(goal_a, goal_b):
@@ -84,6 +81,7 @@ class MovoEnv(robot_env.RobotEnv):
                 goal[2] += self.np_random.uniform(0, 0.45)
         else:
             goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(-0.15, 0.15, size=3)
+        self.goal_actor.set_pose(Pose(goal))
         return goal.copy()
 
     def _is_success(self, achieved_goal, desired_goal):
@@ -149,9 +147,20 @@ class MovoEnv(robot_env.RobotEnv):
             obj = self.my_add_link(obj_slidez, ([0.0, 0.0, 0.0], PxIdentity), ((0, 0, 0), x2z), "obj", "obj_sliderz", [-2, 2], damping=0.1, type='slider', contype=1)
             self.add_box(obj, (0, 0, 0), PxIdentity, (size, size, size), (1, 0, 0), "object", density=0.000001)
 
+
+        size = 0.05
+        actor_builder = self.sim.create_actor_builder()
+        actor_builder.add_sphere_visual(Pose((0, 0, 0), PxIdentity), size, (0, 1, 0), "goal")
+        self.goal_actor = actor_builder.build_static('goal')
+        self.goal_actor.set_pose(Pose((x, 0, tabel_heigh + size * 2)))
+
+
         scene = self.builder.build(True)
         scene.set_root_pose(Pose([0., 0., 0.]))
-        self.obj = scene.get_links()[-1]
+        for i in scene.get_links():
+            if i.name == 'obj':
+                self.obj = i
+
         return scene
 
     def compute_reward(self, achieved_goal, goal, info):

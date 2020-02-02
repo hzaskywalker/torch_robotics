@@ -1,5 +1,5 @@
 import sys
-from robot.envs.sapien.control import SwimmerEnv
+from robot.envs.sapien import SwimmerEnv
 
 def test():
     x = 0 if len(sys.argv) > 1 else 1
