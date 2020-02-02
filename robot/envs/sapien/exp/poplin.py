@@ -73,14 +73,17 @@ class Rollout:
         rewards = []
         obs = []
         for s, a, timestep in zip(s, a, timestep):
-            assert int(a.shape[0]) == int(timestep + 1), f"{a.shape}, {timestep}"
             set_state(self.env, s)
 
             s = self.env._get_obs()
 
             reward = []
             #for action in a:
-            for i in range(timestep * 3):
+            tt = timestep
+            if len(a.shape) > 1:
+                assert int(a.shape[0]) == int(timestep + 1), f"{a.shape}, {timestep}"
+                tt = timestep * 3
+            for i in range(tt):
                 if len(a.shape)>1:
                     if i < timestep:
                         action = a[i]
@@ -117,7 +120,7 @@ class SapienMujocoRolloutModel:
 
 
 class MyPoplin(PoplinController):
-    def __init__(self, *args, mode='sep', inp_dim=None, oup_dim=None, num_layers=2, mid_channels=32, **kwargs):
+    def __init__(self, *args, mode='sep', max_timestep=None, inp_dim=None, oup_dim=None, num_layers=2, mid_channels=32, **kwargs):
         super(MyPoplin, self).__init__(*args, inp_dim=inp_dim, oup_dim=oup_dim,
                                        num_layers=num_layers, mid_channels=mid_channels, **kwargs)
         self._cur_weights = self.network.init_weights()
@@ -125,6 +128,8 @@ class MyPoplin(PoplinController):
         self.lb = self.lb.detach().cpu().numpy()
         self.ub = self.ub.detach().cpu().numpy()
         self.mode = mode
+        self.max_timestep = max_timestep
+        self.cur_timestep = 0
 
     def reset(self):
         self.cur_weights = self._cur_weights
@@ -134,10 +139,14 @@ class MyPoplin(PoplinController):
             super(MyPoplin, self).reset()
             self.horizon -= 1
         self.cur_weights = self._cur_weights
+        self.cur_timestep = 0
 
     def rollout(self, obs, weights):
         obs = obs.expand(weights.shape[0], -1) # (500, x)
-        timestep = np.zeros((obs.shape[0],), dtype=np.int32) + self.current_horizon
+        timestep = self.current_horizon
+        if self.max_timestep is not None:
+            timestep = min(timestep, self.max_timestep - self.cur_timestep)
+        timestep = np.zeros((obs.shape[0],), dtype=np.int32) + timestep
         #weights = torch.cat((weights, self.cur_weights[None, None,:].expand(weights.shape[0], -1, -1)), dim=1) #  TODO: xiajiba hack
         _, reward = self.model.rollout(obs, weights, timestep)
         return reward
@@ -152,6 +161,7 @@ class MyPoplin(PoplinController):
     def __call__(self, obs):
         self.current_horizon = self.horizon
         if self.mode == 'sep':
+            #TODO: add timestep support for sep mode
             if self.w_buf is not None:
                 if self.w_buf.shape[0] > 0:
                     weight, self.w_buf = self.w_buf[0], self.w_buf[1:]
@@ -164,10 +174,12 @@ class MyPoplin(PoplinController):
             # TODO: xjb hack, preserve the last
             self.w_buf, self.prev_weights = torch.split(self.prev_weights,
                                                         [self.replan_period, self.horizon + 1 - self.replan_period])
-            self.prev_weights = torch.cat((self.prev_weights[:-1], self.init_weight(self.replan_period), self.prev_weights[-1:]))
+            #self.prev_weights = torch.cat((self.prev_weights[:-1], self.init_weight(self.replan_period), self.prev_weights[-1:]))
+            self.prev_weights = torch.cat((self.prev_weights[:-1], self.prev_weights[:-1].mean(dim=0, keepdim=True), self.prev_weights[-1:]))
             return self.__call__(obs)
         else:
             self.cur_weights = self.cem(obs, self.cur_weights)
+            self.cur_timestep += 1
             return self.network_control(obs, self.cur_weights)
 
 
@@ -206,6 +218,7 @@ def main():
                           trunc_norm=True,
                           std=0.1 ** 0.5,
                           num_layers=2,
+                          max_timestep=args.timestep, # TODO: xjb hack here
                           )
 
     #env.reset()

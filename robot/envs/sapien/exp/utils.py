@@ -169,7 +169,7 @@ class RLRecorder:
 
         if self.on_time(self.episode, self.evaluate):
             kwargs['reward_eval'] = eval_policy(agent, self.env, eval_episodes=self.eval_episodes, save_video=self.save_video,
-                                                video_path=os.path.join(self.path, "video{}.mp4"))
+                                                video_path=os.path.join(self.path, "video{}.avi"))
 
         if self.on_time(self.episode, self.save_model):
             import torch

@@ -29,6 +29,12 @@ class Normalizer(nn.Module):
 
         self.recompute_stats()
 
+    def add(self, sum, sumsq, count):
+        self.sum += sum
+        self.sumsq += sumsq
+        self.count[0] += count
+        self.recompute_stats()
+
     def fit(self, v: torch.Tensor):
         assert v.shape[-len(self.size):] == self.size, f"{v.shape}, {self.size}"
         v = v.reshape(-1, *self.size)

@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--target_update_interval', type=int, default=1)
     parser.add_argument('--automatic_entropy_tuning', type=int, default=0)
     parser.add_argument('--hidden_size', type=int, default=256)
-    parser.add_argument('--lr', type=float, default=0.003)
+    parser.add_argument('--lr', type=float, default=3e-3)
 
     parser.add_argument('--path', type=str, default='/tmp/tmp')
     args = parser.parse_args()
