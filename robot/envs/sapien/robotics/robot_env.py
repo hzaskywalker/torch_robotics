@@ -16,7 +16,7 @@ except ImportError as e:
 
 DEFAULT_SIZE = 500
 
-from ..control.sapien_env import SapienEnv
+from robot.envs.sapien.control import SapienEnv
 
 class RobotEnv(gym.GoalEnv, SapienEnv):
     def __init__(self, model_path, initial_qpos, n_actions, n_substeps=1):

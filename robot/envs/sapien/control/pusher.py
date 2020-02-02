@@ -100,6 +100,7 @@ class PusherEnv(SapienEnv, utils.EzPickle):
         wrapper.set_root_pose(Pose([0., 0., 0.]))
 
         limit = 2.
+        self.limit = limit
         self.add_force_actuator("r_shoulder_pan_joint", -limit, limit)
         self.add_force_actuator("r_shoulder_lift_joint", -limit, limit)
         self.add_force_actuator("r_upper_arm_roll_joint", -limit, limit)
@@ -120,6 +121,8 @@ class PusherEnv(SapienEnv, utils.EzPickle):
             return self._link_dict[body_name].pose.p
 
     def step(self, a):
+        a = np.clip(a, -self.limit, self.limit)
+
         vec_1 = self.get_body_com("object") - self.get_body_com("tips_arm")
         vec_2 = self.get_body_com("object") - self.get_body_com("goal")
 

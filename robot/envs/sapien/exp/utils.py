@@ -3,7 +3,7 @@ import tqdm
 import cv2
 import os
 import numpy as np
-from robot.envs.sapien.control import make as sapien_make
+from robot.envs.sapien import make as sapien_make
 from robot.utils.trainer import merge_training_output
 from robot.utils import Visualizer
 

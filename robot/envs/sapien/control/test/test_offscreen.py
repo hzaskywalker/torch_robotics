@@ -1,9 +1,7 @@
 import argparse
-from robot.envs.sapien.control.halfcheetah import HalfCheetahEnv
-from robot.envs.sapien.control.ant import AntEnv
-from robot.envs.sapien.control.swimmer import SwimmerEnv
+from robot.envs.sapien.control import SwimmerEnv
 import tqdm
-from robot.utils import write_video
+
 
 def test_cheetah():
     parser = argparse.ArgumentParser()

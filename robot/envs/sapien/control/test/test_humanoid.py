@@ -1,4 +1,4 @@
-from robot.envs.sapien.control.humanoid import HumanoidEnv
+from robot.envs.sapien.control import HumanoidEnv
 
 def test():
     swimmer = HumanoidEnv()
