@@ -73,15 +73,20 @@ class Rollout:
         rewards = []
         obs = []
         for s, a, timestep in zip(s, a, timestep):
+            assert int(a.shape[0]) == int(timestep + 1), f"{a.shape}, {timestep}"
             set_state(self.env, s)
 
             s = self.env._get_obs()
 
             reward = []
             #for action in a:
-            for i in range(timestep):
+            for i in range(timestep * 3):
                 if len(a.shape)>1:
-                    action = a[i]
+                    if i < timestep:
+                        action = a[i]
+                    else:
+                        #TODO: hack here
+                        action = a[-1]
                 else:
                     action = a
 
@@ -124,12 +129,16 @@ class MyPoplin(PoplinController):
     def reset(self):
         self.cur_weights = self._cur_weights
         if self.mode == 'sep':
+            #TODO: xjb hack
+            self.horizon += 1
             super(MyPoplin, self).reset()
+            self.horizon -= 1
         self.cur_weights = self._cur_weights
 
     def rollout(self, obs, weights):
         obs = obs.expand(weights.shape[0], -1) # (500, x)
         timestep = np.zeros((obs.shape[0],), dtype=np.int32) + self.current_horizon
+        #weights = torch.cat((weights, self.cur_weights[None, None,:].expand(weights.shape[0], -1, -1)), dim=1) #  TODO: xiajiba hack
         _, reward = self.model.rollout(obs, weights, timestep)
         return reward
 
@@ -143,7 +152,20 @@ class MyPoplin(PoplinController):
     def __call__(self, obs):
         self.current_horizon = self.horizon
         if self.mode == 'sep':
-            return super(MyPoplin, self).__call__(obs)
+            if self.w_buf is not None:
+                if self.w_buf.shape[0] > 0:
+                    weight, self.w_buf = self.w_buf[0], self.w_buf[1:]
+                    self.weights_dataset.append(weight)
+                    self.obs_dataset.append(obs.detach())
+                    out = self.network_control(obs, weight)
+                    return out
+
+            self.prev_weights = self.cem(obs, self.prev_weights)
+            # TODO: xjb hack, preserve the last
+            self.w_buf, self.prev_weights = torch.split(self.prev_weights,
+                                                        [self.replan_period, self.horizon + 1 - self.replan_period])
+            self.prev_weights = torch.cat((self.prev_weights[:-1], self.init_weight(self.replan_period), self.prev_weights[-1:]))
+            return self.__call__(obs)
         else:
             self.cur_weights = self.cem(obs, self.cur_weights)
             return self.network_control(obs, self.cur_weights)

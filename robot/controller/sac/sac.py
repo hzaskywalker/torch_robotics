@@ -29,7 +29,7 @@ class SAC(object):
 
         if self.policy_type == "Gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
-            if self.automatic_entropy_tuning == True:
+            if self.automatic_entropy_tuning:
                 self.target_entropy = -torch.prod(torch.Tensor(action_space.shape).to(self.device)).item()
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
                 self.alpha_optim = Adam([self.log_alpha], lr=lr)
@@ -40,7 +40,7 @@ class SAC(object):
 
         else:
             self.alpha = 0
-            self.automatic_entropy_tuning = False
+            self.automatic_entropy_tuning = 0
             self.policy = DeterministicPolicy(num_inputs, action_space.shape[0], hidden_size, action_space).to(
                 self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=lr)

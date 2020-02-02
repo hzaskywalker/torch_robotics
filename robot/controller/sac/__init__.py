@@ -4,7 +4,7 @@ import itertools
 
 
 def sac(env, num_steps=1000001, replay_size=1000000, start_steps=10000, batch_size=256,
-        updates_per_step=1, eval=False, **kwargs):
+        updates_per_step=1, recorder=None, **kwargs):
     # Agent
     agent = SAC(env.observation_space.shape[0], env.action_space, **kwargs)
 
@@ -15,12 +15,14 @@ def sac(env, num_steps=1000001, replay_size=1000000, start_steps=10000, batch_si
     total_numsteps = 0
     updates = 0
 
+
     for i_episode in itertools.count(1):
         episode_reward = 0
         episode_steps = 0
         done = False
         state = env.reset()
 
+        train_outputs = []
         while not done:
             if start_steps > total_numsteps:
                 action = env.action_space.sample()  # Sample random action
@@ -35,11 +37,13 @@ def sac(env, num_steps=1000001, replay_size=1000000, start_steps=10000, batch_si
                                                                                                          batch_size,
                                                                                                          updates)
 
-                    #writer.add_scalar('loss/critic_1', critic_1_loss, updates)
-                    #writer.add_scalar('loss/critic_2', critic_2_loss, updates)
-                    #writer.add_scalar('loss/policy', policy_loss, updates)
-                    #writer.add_scalar('loss/entropy_loss', ent_loss, updates)
-                    #writer.add_scalar('entropy_temprature/alpha', alpha, updates)
+                    train_outputs.append({
+                        'critic_loss': critic_1_loss,
+                        'critic_2_loss': critic_2_loss,
+                        'policy_loss': policy_loss,
+                        'ent_loss': ent_loss,
+                        'alpha': alpha,
+                    })
                     updates += 1
 
             next_state, reward, done, _ = env.step(action)  # Step
@@ -65,28 +69,7 @@ def sac(env, num_steps=1000001, replay_size=1000000, start_steps=10000, batch_si
         print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps,
                                                                                       episode_steps,
                                                                                       round(episode_reward, 2)))
-
-        if i_episode % 10 == 0 and eval == True:
-            avg_reward = 0.
-            episodes = 10
-            for _ in range(episodes):
-                state = env.reset()
-                episode_reward = 0
-                done = False
-                while not done:
-                    action = agent.select_action(state, eval=True)
-
-                    next_state, reward, done, _ = env.step(action)
-                    episode_reward += reward
-
-                    state = next_state
-                avg_reward += episode_reward
-            avg_reward /= episodes
-
-            #writer.add_scalar('avg_reward/test', avg_reward, i_episode)
-
-            print("----------------------------------------")
-            print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
-            print("----------------------------------------")
+        if recorder is not None:
+            recorder.step(agent, episode_reward, episode_steps, train_outputs)
 
     return agent
