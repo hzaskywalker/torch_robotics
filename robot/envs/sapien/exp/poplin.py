@@ -80,9 +80,11 @@ class Rollout:
             reward = []
             #for action in a:
             tt = timestep
-            if len(a.shape) > 1:
-                assert int(a.shape[0]) == int(timestep + 1), f"{a.shape}, {timestep}"
-                tt = timestep * 3
+            #if len(a.shape) > 1:
+            #    assert int(a.shape[0]) == int(timestep + 1), f"{a.shape}, {timestep}"
+            #tt = timestep * 3
+            #print(a.shape[0])
+            assert a.shape[0] == timestep
             for i in range(tt):
                 if len(a.shape)>1:
                     if i < timestep:
@@ -135,9 +137,9 @@ class MyPoplin(PoplinController):
         self.cur_weights = self._cur_weights
         if self.mode == 'sep':
             #TODO: xjb hack
-            self.horizon += 1
+            #self.horizon += 1
             super(MyPoplin, self).reset()
-            self.horizon -= 1
+            #self.horizon -= 1
         self.cur_weights = self._cur_weights
         self.cur_timestep = 0
 
@@ -173,9 +175,9 @@ class MyPoplin(PoplinController):
             self.prev_weights = self.cem(obs, self.prev_weights)
             # TODO: xjb hack, preserve the last
             self.w_buf, self.prev_weights = torch.split(self.prev_weights,
-                                                        [self.replan_period, self.horizon + 1 - self.replan_period])
-            #self.prev_weights = torch.cat((self.prev_weights[:-1], self.init_weight(self.replan_period), self.prev_weights[-1:]))
-            self.prev_weights = torch.cat((self.prev_weights[:-1], self.prev_weights[:-1].mean(dim=0, keepdim=True), self.prev_weights[-1:]))
+                                                        [self.replan_period, self.horizon - self.replan_period])
+            self.prev_weights = torch.cat((self.prev_weights, self.init_weight(self.replan_period)))
+            #self.prev_weights = torch.cat((self.prev_weights[:-1], self.prev_weights[:-1].mean(dim=0, keepdim=True), self.prev_weights[-1:]))
             return self.__call__(obs)
         else:
             self.cur_weights = self.cem(obs, self.cur_weights)

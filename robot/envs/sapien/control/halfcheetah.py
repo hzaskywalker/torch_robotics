@@ -105,6 +105,7 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
     def step(self, a):
         dd = np.array([120 * 0.84, 90 * 0.800, 60 * 0.766, 120 * 0.98, 60 * 0.875, 30 * 0.947])
         xposbefore = self.get_qpos()[0]
+        a = np.clip(a, -1, 1)
         self.do_simulation(a * dd, self.frame_skip)
         xposafter = self.get_qpos()[0]
 
@@ -120,6 +121,12 @@ class HalfCheetahEnv(sapien_env.SapienEnv, utils.EzPickle):
             self.model.get_qpos().flat[1:],
             self.model.get_qvel().flat,
         ])
+
+
+    def render(self, mode='human', width=500, height=500):
+        if '_renderer' in self.__dict__:
+            self._renderer.set_camera_position(self.get_qpos()[0], -8, 4)
+        return self._get_viewer(mode).render()
 
     def reset_model(self):
         qpos = self.init_qpos.copy()

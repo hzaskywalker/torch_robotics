@@ -75,10 +75,7 @@ class AsyncDDPGAgent:
 
     def sync_grads(self, net):
         if self.pipe is not None:
-            #self.pipe.send(1)
             grad = _get_flat_params_or_grads(net, mode='grad')
-            #if self.seed == 124:
-            #    print(self.seed-123, (grad**2).sum().detach().cpu().numpy())
             self.pipe.send(grad)
             grad = self.pipe.recv()
             _set_flat_params_or_grads(net, grad, mode='grad')
@@ -111,15 +108,7 @@ class AsyncDDPGAgent:
             self.target_critic = copy.deepcopy(self.critic)
             self.target_actor = copy.deepcopy(self.actor)
 
-        xx = obs
         obs = self.normalizer(obs)
-
-        #if self.seed == 124:
-        #    print(obs[:,:-3].sum())
-        #    print(self.normalizer.mean, self.normalizer.std)
-        #    print(xx[1][:-3])
-        #    print(obs[1][:-3], obs[1,:-3].sum())
-        #exit(0)
         t = self.normalizer(t)
 
         with torch.no_grad():
@@ -130,18 +119,9 @@ class AsyncDDPGAgent:
         predict = self.critic(obs, action)
         assert predict.shape == target.shape
         critic_loss = torch.nn.functional.mse_loss(predict, target)
-        #print('reward sum', self.seed, reward.sum())
-        #print(self.seed-123, critic_loss)
         action = self.actor(obs)
         actor_loss = -self.critic(obs, action).mean()
-        #if self.seed == 123 + 1:
-        #    oo = obs[:,:-3]
-        #    print(critic_loss)
-        #    print(((action/self.action_max)**2).mean(), actor_loss, oo.sum(), oo.shape, reward.sum(), self.normalizer.mean, self.normalizer.std)
         actor_loss += ((action/self.action_max)**2).mean() # TODO: action regulariation
-
-        #if self.seed == 123 + 1:
-        #    print(actor_loss)
 
         self.optim_actor.zero_grad()
         actor_loss.backward()
@@ -156,7 +136,7 @@ class AsyncDDPGAgent:
 
         if (self.update_step+1) % self.update_target_period == 0:
             soft_update(self.target_actor, self.actor, self.tau)
-            soft_update(self.target_critic, self.target_critic, self.tau)
+            soft_update(self.target_critic, self.critic, self.tau)
         self.update_step += 1
 
         out = dict(
@@ -335,7 +315,6 @@ class DDPGAgent:
             self.update_normalizer()
 
             for i in range(n_batch):
-                #TODO: mode is sum here to be the same as the open source code..
                 self.reduce(mode='sum') # for critic
                 self.reduce(mode='sum') # for actor
 

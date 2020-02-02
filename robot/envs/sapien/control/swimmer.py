@@ -96,6 +96,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
             self.sim.step()
 
     def step(self, a):
+        a = np.clip(a, -1, 1)
         ctrl_cost_coeff = 0.0001
         xposbefore = self.model.get_qpos()[0]
         self.do_simulation(a * np.array([150, 150]), self.frame_skip)
