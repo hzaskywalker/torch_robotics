@@ -4,6 +4,7 @@ from .control.humanoid import HumanoidEnv
 from .control.pusher import PusherEnv
 from .control.swimmer import SwimmerEnv
 from .robotics.movo.movo_reach import MoveReachEnv
+from .robotics.movo_xyz.movo_reach_xyz_env import MoveReachXYZEnv
 from gym.wrappers import TimeLimit
 
 def make(env_name):
@@ -18,7 +19,11 @@ def make(env_name):
     elif env_name == 'swimmer':
         return TimeLimit(SwimmerEnv(), 1000)
     elif env_name == 'movo_reach':
-        return TimeLimit(MoveReachEnv(), 50)
+        return TimeLimit(MoveReachEnv('sparse'), 50)
+    elif env_name == 'movo_reach_dense':
+        return TimeLimit(MoveReachEnv('dense'), 50)
+    elif env_name == 'movo_reach_xyz':
+        return TimeLimit(MoveReachXYZEnv('sparse'), 50)
     else:
         raise NotImplementedError
 
