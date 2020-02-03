@@ -114,10 +114,7 @@ class RLRecorder:
         self.network_loss = network_loss
         self.max_timestep = max_timestep
 
-        if isinstance(env_name, str):
-            self.env = make(env_name)
-        else:
-            self.env = env_name
+        self.env = env_name
 
         self.tb = None if not tb else Visualizer(path)
 
@@ -174,6 +171,8 @@ class RLRecorder:
                 self._train_output = []
 
         if self.on_time(self.episode, self.evaluate):
+            if isinstance(self.env, str):
+                self.env =  make(self.env)
             kwargs['reward_eval'] = eval_policy(agent, self.env, eval_episodes=self.eval_episodes, save_video=self.save_video,
                                                 video_path=os.path.join(self.path, "video{}.avi"))
 

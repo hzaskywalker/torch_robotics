@@ -13,6 +13,7 @@ def main():
     print(env.observation_space)
     recorder = RLRecorder(env, '/tmp/tmp/fetchpush', save_model=slice(100000000, None, 1), network_loss=slice(0, None, 50),
                           evaluate=slice(0, None, 50), save_video=1, max_timestep=timestep)
+
     DDPGAgent(
         n=8, num_epoch=25000, timestep=timestep, n_rollout=2, n_batch=n_batch,
         make=make, env_name=env_name, noise_eps=0.2, random_eps=0.3,

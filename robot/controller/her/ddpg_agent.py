@@ -192,6 +192,8 @@ class Worker(multiprocessing.Process):
         np.random.seed(self.seed)
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
+        if '_max_episode_steps' in self.env.__dict__:
+            self.T = self.env._max_episode_steps
 
         self.agent = AsyncDDPGAgent(self.env.observation_space, self.env.action_space, **self.kwargs, pipe=self.worker_pipe)
         self.agent.seed = self.seed
@@ -258,7 +260,10 @@ class Worker(multiprocessing.Process):
                 obs_new, ag_new = observation_new['observation'], observation_new['achieved_goal']
                 ep_obs.append(obs.copy()); ep_ag.append(ag.copy()); ep_g.append(g.copy()); ep_actions.append(action.copy())
                 obs, ag = obs_new, ag_new
-            assert done
+                if done:
+                    break
+
+            assert done, "THE GAME DOES\'T FINISH, THE TIMESTEP VARIABLE MAYBE TOO SMALL"
 
             ep_obs.append(obs.copy()); ep_ag.append(ag.copy())
             mb_obs.append(ep_obs); mb_ag.append(ep_ag); mb_g.append(ep_g); mb_actions.append(ep_actions)
