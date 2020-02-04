@@ -84,7 +84,8 @@ class Rollout:
             #    assert int(a.shape[0]) == int(timestep + 1), f"{a.shape}, {timestep}"
             #tt = timestep * 3
             #print(a.shape[0])
-            assert a.shape[0] == timestep
+            if len(a.shape) > 1:
+                assert a.shape[0] == timestep
             for i in range(tt):
                 if len(a.shape)>1:
                     if i < timestep:

@@ -1,4 +1,5 @@
 import sys
+import tqdm
 from robot.envs.sapien import SwimmerEnv
 
 def test():
@@ -8,10 +9,10 @@ def test():
     print(swimmer.action_space)
 
     swimmer.reset()
-    for i in range(10000):
+    for i in tqdm.trange(10000):
         action = swimmer.action_space.sample()
         swimmer.step(action * x)
-        swimmer.render()
+        #swimmer.render()
 
 
 if __name__ == '__main__':
