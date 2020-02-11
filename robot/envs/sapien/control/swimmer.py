@@ -57,7 +57,7 @@ class SwimmerEnv(SapienEnv, utils.EzPickle):
         self.add_force_actuator("rot3", -1, 1)
 
         self._viscosity_links = [i for i in wrapper.get_links() if i.name in ['torso', 'mid', 'back']]
-        self.sim.add_ground(-0.1)
+        self.sim.add_ground(-0.3)
         #for i in wrapper.get_links():
         #
         return wrapper, None

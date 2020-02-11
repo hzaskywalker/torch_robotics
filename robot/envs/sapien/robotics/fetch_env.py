@@ -78,7 +78,7 @@ class FetchEnv(MovoEnv):
         jac = jac[:3, self._actuator_index]
 
         delta = np.linalg.lstsq(jac, pos_ctrl)[0] # in joint space
-        targets = self.model.get_qpos()[self._actuator_index] + delta * 25
+        targets = self.model.get_qpos()[self._actuator_index] + delta * 50
 
         joints = self.model.get_joints()
         for target, index in zip(targets, self._actuator_joint_map):

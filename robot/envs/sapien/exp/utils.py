@@ -21,7 +21,7 @@ def set_state(env, state):
     env.set_state(state[:l], state[l:])
     return env
 
-def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.avi", use_hidden_state=False, progress_episode=False, timestep=int(1e9), start_state=None):
+def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.avi", use_hidden_state=False, progress_episode=False, timestep=int(1e9), start_state=None, print_state=False):
     if isinstance(env_name, str):
         eval_env = make(env_name)
         eval_env.seed(seed + 100)
@@ -54,8 +54,11 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
                 else:
                     eval_env.render()
 
+
             if use_hidden_state:
                 state = get_state(eval_env)
+                if print_state:
+                    print(state)
             #print()
             #print(','.join(map(lambda x: f"{x:.6f}", list(state))) )
             #print()

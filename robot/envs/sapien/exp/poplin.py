@@ -230,7 +230,7 @@ def main():
     #controller(s)
 
     state = None
-    eval_policy(controller, env, 12345, args.num_test, args.video_num, args.video_path, use_hidden_state=True, progress_episode=True, timestep=args.timestep, start_state = state)
+    eval_policy(controller, env, 12345, args.num_test, args.video_num, args.video_path, use_hidden_state=True, progress_episode=True, timestep=args.timestep, start_state = state, print_state=True)
 
 if __name__ == '__main__':
     main()

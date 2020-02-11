@@ -229,7 +229,7 @@ class MovoEnv(robot_env.RobotEnv):
 
         # MODE 1
         self.viewer.set_camera_position(3, -1.5, 1.65)
-        self.viewer.set_camera_rotation(-3.14-0.5, -0.2)
+        self.viewer.set_camera_rotation(-3.14 - 0.5, -0.2)
 
         # MODE 2
         #self.viewer.camera.set_position([1.3, -3, 1.65])

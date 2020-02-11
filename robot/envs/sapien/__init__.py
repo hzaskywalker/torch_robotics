@@ -19,11 +19,11 @@ def make(env_name):
     elif env_name == 'swimmer':
         return TimeLimit(SwimmerEnv(), 1000)
     elif env_name == 'movo_reach':
-        return TimeLimit(MoveReachEnv('sparse'), 100)
+        return TimeLimit(MoveReachEnv('sparse'), 50)
     elif env_name == 'movo_reach_dense':
-        return TimeLimit(MoveReachEnv('dense'), 100)
+        return TimeLimit(MoveReachEnv('dense'), 50)
     elif env_name == 'movo_reach_xyz':
-        return TimeLimit(MoveReachXYZEnv('sparse'), 100)
+        return TimeLimit(MoveReachXYZEnv('sparse'), 50)
     else:
         raise NotImplementedError
 
