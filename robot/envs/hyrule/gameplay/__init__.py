@@ -1,1 +1,1 @@
-from .world import *
+from .program import Prog

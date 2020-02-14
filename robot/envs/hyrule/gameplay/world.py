@@ -37,17 +37,16 @@ class World(Object):
     def parse(self):
         # how to parse it...
         instructions = super(World, self).parse()
-        instructions = self.optimize(instructions)
+        instructions, costs = [i for i in instructions if isinstance(i, Magic)], \
+                              [i for i in instructions if isinstance(i, Cost)]
+        instructions = self.optimize(instructions, costs)
         return instructions
 
-    def optimize(self, instructions):
-        need_optimize = False
-        for i in instructions:
-            need_optimize = need_optimize or  isinstance(i, Cost)
-        if need_optimize:
+    def optimize(self, instructions, costs):
+        if len(costs) > 0:
             if self.optimizer is None:
                 raise NotImplementedError("optimizer is None")
-            instructions = self.optimizer(self.simulator, instructions)
+            instructions = self.optimizer(self.simulator, instructions, costs)
         return instructions
 
     def __getattr__(self, item):
