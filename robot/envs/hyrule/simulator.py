@@ -121,7 +121,7 @@ class Simulator:
         raise NotImplementedError
 
     def step(self, action=None):
-        self.do_simulation(self.frame_skip)
+        self.do_simulation()
 
     def __del__(self):
         self.sim = None

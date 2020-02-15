@@ -1,1 +1,1 @@
-from .program import Prog
+from .instruction import Instruction, ControlPanel, Magic, register

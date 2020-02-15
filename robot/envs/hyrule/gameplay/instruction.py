@@ -9,6 +9,7 @@ In short, magical constraints must be canceled by a magical constraints, and the
 Ideally, each instruction as a timelabel , we will sort the operators by its starting point... to speed it up
 """
 from ..simulator import Simulator
+from inspect import isfunction
 
 
 # low-level instructions that could be exectuted by sapien simulator directly...
@@ -42,14 +43,29 @@ class _set_qf(Magic):
             simulator.agent.set_qf(self.actions[step])
 
     def __str__(self):
-        return "set_qf actions: T x dof"
+        return "SET_QF actions: T x dof"
 
 
-class call_func:
+# very ugly hack for making function...
+class function:
+    def __init__(self, func, *args):
+        self.func = func
+        self.args = args
+
+    def forward(self, simulator, step):
+        if step == 0:
+            self.func(simulator, *self.args)
+
+    def __str__(self):
+        return f"Function call to {self.func} with args {self.args}"
+
+
+class function_type:
     def __init__(self, func):
         self.func = func
-    def forward(self, simulator, step):
-        self.func(simulator, step)
+    def __call__(self, *args):
+        return function(self.func, *args)
+
 
 class ControlPanel:
     # Set of instruction that wrap an simulator/controllable into a controllable
@@ -58,7 +74,8 @@ class ControlPanel:
     def __init__(self, sim, horizon=1):
         self._sim = sim
         self.horizon = horizon
-        self.instructions = {}
+        self.instr_set = {}
+        self._instr_cache = []
 
     @property
     def sim(self):
@@ -68,17 +85,32 @@ class ControlPanel:
 
     def step(self, instructions=None):
         if instructions is None:
-            instructions = []
+            instructions = self._instr_cache
         for i in range(self.horizon):
             for instr in instructions:
                 instr(self.sim, i)
             self.sim.do_simulation()
         for instr in instructions:
             instr(self.sim, -1)
+        self._instr_cache = []
 
-    def register(self, name, instrunction):
-        if isinstance(instrunction, Instruction):
-            self.instructions[name] = instrunction
-        else:
-            self.instructions[name] = call_func(instrunction)
+    def register(self, name, type, *args):
+        if isfunction(type):
+            type = function_type(type)
+        self.instr_set[name] = (type, args)
         return self
+
+    def __getattr__(self, item):
+        return_instrunction = item[0] == '_'
+        if return_instrunction:
+            item = item[1:]
+        if item in self.instr_set:
+            out = self.instr_set[item]
+            if not return_instrunction:
+                self._instr_cache.append(out)
+                return self
+            return out
+        elif isinstance(self._sim, ControlPanel):
+            return self._sim.__getattr__(item)
+        else:
+            raise AttributeError(f"No registered instruction {item}")

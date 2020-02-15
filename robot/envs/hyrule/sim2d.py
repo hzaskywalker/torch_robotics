@@ -4,6 +4,7 @@
 # we need define
 import numpy as np
 from .simulator import Simulator, Pose, PxIdentity, x2y, x2z, add_link
+from .gameplay import ControlPanel, Magic
 
 # define the sim
 class Sim2D(Simulator):
@@ -24,12 +25,12 @@ class Sim2D(Simulator):
         ball_color = (0, 0, 1)
 
         self.scene.add_ground(0.)
-        self.add_box(-3.5, 0, (0.5, 3, 0.5), wall_color, 'box1', True)
+        self.add_box(-3.5, 0, (0.5, 3, 0.5), wall_color, '_box1', True)
         self.add_box(+3.5, 0, (0.5, 3, 0.5), wall_color, 'box1', True)
         self.add_box(0, +3.5, (4, 0.5, 0.5), wall_color, 'box1', True)
         self.add_box(0, -3.5, (4, 0.5, 0.5), wall_color, 'box1', True)
 
-        self.add_sphere(0, 2, 0.5, ball_color, 'agent', False)
+        self.add_sphere(0, 2, 0.5, ball_color, 'ball', False)
         self.agent = self.add_agent(0, 0, 0.5, agent_color, [[-3, 3], [-3, 3]], 'agent')
 
     def add_box(self, x, y, size, color, name, fix=False):
@@ -70,11 +71,49 @@ class Sim2D(Simulator):
         self.objects[name] = wrapper
         return wrapper
 
+    def get_xy(self, name):
+        return self.objects[name].pose.p[:2]
+
+    def set_xy(self, name, x, y):
+        p = self.objects[name].pose.p
+        self.objects[name].set_position((x, y, p[2]))
+
 # define instructions by implement a control panel...
 # what's the best form of instructions? string, or class?
-class ControlPanel:
-    def __init__(self):
+
+
+class Move(Magic):
+    def moveable(self, simulator, x, y):
+        for name in ['ball']:
+            px, py = simulator.get_xy(name)
+            if ((px - x) ** 2 + (py-y) ** 2) < 1:
+                return False
+        if abs(x) > 3 or abs(y) > 3:
+            return False
+        return True
+
+    def forward(self, simulator, step):
+        if step != 0:
+            return
+        pose = simulator.objects['agent'].pose
+        x, y = pose.p[:2]
+        from transforms3d.quaternions import rotate_vector
+        dx, dy = rotate_vector((1, 0, 0), pose.q)[:2]
+        x = np.round(x + dx)
+        y = np.round(y + dy)
+        if self.moveable(simulator, x, y):
+            simulator.set_xy('agent', x, y)
+
+class Rot(Magic):
+    #ROT_LEFT = np.array()
+    def __init__(self, dir):
         pass
+
+
+class ControlPanelV1(ControlPanel):
+    def __init__(self, sim):
+        super(ControlPanelV1, self).__init__(sim)
+        self.register('move', Move)
 
 # define relation ... just a wrapper of instruction ...
 
