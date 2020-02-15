@@ -1,1 +1,1 @@
-from .instruction import Instruction, ControlPanel, Magic, register
+from .instruction import Instruction, ControlPanel, Magic

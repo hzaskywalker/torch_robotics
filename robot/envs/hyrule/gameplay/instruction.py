@@ -22,7 +22,7 @@ class Instruction(object):
         raise NotImplementedError
 
     def __str__(self):
-        return "Instruction base class, please implement it...>>>>>>>>>>>>>>>>>>>"
+        return f"Instruction base class, please implement it...>>>>>>>>>>>>>>>>>>>{self.__class__}"
 
 # hard setting something...
 class Magic(Instruction):
@@ -86,6 +86,8 @@ class ControlPanel:
     def step(self, instructions=None):
         if instructions is None:
             instructions = self._instr_cache
+        for i in self._instr_cache:
+            print(i)
         for i in range(self.horizon):
             for instr in instructions:
                 instr(self.sim, i)
@@ -105,11 +107,14 @@ class ControlPanel:
         if return_instrunction:
             item = item[1:]
         if item in self.instr_set:
-            out = self.instr_set[item]
-            if not return_instrunction:
-                self._instr_cache.append(out)
-                return self
-            return out
+            out = self.instr_set[item][0]
+            def run(*args, **kwargs):
+                if return_instrunction:
+                    return self._instr_cache[-1]
+                else:
+                    self._instr_cache.append(out(*args, **kwargs))
+                    return self
+            return run
         elif isinstance(self._sim, ControlPanel):
             return self._sim.__getattr__(item)
         else:

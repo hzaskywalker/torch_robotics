@@ -54,6 +54,7 @@ class Object(object):
             self.linkto(self.world)
 
     def parse(self):
+        # TODO: very important here, we assume that that we preprocess all the instruction by the order of pre-order dfs
         instructions = []
         for rel in self.relation:
             instructions.append(rel.parse(self))

@@ -7,12 +7,16 @@ def main():
 
     sim = Sim2D()
     panel = ControlPanelV1(sim)
-    print(panel)
-    exit(0)
 
+    idx = 0
     while True:
         sim.step()
+        panel.rot(1).transport('ball')
+        panel.step()
+        #panel.rot(1).move().step()
+        #panel.rot(1).move().step()
         img = sim.render()
+        #print(sim.input.get_key_down(ord('k')))
 
 if __name__ ==  '__main__':
     main()

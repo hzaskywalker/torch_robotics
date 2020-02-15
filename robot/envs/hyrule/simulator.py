@@ -127,4 +127,8 @@ class Simulator:
         self.sim = None
         self.scene = None
 
+    @property
+    def input(self):
+        return self._renderer.input
+
 
