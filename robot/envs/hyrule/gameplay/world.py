@@ -4,6 +4,7 @@ from .object import Object
 from collections import OrderedDict
 from .instruction import Magic, Cost
 
+
 class World(Object):
     # World is a special object that handles everything
     # Gameplay stores the current representation of the environment
@@ -14,7 +15,7 @@ class World(Object):
     # simulator should support add action, change the position of the object
 
     # one can compare parser with torch.optim
-    def __init__(self, simulator, objects, optimizer=None):
+    def __init__(self, simulator, objects, panel, optimizer=None):
         """
         :param simulator: simulator, the machine..
         :param objects: a dict of object...
@@ -32,7 +33,7 @@ class World(Object):
             self.objects[name] = obj
 
         self.optimizer = optimizer
-        self.objects = {}
+        self.panel = panel
 
     def parse(self):
         # how to parse it...

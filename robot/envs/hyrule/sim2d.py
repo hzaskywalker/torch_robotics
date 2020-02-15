@@ -29,7 +29,7 @@ class Sim2D(Simulator):
         self.add_box(0, +3.5, (4, 0.5, 0.5), wall_color, 'box1', True)
         self.add_box(0, -3.5, (4, 0.5, 0.5), wall_color, 'box1', True)
 
-        ball = self.add_sphere(0, 2, 0.5, ball_color, 'ball', False)
+        ball = self.add_sphere(0, 2, 0.5, ball_color, 'ball', True)
         self.agent = self.add_agent(0, 0, 0.5, agent_color, [[-3, 3], [-3, 3]], 'agent')
 
     def add_box(self, x, y, size, color, name, fix=False):

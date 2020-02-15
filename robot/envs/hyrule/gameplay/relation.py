@@ -27,8 +27,3 @@ class Constrain(Relation):
     def parse(self, object: Object):
         assert object.parent is not None, "You can't add constrain to the world itself"
         return self.instr(*self.args, object.pointer, object.parent.pointer)
-
-
-class GamingController:
-    def __init__(self, controller: ControlPanel):
-        self.controller = controller

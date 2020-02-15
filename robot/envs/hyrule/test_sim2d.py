@@ -10,6 +10,7 @@ def main():
 
     while True:
         panel.rot(1).step().transport(sim.ball)
+        #panel.step().transport(sim.ball)
         panel.render()
 
 if __name__ ==  '__main__':
