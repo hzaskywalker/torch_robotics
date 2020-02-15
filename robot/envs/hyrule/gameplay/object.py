@@ -7,7 +7,7 @@ class Object(object):
     # we don't handle the name of the object by the object itself, as name is something that other people call it.
     def __init__(self, pointer, parent=None):
         self.pointer = pointer
-        self.parent = parent
+        self.parent: Object = parent
 
         if self.parent is not None:
             self.world = self.parent.world # store the root of the tree

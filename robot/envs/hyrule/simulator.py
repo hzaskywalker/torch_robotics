@@ -70,6 +70,7 @@ class Simulator:
 
         self.seed()
         self.agent = None # agent is always special in the scene, it should be the only articulation object
+        self.objects = {}
         self.build_scene()
 
 
@@ -130,5 +131,11 @@ class Simulator:
     @property
     def input(self):
         return self._renderer.input
+
+    def __getattr__(self, item):
+        if item in self.objects:
+            return self.objects[item]
+        else:
+            raise AttributeError
 
 

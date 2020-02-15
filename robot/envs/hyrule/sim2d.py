@@ -19,7 +19,6 @@ class Sim2D(Simulator):
         self._renderer.set_camera_rotation(np.pi/2, -1.5)
 
     def build_scene(self):
-        self.objects = {}
         wall_color = (0, 0, 0)
         agent_color = (0, 1, 0)
         ball_color = (0, 0, 1)
@@ -77,35 +76,37 @@ class Sim2D(Simulator):
         self.objects[name] = wrapper
         return wrapper
 
-    def get_xy(self, name):
-        if isinstance(self.objects, sapien_core.pysapien.Articulation):
-            raise NotImplementedError
-        return self.objects[name].pose.p[:2]
+def get_xy(obj):
+    if isinstance(obj, sapien_core.pysapien.Articulation):
+        raise NotImplementedError
+    return obj.pose.p[:2]
 
-    def set_xy(self, name, x, y):
-        if isinstance(self.objects, sapien_core.pysapien.Articulation):
-            raise NotImplementedError
-        pose =  self.objects[name].pose
-        self.objects[name].set_pose(Pose((x, y, pose.p[2]), pose.q))
+def set_xy(obj, x, y):
+    if isinstance(obj, sapien_core.pysapien.Articulation):
+        raise NotImplementedError
+    pose = obj.pose
+    obj.set_pose(Pose((x, y, pose.p[2]), pose.q))
 
 # define instructions by implement a control panel...
 # what's the best form of instructions? string, or class?
 
 
 class Move(Magic):
+    def __init__(self, agent=None):
+        self.agent = agent
+        Magic.__init__(self)
+
     def moveable(self, simulator, x, y):
         for name in ['ball']:
-            px, py = simulator.get_xy(name)
+            px, py = get_xy(simulator.objects[name])
             if ((px - x) ** 2 + (py-y) ** 2) < 1:
                 return False
         if abs(x) > 3 or abs(y) > 3:
             return False
         return True
 
-    def forward(self, simulator, step):
-        if step != 0:
-            return
-        agent = simulator.agent
+    def forward(self, simulator):
+        agent = self.agent if self.agent is not None else simulator.agent
         pose = agent.get_qpos()
         x, y, theta = pose
         x = np.round(x + np.cos(theta))
@@ -115,12 +116,13 @@ class Move(Magic):
 
 class Rot(Magic):
     #ROT_LEFT = np.array()
-    def __init__(self, dir):
+    def __init__(self, dir, agent=None):
         self.dir = dir
-    def forward(self, simulator, step):
-        if step != 0:
-            return
-        agent = simulator.agent
+        self.agent = agent
+        Magic.__init__(self)
+
+    def forward(self, simulator):
+        agent = self.agent if self.agent is not None else simulator.agent
         x, y, theta = agent.get_qpos()
         theta += self.dir * np.pi/2
         while theta >= np.pi:
@@ -130,24 +132,18 @@ class Rot(Magic):
         agent.set_qpos([x, y, theta])
 
 class MagicalTelepotation(Move):
-    def __init__(self, ball_name):
-        self.ball_name = ball_name
+    def __init__(self, actor, agent=None):
+        self.actor = actor
+        self.agent = agent
+        Magic.__init__(self)
 
-    def forward(self, simulator: Sim2D, step):
-        if step == -1:
-            assert self.ball_name in simulator.objects, "argument of MagicalTelepotation should be the name of a actor"
-            # will be done after each timestep..
-            x, y, theta = simulator.agent.get_qpos()
+    def forward(self, simulator: Sim2D):
+        agent = self.agent if self.agent is not None else simulator.agent
+        x, y, theta = agent.get_qpos()
 
-            x = np.round(x + np.cos(theta))
-            y = np.round(y + np.sin(theta))
-            simulator.set_xy(self.ball_name, x, y)
-
-class Round(Magic):
-    # TODO: set all coordinates into int......
-    def forward(self, simulator, step):
-        if step == -1:
-            raise NotImplementedError
+        x = np.round(x + np.cos(theta))
+        y = np.round(y + np.sin(theta))
+        set_xy(self.actor, x, y)
 
 class ControlPanelV1(ControlPanel):
     def __init__(self, sim):
