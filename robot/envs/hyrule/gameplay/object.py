@@ -1,10 +1,11 @@
 from typing import List, Set
-from .relation import Relation
+from .relation import Relation, Cost
 
 class Object(object):
     # object stores all the information of the current object
     # each object is associated with the
     # we don't handle the name of the object by the object itself, as name is something that other people call it.
+
     def __init__(self, pointer, parent=None):
         self.pointer = pointer
         self.parent: Object = parent
@@ -13,18 +14,14 @@ class Object(object):
             self.world = self.parent.world # store the root of the tree
         else:
             self.world = self
-            self._simulator = pointer
 
         self.child: Set[Object] = set()
         # maintain the tree by the previous values
 
-        self.relations: List[Relation]  = [] # only store the constraints to parent, or null if it's a free element in the world
+        self.relations: List[Relation] = [] # only store the constraints to parent, or null if it's a free element in the world
+        self.costs: List[Cost] = []
 
-    @property
-    def simulator(self):
-        if self.world == self:
-            return self._simulator
-        return self.world._simulator
+        self._reward = None
 
     def add_child(self, element):
         self.child.add(element)
@@ -53,13 +50,27 @@ class Object(object):
         if len(self.relations) == 0:
             self.linkto(self.world)
 
-    def parse(self):
-        # TODO: very important here, we assume that that we preprocess all the instruction by the order of pre-order dfs
-        instructions = []
+    def execute(self, panel, timestep):
+        to_remove = []
         for rel in self.relations:
-            instructions.append(rel.parse(self))
+            if rel.timestep == timestep:
+                if rel(self, panel):
+                    to_remove.append(rel)
+        for i in to_remove:
+            self.remove_relation(i)
 
-        instructions = []
+    def forward(self, panel):
+        self.execute(panel, 0)
         for obj in self.child:
-            instructions.append(obj.parse())
-        return instructions
+            obj.forward(panel)
+
+    def backward(self, panel):
+        # backward is the function called after step function
+        self.execute(panel, 1)
+        reward = 0
+        for obj in self.child:
+            reward += obj.backward(panel)
+        for cost in self.costs:
+            reward += cost(self)
+        self._reward = reward # store the _reward in this object for mpc
+        return reward

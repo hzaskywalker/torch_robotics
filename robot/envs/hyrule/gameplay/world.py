@@ -21,7 +21,9 @@ class World(Object):
         :param objects: a dict of object...
         :param optimizer: the optimizer that we would use to optimize the actions, current it must be None
         """
-        super(World, self).__init__(simulator, None)
+        super(World, self).__init__(None, None)
+        self.simulator = simulator
+        self.panel = panel
         self.objects = OrderedDict()
 
         for name, obj in objects.items():
@@ -33,15 +35,13 @@ class World(Object):
             self.objects[name] = obj
 
         self.optimizer = optimizer
-        self.panel = panel
+        self._panel = panel
 
-    def parse(self):
-        # how to parse it...
-        instructions = super(World, self).parse()
-        instructions, costs = [i for i in instructions if isinstance(i, Magic)], \
-                              [i for i in instructions if isinstance(i, Cost)]
-        instructions = self.optimize(instructions, costs)
-        return instructions
+    def step(self, reward=False):
+        self.execute(self.panel) # set all constraints..
+        self.panel.step() # step for one step...
+        # TODO: we should explicity distinguish actions,
+        return self.backward(self.panel)
 
     def optimize(self, instructions, costs):
         if len(costs) > 0:
@@ -49,6 +49,12 @@ class World(Object):
                 raise NotImplementedError("optimizer is None")
             instructions = self.optimizer(self.simulator, instructions, costs)
         return instructions
+
+    def rollout(self, horizon):
+        raise NotImplementedError
+
+    def parameters(self):
+        raise NotImplementedError
 
     def __getattr__(self, item):
         # TODO: very strange function...
