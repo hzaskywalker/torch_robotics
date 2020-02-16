@@ -37,8 +37,10 @@ class World(Object):
         self.optimizer = optimizer
         self._panel = panel
 
-    def step(self, reward=False):
-        self.execute(self.panel) # set all constraints..
+        self._relation_set = {}
+
+    def step(self):
+        self.forward(self.panel) # set all constraints..
         self.panel.step() # step for one step...
         # TODO: we should explicity distinguish actions,
         return self.backward(self.panel)
@@ -56,10 +58,21 @@ class World(Object):
     def parameters(self):
         raise NotImplementedError
 
+
+    def register(self, name, type):
+        self._relation_set[name] = type
+        return self
+
     def __getattr__(self, item):
         # TODO: very strange function...
         # The main difference between __getattr__ and __getattribute__ is that if the attribute was not found by the usual way then __getattr__ is used.
         if item in self.objects:
             return self.objects[item]
+        elif item in self._relation_set:
+            out = self._relation_set[item]
+            def run(obj, *args, parent=None):
+                obj.add_relation(out(*args), parent)
+                return self
+            return run
         else:
             raise AttributeError

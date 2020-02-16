@@ -1,5 +1,4 @@
 from typing import List, Set
-from .relation import Relation, Cost
 
 class Object(object):
     # object stores all the information of the current object
@@ -18,10 +17,18 @@ class Object(object):
         self.child: Set[Object] = set()
         # maintain the tree by the previous values
 
+        from .relation import Relation, Cost
         self.relations: List[Relation] = [] # only store the constraints to parent, or null if it's a free element in the world
         self.costs: List[Cost] = []
 
         self._reward = None
+
+    @property
+    def name(self):
+        if self.pointer is not None:
+            return self.pointer.name
+        else:
+            return 'world'
 
     def add_child(self, element):
         self.child.add(element)
@@ -32,16 +39,18 @@ class Object(object):
     def linkto(self, parent):
         if parent == self.parent:
             return
+        print('link...', self.name, parent.name)
         if self.parent is not None:
             self.parent.remove_child(self)
-
+        self.world = parent.world
         self.parent = parent
         self.parent.add_child(self)
 
-    def add_relation(self, parent, relation):
-        if self.parent is not None and self.parent != parent:
-            raise Exception("Must detach before adding new constraint")
-        self.linkto(parent)
+    def add_relation(self, relation, parent=None):
+        if parent is not None:
+            if self.parent is not None and self.parent is not parent and len(self.relations) > 0:
+                raise Exception("Must detach before adding new constraint")
+            self.linkto(parent)
         self.relations.append(relation)
 
     def remove_relation(self, relation):
@@ -54,12 +63,15 @@ class Object(object):
         to_remove = []
         for rel in self.relations:
             if rel.timestep == timestep:
-                if rel(self, panel):
+                tmp = rel(self, panel)
+                if tmp or not rel.perpetual:
+                    print('xxx', rel, tmp, rel.perpetual)
                     to_remove.append(rel)
         for i in to_remove:
             self.remove_relation(i)
 
     def forward(self, panel):
+        #print(self.name, [i.name for i in self.child])
         self.execute(panel, 0)
         for obj in self.child:
             obj.forward(panel)

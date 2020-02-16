@@ -86,10 +86,10 @@ class ControlPanel:
         self.sim.do_simulation()
         return self
 
-    def register(self, name, type, *args):
+    def register(self, name, type):
         if isfunction(type):
             type = function_type(type)
-        self.instr_set[name] = (type, args)
+        self.instr_set[name] = type
         return self
 
     def __getattr__(self, item):
@@ -98,7 +98,7 @@ class ControlPanel:
             item = item[1:]
 
         if item in self.instr_set:
-            out = self.instr_set[item][0]
+            out = self.instr_set[item]
             def run(*args, **kwargs):
                 if return_instrunction:
                     return out
@@ -110,6 +110,9 @@ class ControlPanel:
             return self._sim.__getattr__(item)
         else:
             raise AttributeError(f"No registered instruction {item}")
+
+    def execute(self, instr, *args, **kwargs):
+        return self.instr_set[instr](*args, **kwargs)(self.sim)
 
     def render(self, *args, **kwargs):
         self.sim.render(*args, **kwargs)

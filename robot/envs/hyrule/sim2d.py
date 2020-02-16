@@ -4,7 +4,7 @@
 # we need define
 import numpy as np
 from .simulator import Simulator, Pose, PxIdentity, x2y, x2z, add_link, sapien_core
-from .gameplay import ControlPanel, Magic
+from .gameplay import ControlPanel, Magic, World, Object, Action, Constraint
 
 # define the sim
 class Sim2D(Simulator):
@@ -42,6 +42,7 @@ class Sim2D(Simulator):
 
         pos = Pose(np.array((x, y, size[2]+1e-5)))
         box.set_pose(pos)
+        box.set_name(name)
         self.objects[name] = box
         return box
 
@@ -53,6 +54,7 @@ class Sim2D(Simulator):
 
         pos = Pose(np.array((x, y, radius+1e-5)))
         box.set_pose(pos)
+        box.set_name(name)
         self.objects[name] = box
         return box
 
@@ -73,6 +75,7 @@ class Sim2D(Simulator):
         rot.add_sphere_visual(Pose((0.3, 0.2, 0.3)), radius * 0.1, (1, 1, 0), name)
         rot.add_sphere_shape(Pose(), radius, density=1000)
         wrapper = articulation_builder.build(True) #fix base = True
+        wrapper.set_name(name)
         self.objects[name] = wrapper
         return wrapper
 
@@ -113,6 +116,7 @@ class Move(Magic):
         y = np.round(y + np.sin(theta))
         if self.moveable(simulator, x, y):
             agent.set_qpos([x, y, theta])
+        return 0
 
 class Rot(Magic):
     #ROT_LEFT = np.array()
@@ -130,6 +134,7 @@ class Rot(Magic):
         while theta < -np.pi:
             theta += 2 * np.pi
         agent.set_qpos([x, y, theta])
+        return 0
 
 class MagicalTelepotation(Move):
     def __init__(self, actor, agent=None):
@@ -144,19 +149,24 @@ class MagicalTelepotation(Move):
         x = np.round(x + np.cos(theta))
         y = np.round(y + np.sin(theta))
         set_xy(self.actor, x, y)
+        #TODO: need change some behaviour
+        return 0
 
 class ControlPanelV1(ControlPanel):
     def __init__(self, sim):
         super(ControlPanelV1, self).__init__(sim)
         self.register('move', Move)
-        self.register('rot', Rot, 'dir')
+        self.register('rot', Rot)
         self.register('transport', MagicalTelepotation)
 
 
-# define relation ... just a wrapper of instruction ...
-
-# define the high-level language ...
-
-# and a example
-
-
+class Sim2DWorld(World):
+    def __init__(self, sim, panel):
+        objects = {
+            'agent': Object(sim.agent, None),
+            'ball': Object(sim.ball, None),
+        }
+        super(Sim2DWorld, self).__init__(sim, objects, panel, None)
+        self.register('rot', lambda dir: Action('rot', dir, timestep=0, perpetual=True))
+        self.register('move', lambda: Action('move', timestep=0, perpetual=False))
+        self.register('transport', lambda: Constraint('transport', timestep=1, perpertual=True))
