@@ -18,6 +18,12 @@ def main():
     world.move(world.agent).step().render(1)
     world.rot(world.agent, -1).step().render(1)
     world.move(world.agent).step().render(1)
+    world.rot(world.agent, -1).step().render(1)
+    world.move(world.agent).step().render(1)
+    world.move(world.agent).step().render(1)
+    world.ball.remove_relation(world.ball.relations[0])
+    world.rot(world.agent, -1).step().render(1)
+    world.move(world.agent).step().render(1)
 
     while True:
         world.step()
