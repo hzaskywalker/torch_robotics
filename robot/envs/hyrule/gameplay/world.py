@@ -15,15 +15,13 @@ class World(Object):
     # simulator should support add action, change the position of the object
 
     # one can compare parser with torch.optim
-    def __init__(self, simulator, objects, panel, optimizer=None):
+    def __init__(self, simulator, objects, optimizer=None):
         """
         :param simulator: simulator, the machine..
         :param objects: a dict of object...
         :param optimizer: the optimizer that we would use to optimize the actions, current it must be None
         """
         super(World, self).__init__(None, None)
-        self.simulator = simulator
-        self.panel = panel
         self.objects = OrderedDict()
 
         for name, obj in objects.items():
@@ -35,21 +33,22 @@ class World(Object):
             self.objects[name] = obj
 
         self.optimizer = optimizer
-        self._panel = panel
+        self.sim = simulator
 
         self._relation_set = {}
 
     def step(self):
-        self.forward(self.panel) # set all constraints..
-        self.panel.step() # step for one step...
+        self.forward(self.sim) # set all constraints..
+        self.sim.step() # step for one step...
         # TODO: we should explicity distinguish actions,
-        return self.backward(self.panel)
+        self.backward(self.sim)
+        return self
 
     def optimize(self, instructions, costs):
         if len(costs) > 0:
             if self.optimizer is None:
                 raise NotImplementedError("optimizer is None")
-            instructions = self.optimizer(self.simulator, instructions, costs)
+            instructions = self.optimizer(self.sim, instructions, costs)
         return instructions
 
     def rollout(self, horizon):
@@ -76,3 +75,10 @@ class World(Object):
             return run
         else:
             raise AttributeError
+
+    def render(self, sleep=0):
+        self.sim.render()
+        if sleep > 0:
+            import time
+            time.sleep(sleep)
+        return self

@@ -3,8 +3,9 @@
 # first we need to make the simulator and the world body (which is the register
 # we need define
 import numpy as np
-from .simulator import Simulator, Pose, PxIdentity, x2y, x2z, add_link, sapien_core
-from .gameplay import ControlPanel, Magic, World, Object, Action, Constraint
+import logging
+from .gameplay.simulator import Simulator, Pose, PxIdentity, x2y, add_link, sapien_core
+from .gameplay import Magic, World, Object, Action, Constraint, Relation
 
 # define the sim
 class Sim2D(Simulator):
@@ -90,32 +91,34 @@ def set_xy(obj, x, y):
     pose = obj.pose
     obj.set_pose(Pose((x, y, pose.p[2]), pose.q))
 
+def move_agent(agent):
+    pose = agent.get_qpos()
+    x, y, theta = pose
+    x = np.round(x + np.cos(theta))
+    y = np.round(y + np.sin(theta))
+    return x, y, theta
+
+
+def moveable(simulator, x, y, obstacles=('ball',)):
+    for name in obstacles:
+        px, py = get_xy(simulator.objects[name])
+        if ((px - x) ** 2 + (py-y) ** 2) < 1:
+            return False
+    if abs(x)+0.5 >= 3 or abs(y)+0.5 >= 3:
+        return False
+    return True
 # define instructions by implement a control panel...
 # what's the best form of instructions? string, or class?
-
 
 class Move(Magic):
     def __init__(self, agent=None):
         self.agent = agent
         Magic.__init__(self)
 
-    def moveable(self, simulator, x, y):
-        for name in ['ball']:
-            px, py = get_xy(simulator.objects[name])
-            if ((px - x) ** 2 + (py-y) ** 2) < 1:
-                return False
-        if abs(x) > 3 or abs(y) > 3:
-            return False
-        return True
-
     def forward(self, simulator):
         agent = self.agent if self.agent is not None else simulator.agent
-        pose = agent.get_qpos()
-        x, y, theta = pose
-        x = np.round(x + np.cos(theta))
-        y = np.round(y + np.sin(theta))
-        if self.moveable(simulator, x, y):
-            agent.set_qpos([x, y, theta])
+        x, y, theta = move_agent(agent)
+        agent.set_qpos([x, y, theta])
         return 0
 
 class Rot(Magic):
@@ -152,21 +155,62 @@ class MagicalTelepotation(Move):
         #TODO: need change some behaviour
         return 0
 
-class ControlPanelV1(ControlPanel):
-    def __init__(self, sim):
-        super(ControlPanelV1, self).__init__(sim)
+class Sim2DV1(Sim2D):
+    def __init__(self):
+        super(Sim2DV1, self).__init__()
         self.register('move', Move)
         self.register('rot', Rot)
         self.register('transport', MagicalTelepotation)
 
+class CollsionMove(Relation):
+    def __init__(self, perpectual=False):
+        Relation.__init__(self, timestep=1, perpetual=False)
+
+    def execute(self, object: Object, sim: Simulator):
+        x, y, theta = move_agent(object.pointer)
+        obstacles = [i.pointer.name for i in object.world.objects.values() if i not in object.child and i != object]
+        if len(object.child) > 0:
+            x = x + np.cos(theta)
+            y = y + np.sin(theta)
+        if moveable(sim, x, y, obstacles):
+            sim.execute('move', object.pointer)
+        return 1
+
+    def prerequisites(self, object: Object, parent: Object):
+        # you can add moving command at any time ...
+        return True
+
+class Grasped(Relation):
+    # execution of the constraint
+    def __init__(self, perpectual=True):
+        Relation.__init__(self, timestep=1, perpetual=1)
+
+    def execute(self, object: Object, sim: Simulator):
+        xx, yy, _ = move_agent(object.parent.pointer)
+        if moveable(sim, xx, yy, ()):
+            sim.execute('transport', object.pointer, object.parent.pointer)
+            return 0
+        logging.warning("GRASPING FAILED BECAUSE OF OBSTACLES")
+        return 1
+
+    def prerequisites(self, object: Object, parent: Object):
+        x, y = get_xy(object.pointer)
+        px, py, theta = parent.pointer.get_qpos()
+        xx = np.round(px + np.cos(theta))
+        yy = np.round(py + np.sin(theta))
+        return abs(xx-x) + abs(yy-y) < 1e-5
+
+
 
 class Sim2DWorld(World):
-    def __init__(self, sim, panel):
+    def __init__(self, sim):
         objects = {
             'agent': Object(sim.agent, None),
             'ball': Object(sim.ball, None),
         }
-        super(Sim2DWorld, self).__init__(sim, objects, panel, None)
-        self.register('rot', lambda dir: Action('rot', dir, timestep=0, perpetual=True))
-        self.register('move', lambda: Action('move', timestep=0, perpetual=False))
+        super(Sim2DWorld, self).__init__(sim, objects, None)
+        self.register('rot', lambda dir: Action('rot', dir, timestep=0, perpetual=False))
         self.register('transport', lambda: Constraint('transport', timestep=1, perpertual=True))
+
+        self.register('move', CollsionMove)
+        self.register('grasped', Grasped)

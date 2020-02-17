@@ -11,10 +11,6 @@ Ideally, each instruction as a timelabel , we will sort the operators by its sta
 The format of the instruction name is:
     *args, object_name, [object_parent_name]
 """
-from ..simulator import Simulator
-from inspect import isfunction
-
-
 # low-level instructions that could be exectuted by sapien simulator directly...
 class Instruction(object):
     def __call__(self, simulator):
@@ -66,53 +62,3 @@ class function_type:
         self.func = func
     def __call__(self, *args):
         return function(self.func, *args)
-
-
-class ControlPanel:
-    # Set of instruction that wrap an simulator/controllable into a controllable
-    # This defines the interface between the environment and the high-level controller/language
-    # horizon is actually the frameskip term..
-    def __init__(self, sim):
-        self._sim = sim
-        self.instr_set = {}
-
-    @property
-    def sim(self):
-        if isinstance(self._sim, Simulator):
-            return self._sim
-        return self._sim.sim
-
-    def step(self):
-        self.sim.do_simulation()
-        return self
-
-    def register(self, name, type):
-        if isfunction(type):
-            type = function_type(type)
-        self.instr_set[name] = type
-        return self
-
-    def __getattr__(self, item):
-        return_instrunction = item[0] == '_'
-        if return_instrunction:
-            item = item[1:]
-
-        if item in self.instr_set:
-            out = self.instr_set[item]
-            def run(*args, **kwargs):
-                if return_instrunction:
-                    return out
-                else:
-                    out(*args, **kwargs)(self.sim)
-                    return self
-            return run
-        elif isinstance(self._sim, ControlPanel):
-            return self._sim.__getattr__(item)
-        else:
-            raise AttributeError(f"No registered instruction {item}")
-
-    def execute(self, instr, *args, **kwargs):
-        return self.instr_set[instr](*args, **kwargs)(self.sim)
-
-    def render(self, *args, **kwargs):
-        self.sim.render(*args, **kwargs)

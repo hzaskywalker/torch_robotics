@@ -1,4 +1,5 @@
 from typing import List, Set
+import logging
 
 class Object(object):
     # object stores all the information of the current object
@@ -47,11 +48,15 @@ class Object(object):
         self.parent.add_child(self)
 
     def add_relation(self, relation, parent=None):
+        if not relation.prerequisites(self, parent):
+            logging.warning("adding relation failed")
+            return
         if parent is not None:
             if self.parent is not None and self.parent is not parent and len(self.relations) > 0:
                 raise Exception("Must detach before adding new constraint")
             self.linkto(parent)
         self.relations.append(relation)
+        return
 
     def remove_relation(self, relation):
         # pass discard some constraints...
@@ -59,29 +64,29 @@ class Object(object):
         if len(self.relations) == 0:
             self.linkto(self.world)
 
-    def execute(self, panel, timestep):
+    def execute(self, sim, timestep):
         to_remove = []
         for rel in self.relations:
             if rel.timestep == timestep:
-                tmp = rel(self, panel)
+                tmp = rel(self, sim)
                 if tmp or not rel.perpetual:
                     print('xxx', rel, tmp, rel.perpetual)
                     to_remove.append(rel)
         for i in to_remove:
             self.remove_relation(i)
 
-    def forward(self, panel):
+    def forward(self, sim):
         #print(self.name, [i.name for i in self.child])
-        self.execute(panel, 0)
-        for obj in self.child:
-            obj.forward(panel)
+        self.execute(sim, 0)
+        for obj in list(self.child):
+            obj.forward(sim)
 
-    def backward(self, panel):
+    def backward(self, sim):
         # backward is the function called after step function
-        self.execute(panel, 1)
+        self.execute(sim, 1)
         reward = 0
-        for obj in self.child:
-            reward += obj.backward(panel)
+        for obj in list(self.child):
+            reward += obj.backward(sim)
         for cost in self.costs:
             reward += cost(self)
         self._reward = reward # store the _reward in this object for mpc
