@@ -2,6 +2,7 @@ import numpy as np
 from gym.utils import seeding
 import gym
 from gym import spaces
+import logging
 from inspect import isfunction
 from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
 from robot.envs.sapien.camera import CameraRender
@@ -49,6 +50,36 @@ def add_link(builder, father, link_pose, local_pose=None, name=None, joint_name=
     return link
 
 
+def load_sapien_state(object):
+    if isinstance(object, sapien_core.pysapien.Articulation):
+        # TODO: assume that articulation is fully characterized by qpos
+        return {
+            'qpos': object.get_qpos().flat,
+            'qvel': object.get_qvel().flat,
+            'qf': object.get_qf().flat
+        }
+    elif isinstance(object, sapien_core.pysapien.Actor):
+        return {
+            'pose': object.pose.flat,
+            'velocity': object.velocity.flat,
+            'angular_velocity': object.get_angular_velocity.flat,
+        }
+    else:
+        raise NotImplementedError
+
+def set_sapien_state(object, state):
+    if isinstance(object, sapien_core.pysapien.Articulation):
+        object.set_qpos(state['qpos'])
+        object.set_qvel(state['qvel'])
+        object.set_qf(state['qf'])
+    elif isinstance(object, sapien_core.pysapien.Actor):
+        object.set_pose(state['pose'])
+        object.set_velocity(state['veolicty'])
+        object.set_angular_velocity(state['set_angular_velocity'])
+    else:
+        raise NotImplementedError
+
+
 class Simulator:
     """
     Major interface...
@@ -72,9 +103,10 @@ class Simulator:
         self.seed()
         self.agent = None # agent is always special in the scene, it should be the only articulation object
         self.objects = {}
+        self._instr_set = {}
         self.build_scene()
 
-        self.instr_set = {}
+        self._constraints = []
 
 
     @property
@@ -114,9 +146,66 @@ class Simulator:
     def render(self, mode='human'):
         return self._get_viewer(mode).render()
 
+    def add_constraints(self, constraint):
+        if not constraint.prerequisites(self):
+            logging.warning("Add constraint failed")
+            return self
 
-    def do_simulation(self):
+        self._constraints.append(constraint)
+        k = np.argsort([i.priority for i in self._constraints])
+        # sort from priority 0 to 1
+        self._constraints = [self._constraints[i] for i in k]
+        return self
+
+    def remove_constraints(self, constraints):
+        self._constraints.remove(constraints)
+
+    def state_dict(self):
+        return dict([(name, load_sapien_state(obj)) for name, obj in self.objects.items()])
+
+    def load_state_dict(self, dict):
+        for name, value in dict.items():
+            set_sapien_state(self.objects[name], value)
+            #self.objects[name].unpack(value)
+
+    def do_simulation(self, constraints=None):
+        if constraints is not None:
+            for i in constraints:
+                i.preprocess(self)
         self.scene.step()
+        if constraints is not None:
+            for i in constraints:
+                i.postprocess(self)
+        new_state = self.scene.get_state()
+        return new_state
+
+    def num_violation(self, state, constraints):
+        self.load_state_dict(state)
+        new_state = self.do_constrained_simulation(constraints)
+        num_violation = 0
+        for i in constraints:
+            num_violation += int(not i.satisfy(self, state, new_state))
+        return num_violation
+
+    def solve(self, state, constraints):
+        # assume constraints are sortest from the small to large
+        cur = self.num_violation(state, constraints)
+        while cur != 0:
+            for i in range(len(constraints)):
+                new_constrain = [constraints[i] for j in range(len(constraints)) if j!=i]
+                tmp = self.num_violation(state, new_constrain)
+                if tmp < cur:
+                    cur = tmp
+                    constraints = new_constrain
+                    break
+        return constraints
+
+    def step(self):
+        state = self.state_dict()
+        constraints = self.solve(state, self._constraints)
+        self.do_simulation(constraints)
+        self._constraints = [i for i in constraints if i.perpetual]
+        return self
 
     def build_scene(self):
         raise NotImplementedError
@@ -124,46 +213,23 @@ class Simulator:
     def build_renderer(self):
         raise NotImplementedError
 
-    def step(self):
-        self.do_simulation()
-        return self
-
     def __del__(self):
         self.sim = None
         self.scene = None
 
-    @property
-    def input(self):
-        return self._renderer.input
-
-
-
     def register(self, name, type):
-        from .instruction import function_type
-        if isfunction(type):
-            type = function_type(type)
-        self.instr_set[name] = type
+        self._instr_set[name] = type
         return self
 
     def __getattr__(self, item):
         if item in self.objects:
             return self.objects[item]
-
-        return_instrunction = item[0] == '_'
-        if return_instrunction:
-            item = item[1:]
-
         if item in self.instr_set:
             out = self.instr_set[item]
             def run(*args, **kwargs):
-                if return_instrunction:
-                    return out
-                else:
-                    out(*args, **kwargs)(self)
-                    return self
+                self.add_constraints(out(*args, **kwargs))
+                return self
             return run
         else:
             raise AttributeError(f"No registered instruction {item}")
 
-    def execute(self, instr, *args, **kwargs):
-        return self.instr_set[instr](*args, **kwargs)(self)

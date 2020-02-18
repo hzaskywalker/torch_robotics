@@ -5,7 +5,7 @@
 import numpy as np
 import logging
 from .gameplay.simulator import Simulator, Pose, PxIdentity, x2y, add_link, sapien_core
-from .gameplay import Magic, World, Object, Action, Constraint, Relation
+from .gameplay import Constraint
 
 # define the sim
 class Sim2D(Simulator):
@@ -80,16 +80,6 @@ class Sim2D(Simulator):
         self.objects[name] = wrapper
         return wrapper
 
-def get_xy(obj):
-    if isinstance(obj, sapien_core.pysapien.Articulation):
-        raise NotImplementedError
-    return obj.pose.p[:2]
-
-def set_xy(obj, x, y):
-    if isinstance(obj, sapien_core.pysapien.Articulation):
-        raise NotImplementedError
-    pose = obj.pose
-    obj.set_pose(Pose((x, y, pose.p[2]), pose.q))
 
 def move_agent(agent):
     pose = agent.get_qpos()
@@ -99,118 +89,86 @@ def move_agent(agent):
     return x, y, theta
 
 
-def moveable(simulator, x, y, obstacles=('ball',)):
-    for name in obstacles:
-        px, py = get_xy(simulator.objects[name])
-        if ((px - x) ** 2 + (py-y) ** 2) < 1:
+class NoConllision(Constraint):
+    def __init__(self):
+        Constraint.__init__(self, priority=9, perpetual=True)
+
+    def check_wall(self, x, y):
+        if abs(x)+0.5 >= 3 or abs(y)+0.5 >= 3:
             return False
-    if abs(x)+0.5 >= 3 or abs(y)+0.5 >= 3:
-        return False
-    return True
-# define instructions by implement a control panel...
-# what's the best form of instructions? string, or class?
 
-class Move(Magic):
-    def __init__(self, agent=None):
+    def satisfied(self, sim_t, s, t):
+        bx, by = t['ball']['pose'][0:2]
+        ax, ay = t['agent']['qpos'][0:2]
+        return self.check_wall(ax, ay) and self.check_wall(bx, by) and np.abs(bx - ax)**2 + np.abs(by-ay)**2 > 1
+
+
+class MoveAgent(Constraint):
+    def __init__(self, agent):
         self.agent = agent
-        Magic.__init__(self)
+        self.name = self.agent.name
+        Constraint.__init__(self, priority=1, perpetual=0)
 
-    def forward(self, simulator):
-        agent = self.agent if self.agent is not None else simulator.agent
-        x, y, theta = move_agent(agent)
-        agent.set_qpos([x, y, theta])
-        return 0
+    def prerequisites(self, sim):
+        return True
 
-class Rot(Magic):
-    #ROT_LEFT = np.array()
-    def __init__(self, dir, agent=None):
+    def preprocess(self, sim):
+        x, y, theta = move_agent(self.agent)
+        self.agent.set_qpos([x, y, theta])
+
+    def satisfied(self, sim_t, s, t):
+        #actually because it has very low priority, we don't care if it violates the constraint...
+        s_qpos = s[self.name]['qpos']
+        t_qpos = s[self.name]['qpos']
+        diff = t_qpos[:2] - s_qpos[:2]
+        target = [np.cos(s_qpos[-1]), np.sin(s_qpos[-1])]
+        return np.abs(diff - np.array(target)).sum() < 1e-5
+
+
+class Rot(Constraint):
+    def __init__(self, agent, dir):
+        self.agent = agent
         self.dir = dir
-        self.agent = agent
-        Magic.__init__(self)
+        self.name = self.agent.name
+        super(Rot, self).__init__(priority=0, perpetual=False)
 
-    def forward(self, simulator):
-        agent = self.agent if self.agent is not None else simulator.agent
-        x, y, theta = agent.get_qpos()
+    def rot(self, x, y, theta):
         theta += self.dir * np.pi/2
         while theta >= np.pi:
             theta -= 2 * np.pi
         while theta < -np.pi:
             theta += 2 * np.pi
-        agent.set_qpos([x, y, theta])
-        return 0
+        return theta
 
-class MagicalTelepotation(Move):
-    def __init__(self, actor, agent=None):
+    def postprocess(self, sim):
+        x, y, theta = self.agent.get_qpos()
+        theta = self.rot(x, y, theta)
+        self.agent.set_qpos([x, y, theta])
+
+    def satisfied(self, sim_t, s, t):
+        #actually because it has very low priority, we don't care if it violates the constraint...
+        return (self.rot(*s[self.name]['qpos']) - t[self.name]['qpos'][2]) % (np.pi*2)
+
+
+class Fixed(Constraint):
+    def __init__(self, actor, agent):
         self.actor = actor
         self.agent = agent
-        Magic.__init__(self)
+        super(Fixed, self).__init__(5, perpetual=True)
 
-    def forward(self, simulator: Sim2D):
-        agent = self.agent if self.agent is not None else simulator.agent
-        x, y, theta = agent.get_qpos()
+    def postprocess(self, simulator: Sim2D):
+        x, y, theta = move_agent(self.agent)
 
-        x = np.round(x + np.cos(theta))
-        y = np.round(y + np.sin(theta))
-        set_xy(self.actor, x, y)
-        #TODO: need change some behaviour
-        return 0
+        pose = self.actor.pose
+        self.actor.set_pose(Pose((x, y, pose.p[2]), pose.q))
 
-class Sim2DV1(Sim2D):
-    def __init__(self):
-        super(Sim2DV1, self).__init__()
-        self.register('move', Move)
-        self.register('rot', Rot)
-        self.register('transport', MagicalTelepotation)
+    def check(self, sim):
+        bx, by = sim.ball.pose.p[:2]
+        ax, ay, theta = sim.agent.get_qpos()
+        return ((np.array([bx-ax, by-ay]) - np.array([np.cos(theta), np.sin(theta)]))**2).sum() < 1e-5
 
-class CollsionMove(Relation):
-    def __init__(self, perpectual=False):
-        Relation.__init__(self, timestep=1, perpetual=False)
+    def satisfied(self, sim_t, s, t):
+        return self.check(sim_t)
 
-    def execute(self, object: Object, sim: Simulator):
-        x, y, theta = move_agent(object.pointer)
-        obstacles = [i.pointer.name for i in object.world.objects.values() if i not in object.child and i != object]
-        if len(object.child) > 0:
-            x = x + np.cos(theta)
-            y = y + np.sin(theta)
-        if moveable(sim, x, y, obstacles):
-            sim.execute('move', object.pointer)
-        return 1
-
-    def prerequisites(self, object: Object, parent: Object):
-        # you can add moving command at any time ...
-        return True
-
-class Grasped(Relation):
-    # execution of the constraint
-    def __init__(self, perpectual=True):
-        Relation.__init__(self, timestep=1, perpetual=1)
-
-    def execute(self, object: Object, sim: Simulator):
-        xx, yy, _ = move_agent(object.parent.pointer)
-        if moveable(sim, xx, yy, ()):
-            sim.execute('transport', object.pointer, object.parent.pointer)
-            return 0
-        logging.warning("GRASPING FAILED BECAUSE OF OBSTACLES")
-        return 1
-
-    def prerequisites(self, object: Object, parent: Object):
-        x, y = get_xy(object.pointer)
-        px, py, theta = parent.pointer.get_qpos()
-        xx = np.round(px + np.cos(theta))
-        yy = np.round(py + np.sin(theta))
-        return abs(xx-x) + abs(yy-y) < 1e-5
-
-
-
-class Sim2DWorld(World):
-    def __init__(self, sim):
-        objects = {
-            'agent': Object(sim.agent, None),
-            'ball': Object(sim.ball, None),
-        }
-        super(Sim2DWorld, self).__init__(sim, objects, None)
-        self.register('rot', lambda dir: Action('rot', dir, timestep=0, perpetual=False))
-        self.register('transport', lambda: Constraint('transport', timestep=1, perpertual=True))
-
-        self.register('move', CollsionMove)
-        self.register('grasped', Grasped)
+    def prerequisites(self, sim):
+        return self.check(sim)
