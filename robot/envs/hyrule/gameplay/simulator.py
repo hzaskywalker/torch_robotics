@@ -54,15 +54,15 @@ def load_sapien_state(object):
     if isinstance(object, sapien_core.pysapien.Articulation):
         # TODO: assume that articulation is fully characterized by qpos
         return {
-            'qpos': object.get_qpos().flat,
-            'qvel': object.get_qvel().flat,
-            'qf': object.get_qf().flat
+            'qpos': object.get_qpos(),
+            'qvel': object.get_qvel(),
+            'qf': object.get_qf()
         }
     elif isinstance(object, sapien_core.pysapien.Actor):
         return {
-            'pose': object.pose.flat,
-            'velocity': object.velocity.flat,
-            'angular_velocity': object.get_angular_velocity.flat,
+            'pose': object.pose,
+            'velocity': object.velocity,
+            'angular_velocity': object.angular_velocity,
         }
     else:
         raise NotImplementedError
@@ -74,8 +74,9 @@ def set_sapien_state(object, state):
         object.set_qf(state['qf'])
     elif isinstance(object, sapien_core.pysapien.Actor):
         object.set_pose(state['pose'])
-        object.set_velocity(state['veolicty'])
-        object.set_angular_velocity(state['set_angular_velocity'])
+        # TODO: add them back for non-kinematic object
+        #object.set_velocity(state['velocity'])
+        #object.set_angular_velocity(state['angular_velocity'])
     else:
         raise NotImplementedError
 
@@ -143,8 +144,12 @@ class Simulator:
         self.scene.update_render()
         return self._renderer
 
-    def render(self, mode='human'):
-        return self._get_viewer(mode).render()
+    def render(self, mode='human', sleep=0):
+        tmp = self._get_viewer(mode).render()
+        if sleep > 0:
+            import time
+            time.sleep(sleep)
+        return tmp
 
     def add_constraints(self, constraint):
         if not constraint.prerequisites(self):
@@ -176,15 +181,17 @@ class Simulator:
         if constraints is not None:
             for i in constraints:
                 i.postprocess(self)
-        new_state = self.scene.get_state()
+        new_state = self.state_dict()
         return new_state
 
     def num_violation(self, state, constraints):
         self.load_state_dict(state)
-        new_state = self.do_constrained_simulation(constraints)
+        new_state = self.do_simulation(constraints)
         num_violation = 0
         for i in constraints:
-            num_violation += int(not i.satisfy(self, state, new_state))
+            if not i.satisfied(self, state, new_state):
+                print('xx', i.satisfied(self, state, new_state), type(i))
+                num_violation += 1
         return num_violation
 
     def solve(self, state, constraints):
@@ -192,7 +199,7 @@ class Simulator:
         cur = self.num_violation(state, constraints)
         while cur != 0:
             for i in range(len(constraints)):
-                new_constrain = [constraints[i] for j in range(len(constraints)) if j!=i]
+                new_constrain = [constraints[j] for j in range(len(constraints)) if j!=i]
                 tmp = self.num_violation(state, new_constrain)
                 if tmp < cur:
                     cur = tmp
@@ -203,7 +210,6 @@ class Simulator:
     def step(self):
         state = self.state_dict()
         constraints = self.solve(state, self._constraints)
-        self.do_simulation(constraints)
         self._constraints = [i for i in constraints if i.perpetual]
         return self
 
@@ -224,8 +230,8 @@ class Simulator:
     def __getattr__(self, item):
         if item in self.objects:
             return self.objects[item]
-        if item in self.instr_set:
-            out = self.instr_set[item]
+        if item in self._instr_set:
+            out = self._instr_set[item]
             def run(*args, **kwargs):
                 self.add_constraints(out(*args, **kwargs))
                 return self

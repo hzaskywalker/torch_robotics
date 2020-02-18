@@ -9,6 +9,14 @@ from .gameplay import Constraint
 
 # define the sim
 class Sim2D(Simulator):
+    def __init__(self):
+        super(Sim2D, self).__init__()
+        self.register('move', MoveAgent)
+        self.register('rot', RotAgent)
+        self.register('fixed', Fixed)
+        self.register('nocollision', NoConllision)
+        self.nocollision()
+
     def build_renderer(self):
         self.scene.set_ambient_light([.4, .4, .4])
         self.scene.set_shadow_light([1, -1, -1], [.5, .5, .5])
@@ -96,11 +104,12 @@ class NoConllision(Constraint):
     def check_wall(self, x, y):
         if abs(x)+0.5 >= 3 or abs(y)+0.5 >= 3:
             return False
+        return True
 
     def satisfied(self, sim_t, s, t):
-        bx, by = t['ball']['pose'][0:2]
+        bx, by = t['ball']['pose'].p[0:2]
         ax, ay = t['agent']['qpos'][0:2]
-        return self.check_wall(ax, ay) and self.check_wall(bx, by) and np.abs(bx - ax)**2 + np.abs(by-ay)**2 > 1
+        return self.check_wall(ax, ay) and self.check_wall(bx, by) and np.abs(bx - ax)**2 + np.abs(by-ay)**2 >= 1 - 1e-5
 
 
 class MoveAgent(Constraint):
@@ -119,18 +128,18 @@ class MoveAgent(Constraint):
     def satisfied(self, sim_t, s, t):
         #actually because it has very low priority, we don't care if it violates the constraint...
         s_qpos = s[self.name]['qpos']
-        t_qpos = s[self.name]['qpos']
+        t_qpos = t[self.name]['qpos']
         diff = t_qpos[:2] - s_qpos[:2]
         target = [np.cos(s_qpos[-1]), np.sin(s_qpos[-1])]
         return np.abs(diff - np.array(target)).sum() < 1e-5
 
 
-class Rot(Constraint):
+class RotAgent(Constraint):
     def __init__(self, agent, dir):
         self.agent = agent
         self.dir = dir
         self.name = self.agent.name
-        super(Rot, self).__init__(priority=0, perpetual=False)
+        super(RotAgent, self).__init__(priority=0, perpetual=False)
 
     def rot(self, x, y, theta):
         theta += self.dir * np.pi/2
@@ -147,7 +156,8 @@ class Rot(Constraint):
 
     def satisfied(self, sim_t, s, t):
         #actually because it has very low priority, we don't care if it violates the constraint...
-        return (self.rot(*s[self.name]['qpos']) - t[self.name]['qpos'][2]) % (np.pi*2)
+        dist = self.rot(*s[self.name]['qpos']) - t[self.name]['qpos'][2]
+        return np.abs(dist) < 1e-5
 
 
 class Fixed(Constraint):
