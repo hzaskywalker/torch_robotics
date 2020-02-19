@@ -98,7 +98,7 @@ class Simulator:
         self.sim = sapien_core.Simulation()
         self._optifuser = sapien_core.OptifuserRenderer()
         self.sim.set_renderer(self._optifuser)
-        self.scene = self.sim.create_scene(gravity=np.array(gravity))
+        self.scene: sapien_core.Scene = self.sim.create_scene(gravity=np.array(gravity))
         self.scene.set_timestep(timestep)
 
         self.seed()
@@ -158,7 +158,6 @@ class Simulator:
 
         self._constraints.append(constraint)
         k = np.argsort([i.priority for i in self._constraints])
-        # sort from priority 0 to 1
         self._constraints = [self._constraints[i] for i in k]
         return self
 
@@ -177,12 +176,15 @@ class Simulator:
         if constraints is not None:
             for i in constraints:
                 i.preprocess(self)
-        self.scene.step()
+        self.step_scene()
         if constraints is not None:
             for i in constraints:
                 i.postprocess(self)
         new_state = self.state_dict()
         return new_state
+
+    def step_scene(self):
+        self.scene.step()
 
     def num_violation(self, state, constraints):
         self.load_state_dict(state)
@@ -190,7 +192,6 @@ class Simulator:
         num_violation = 0
         for i in constraints:
             if not i.satisfied(self, state, new_state):
-                print('xx', i.satisfied(self, state, new_state), type(i))
                 num_violation += 1
         return num_violation
 

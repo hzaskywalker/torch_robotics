@@ -20,8 +20,11 @@ class LeastSqaure:
 
     def step(self, x):
         diff = x @ self.A - self.b
-        return {
+        out = {
             't': diff,
             'reward': (diff**2).sum(axis=-1),
-            'scene': (self.A, self.b)
+            'scene': (self.A, self.b),
         }
+        if len(x.shape) == 1:
+            out['grad'] = self.A.dot(diff)
+        return out
