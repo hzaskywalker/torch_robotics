@@ -1,5 +1,14 @@
 import torch
 
+
+class LinearOptimizer():
+    # suppose the input dimension is n
+    def __init__(self, n):
+        pass
+
+    def forward(self, grad, h):
+        pass
+
 class NetOptV1:
     # network optimizer
     # we first consider how to learn to minimize (Ax-b)**2, the input is A and b, the output should be x

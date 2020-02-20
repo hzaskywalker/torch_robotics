@@ -85,7 +85,7 @@ class Simulator:
     """
     Major interface...
     """
-    def __init__(self, timestep=0.01, gravity=(0, 0, -9.8)):
+    def __init__(self, timestep=0.0025, gravity=(0, 0, -9.8)):
         self.timestep = timestep
         self.viewer = None
         self._viewers = {}
@@ -95,6 +95,13 @@ class Simulator:
             'video.frames_per_second': int(np.round(1.0 / self.dt))
         }
 
+
+        # --------------------- constrain system .................
+        self._instr_set = {}
+        self._constraints = []
+
+
+        # --------------------- constrain system .................
         self.sim = sapien_core.Simulation()
         self._optifuser = sapien_core.OptifuserRenderer()
         self.sim.set_renderer(self._optifuser)
@@ -102,13 +109,26 @@ class Simulator:
         self.scene.set_timestep(timestep)
 
         self.seed()
+
         self.agent = None # agent is always special in the scene, it should be the only articulation object
         self.objects = {}
-        self._instr_set = {}
+
+        # actuator system ........................................
+        self._actuator_range = {}
+        self._actuator_dof_idx = {}
+        self._actuator_joitn_idx = {}
+        self._ee_link_idx = {}
+
         self.build_scene()
 
-        self._constraints = []
+    def add_force_actuator(self, name: str, dof_idx: int, low: float, high: float, joint_idx: int):
+        _dof_idx = self._actuator_dof_idx.get(name, np.array([], dtype=np.int))
+        _joint_idx = self._actuator_joitn_idx.get(name, np.array([], dtype=np.int))
+        _range = self._actuator_range.get(name, np.zeros([0, 2]))
 
+        self._actuator_dof_idx[name] = np.append(_dof_idx, [dof_idx])
+        self._actuator_joitn_idx[name] = np.append(_joint_idx, [joint_idx])
+        self._actuator_range[name] = np.append(_range, np.array([[low, high]]), axis=0)
 
     @property
     def dt(self):

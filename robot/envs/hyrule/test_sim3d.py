@@ -7,9 +7,11 @@ def main():
     args = parser.parse_args()
 
     sim = Sim3D()
+    sim.move_xyz([0.6, 0.3, 0.8])
 
     while True:
         sim.step()
+        print(sim.gripper.pose)
         sim.render()
 
 
