@@ -15,6 +15,6 @@ class Constraint:
         # 强行 set huiqu
         pass
 
-    def satisfied(self, sim_t, s, t):
+    def cost(self, sim_t, s, t):
         # we assume
-        return  True
+        return 0

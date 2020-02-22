@@ -7,7 +7,7 @@ def main():
     args = parser.parse_args()
 
     sim = Sim3D()
-    sim.move_xyz([0.6, 0.3, 0.8])
+    sim.move_xyz([0.9, 0.0, 1.1])
 
     while True:
         sim.step()

@@ -3,32 +3,30 @@ import sapien
 import sapien.core as sapien_core
 import os
 from .gameplay.simulator import Simulator, PxIdentity, x2y, add_link, Pose
-from .gameplay import Constraint
+from .gameplay import Constraint, Parameter
 
 def get_assets_path() -> str:
     #root = get_project_root()
     root = '/home/hza/physx_simulation/'
-    if not os.path.exists(root):
-        raise FileExistsError(f"NO file {root}")
+    if not os.path.exists(root): raise FileExistsError(f"NO file {root}")
     return os.path.abspath(os.path.join(root, "assets"))
 
 
-def read_part_mobility(scene: sapien_core.Scene, id, kinematics=True):
+def read_part_mobility(scene: sapien_core.Scene, id):
     urdf_file = sapien.asset.download_partnet_mobility(id)
     urdf_loader:sapien_core.URDFLoader = scene.create_urdf_loader()
     urdf_loader.scale = 0.8
     urdf_loader.default_density = 10000
     urdf_loader.fix_root_link = False
-    if kinematics:
-        return urdf_loader.load_kinematic(urdf_file)
-    else:
-        return urdf_loader.load(urdf_file)
+    return urdf_loader.load(urdf_file)
 
 
 class Sim3D(Simulator):
     def __init__(self):
         super(Sim3D, self).__init__()
+        from .scene_graph import Stablize
         self.register('move_xyz', MoveXYZ)
+        self.register('check_stable', Stablize)
         # for articulator, we have two special things: the actuator and the ee_idx, they defines the functionality of the agents
 
     def build_scene(self):
@@ -38,8 +36,9 @@ class Sim3D(Simulator):
         self.agent = self._load_robot('agent', "all_robot", movo_material)
 
         self.table: sapien_core.Articulation = read_part_mobility(self.scene, 24931)
-        self.table_pos = Pose([1.2, 0, 0.5], x2y)
-        actor_builder = self.scene.create_actor_builder()
+        self.table_pos = Pose([1.19984, -0.000404659, 0.534275], x2y)
+        self.table.set_root_pose(self.table_pos)
+        self.objects['table'] = self.table
 
     def _load_robot(self, name, urdf_path: str, material: sapien_core.PxMaterial) -> None:
         # By default, the robot will loaded with balanced passive force
@@ -121,7 +120,6 @@ class MoveXYZ(Constraint):
 
     def preprocess(self, sim: Sim3D):
         target = self.xyz.copy()  # ensure that we don't change the action outside of this scope
-        #rot_ctrl = np.array([1, 0, 0, 0])
         if self.model is None:
             name = 'agent'
             model = sim.objects[name]
@@ -138,7 +136,7 @@ class MoveXYZ(Constraint):
         jac = jac[:3, actuator_idx]
 
         delta = np.linalg.lstsq(jac, pos_ctrl)[0] # in joint space
-        targets = model.get_qpos()[actuator_idx] + delta * 20
+        targets = model.get_qpos()[actuator_idx] + delta * 40
 
         for target, index in zip(targets, sim._actuator_joitn_idx[name]):
             joints[index].set_drive_property(10000, 10000)
@@ -146,3 +144,34 @@ class MoveXYZ(Constraint):
 
         qf = model.compute_passive_force()
         model.set_qf(qf)
+
+
+from .scene_graph import Stablize, GeoConstraint
+
+
+class ArticulationPose(Parameter):
+    def __init__(self, name, data=(0, 0, 0, 1, 0, 0, 0)):
+        super(ArticulationPose, self).__init__(np.array(data))
+        self.name = name
+
+    def forward(self, sim):
+        p = self.data[:3]
+        q = self.data[3:]
+        q = q/(np.linalg.norm(q) + 1e-16)
+        sim.objects[self.name].set_root_pose(Pose(p, q))
+
+
+class Sim3DV2(Sim3D):
+    def __init__(self):
+        super(Sim3DV2, self).__init__()
+        self.set_table = ArticulationPose('table', [0, 0, 0, 1, 0, 0, 0])
+        self.register('geo_constraint', GeoConstraint)
+        self.register('stable', Stablize)
+
+    def step_scene(self):
+        Simulator.step_scene(self)
+
+        q = self.agent.get_qpos()
+        q[self._fixed_joint] = self._fixed_value
+        self.agent.set_qpos(q)
+        self.table.set_qpos([-0.150])

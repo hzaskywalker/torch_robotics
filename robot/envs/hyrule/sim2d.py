@@ -37,7 +37,7 @@ class Sim2D(Simulator):
         self.add_box(0, +3.5, (4, 0.5, 0.5), wall_color, 'box1', True)
         self.add_box(0, -3.5, (4, 0.5, 0.5), wall_color, 'box1', True)
 
-        ball = self.add_sphere(0, 2, 0.5, ball_color, 'ball', True)
+        ball = self.add_sphere(0, 2, 0.5, ball_color, 'ball', False)
         self.agent = self.add_agent(0, 0, 0.5, agent_color, [[-3, 3], [-3, 3]], 'agent')
 
     def add_box(self, x, y, size, color, name, fix=False):
@@ -105,10 +105,10 @@ class NoConllision(Constraint):
             return False
         return True
 
-    def satisfied(self, sim_t, s, t):
+    def cost(self, sim_t, s, t):
         bx, by = t['ball']['pose'].p[0:2]
         ax, ay = t['agent']['qpos'][0:2]
-        return self.check_wall(ax, ay) and self.check_wall(bx, by) and np.abs(bx - ax)**2 + np.abs(by-ay)**2 >= 1 - 1e-5
+        return 1-(self.check_wall(ax, ay) and self.check_wall(bx, by) and np.abs(bx - ax)**2 + np.abs(by-ay)**2 >= 1 - 1e-5)
 
 
 class MoveAgent(Constraint):
@@ -124,13 +124,13 @@ class MoveAgent(Constraint):
         x, y, theta = move_agent(self.agent)
         self.agent.set_qpos([x, y, theta])
 
-    def satisfied(self, sim_t, s, t):
+    def cost(self, sim_t, s, t):
         #actually because it has very low priority, we don't care if it violates the constraint...
         s_qpos = s[self.name]['qpos']
         t_qpos = t[self.name]['qpos']
         diff = t_qpos[:2] - s_qpos[:2]
         target = [np.cos(s_qpos[-1]), np.sin(s_qpos[-1])]
-        return np.abs(diff - np.array(target)).sum() < 1e-5
+        return 1-(np.abs(diff - np.array(target)).sum() < 1e-5)
 
 
 class RotAgent(Constraint):
@@ -153,10 +153,10 @@ class RotAgent(Constraint):
         theta = self.rot(x, y, theta)
         self.agent.set_qpos([x, y, theta])
 
-    def satisfied(self, sim_t, s, t):
+    def cost(self, sim_t, s, t):
         #actually because it has very low priority, we don't care if it violates the constraint...
         dist = self.rot(*s[self.name]['qpos']) - t[self.name]['qpos'][2]
-        return np.abs(dist) < 1e-5
+        return 1-(np.abs(dist) < 1e-5)
 
 
 class Fixed(Constraint):
@@ -176,8 +176,8 @@ class Fixed(Constraint):
         ax, ay, theta = sim.agent.get_qpos()
         return ((np.array([bx-ax, by-ay]) - np.array([np.cos(theta), np.sin(theta)]))**2).sum() < 1e-5
 
-    def satisfied(self, sim_t, s, t):
-        return self.check(sim_t)
+    def cost(self, sim_t, s, t):
+        return 1-self.check(sim_t)
 
     def prerequisites(self, sim):
         return self.check(sim)

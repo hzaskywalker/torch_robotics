@@ -1,11 +1,10 @@
 import numpy as np
 from gym.utils import seeding
-import gym
-from gym import spaces
+from .parameters import Parameter
 import logging
-from inspect import isfunction
 from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
 from robot.envs.sapien.camera import CameraRender
+from collections import OrderedDict
 
 DEFAULT_SIZE = 500
 
@@ -52,17 +51,15 @@ def add_link(builder, father, link_pose, local_pose=None, name=None, joint_name=
 
 def load_sapien_state(object):
     if isinstance(object, sapien_core.pysapien.Articulation):
-        # TODO: assume that articulation is fully characterized by qpos
         return {
             'qpos': object.get_qpos(),
             'qvel': object.get_qvel(),
-            'qf': object.get_qf()
+            'qf': object.get_qf(),
+            'pose': object.get_links()[0].pose,
         }
     elif isinstance(object, sapien_core.pysapien.Actor):
         return {
             'pose': object.pose,
-            'velocity': object.velocity,
-            'angular_velocity': object.angular_velocity,
         }
     else:
         raise NotImplementedError
@@ -72,11 +69,12 @@ def set_sapien_state(object, state):
         object.set_qpos(state['qpos'])
         object.set_qvel(state['qvel'])
         object.set_qf(state['qf'])
+        object.set_root_pose(state['pose'])
+    elif isinstance(object, sapien_core.pysapien.KinematicArticulation):
+        # TODO: assume that articulation is fully characterized by qpos
+        object.set_root_pose(state['pose'])
     elif isinstance(object, sapien_core.pysapien.Actor):
         object.set_pose(state['pose'])
-        # TODO: add them back for non-kinematic object
-        #object.set_velocity(state['velocity'])
-        #object.set_angular_velocity(state['angular_velocity'])
     else:
         raise NotImplementedError
 
@@ -100,6 +98,8 @@ class Simulator:
         self._instr_set = {}
         self._constraints = []
 
+        # --------------------- Parameter system .................
+        self.parameters = []
 
         # --------------------- constrain system .................
         self.sim = sapien_core.Simulation()
@@ -111,7 +111,7 @@ class Simulator:
         self.seed()
 
         self.agent = None # agent is always special in the scene, it should be the only articulation object
-        self.objects = {}
+        self.objects = OrderedDict()
 
         # actuator system ........................................
         self._actuator_range = {}
@@ -190,12 +190,32 @@ class Simulator:
     def load_state_dict(self, dict):
         for name, value in dict.items():
             set_sapien_state(self.objects[name], value)
-            #self.objects[name].unpack(value)
+
+    def state_vector(self):
+        return np.concatenate([np.array(obj.pack()) for name, obj in self.objects.items()])
+
+    def load_state_vector(self, vec):
+        l = 0
+        for name, obj in self.objects.items():
+            r = l + len(obj.pack())
+            obj.unpack(vec[l:r])
+            l = r
+
+    def set_param(self, parameters):
+        l = 0
+        for j in self.parameters:
+            r = l + j.size
+            j.update(parameters[l:r])
+            j.forward(self)
+            l = r
 
     def do_simulation(self, constraints=None):
+        for i in self.parameters:
+            i.forward(self)
         if constraints is not None:
             for i in constraints:
                 i.preprocess(self)
+
         self.step_scene()
         if constraints is not None:
             for i in constraints:
@@ -206,22 +226,29 @@ class Simulator:
     def step_scene(self):
         self.scene.step()
 
-    def num_violation(self, state, constraints):
-        self.load_state_dict(state)
+    def cost(self, state=None, constraints=None):
+        """
+        do one step simulation, return the violated constraints
+        if state is not none, reset the state
+        if the constraints are None, use the constraints of the simulator
+        """
+        if state is not None:
+            self.load_state_dict(state)
+        if constraints is None:
+            constraints = self._constraints
         new_state = self.do_simulation(constraints)
-        num_violation = 0
+        total_cost = 0
         for i in constraints:
-            if not i.satisfied(self, state, new_state):
-                num_violation += 1
-        return num_violation
+            total_cost += i.cost(self, state, new_state)
+        return total_cost
 
     def solve(self, state, constraints):
         # assume constraints are sortest from the small to large
-        cur = self.num_violation(state, constraints)
+        cur = self.cost(state, constraints)
         while cur != 0:
             for i in range(len(constraints)):
                 new_constrain = [constraints[j] for j in range(len(constraints)) if j!=i]
-                tmp = self.num_violation(state, new_constrain)
+                tmp = self.cost(state, new_constrain)
                 if tmp < cur:
                     cur = tmp
                     constraints = new_constrain
@@ -247,6 +274,11 @@ class Simulator:
     def register(self, name, type):
         self._instr_set[name] = type
         return self
+
+    def __setattr__(self, key, value):
+        if isinstance(value, Parameter):
+            self.parameters.append(value)
+        super(Simulator, self).__setattr__(key, value)
 
     def __getattr__(self, item):
         if item in self.objects:
