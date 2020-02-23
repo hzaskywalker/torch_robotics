@@ -70,6 +70,7 @@ class TableWorld(Sim3D):
         upper = obj_bbx[1]
         scale = min(min((upper_xy-lower_xy)/(upper[:2]-lower[:2])), 1)
         obj: sapien_core.Articulation = read_part_mobility(self.scene, self.objs[instance_id], scale=scale)
+        print(obj, self.objs[instance_id])
         self.objects[name] = obj
 
         diff = (upper_xy + lower_xy)/2 - (upper+lower)[:2] * scale/2
@@ -108,7 +109,9 @@ class TableWorld(Sim3D):
         return box
 
     def step_scene(self):
-        Simulator.step_scene(self)
+        #Simulator.step_scene(self)
+        for i in range(5):
+            Simulator.step_scene(self)
 
         q = self.agent.get_qpos()
         q[self._fixed_joint] = self._fixed_value

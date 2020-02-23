@@ -21,28 +21,30 @@ def main():
                          ]),
                          dir=None,
                          names=['bucket', 'haha2', 'glass'])
+        for i in range(100):
+            sim.step()
         qf = np.array([sim.agent.get_qf() * 0 for _ in range(horizon)])
-        sim.set_qf = SetQF(qf, 'agent')
+        #sim.set_qf = SetQF(qf, 'agent')
         return sim
 
-    optimizer = CEMOptimizer(make, horizon=20,
-                             iter_num=20, num_mutation=300, num_elite=30, std=1., alpha=0., num_proc=1)
+    #optimizer = CEMOptimizer(make, horizon=horizon,
+    #                         iter_num=20, num_mutation=200, num_elite=10, std=3., alpha=0.1, num_proc=20)
     sim = make()
 
-    cost = ArmMove('agent', Pose([0.9, 0.0, 1.1]), None, 0.01, 1., 0, 1.)
+    cost = ArmMove('agent', Pose([0.9, 0.2, 1.1]), None, 0.01, 1., 0, 0.)
+    sim.move_xyz(np.array([0.9, 0.0, 1.1]))
 
     state = sim.state_vector()
-    output = optimizer.optimize(sim, cost)
+    #output = optimizer.optimize(sim, cost)
 
     while True:
         sim.load_state_vector(state)
-        sim.set_param(output)
-        print(sim.set_qf.idx)
+        #sim.set_param(output)
 
         for i in range(horizon):
-            print(sim.set_qf.idx)
             sim.step()
             sim.render()
+            print(i, sim.gripper.pose)
 
 
 

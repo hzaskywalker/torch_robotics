@@ -9,7 +9,7 @@ from sapien.core import Pose
 def calc_dist(A, B):
     xyz_dist = np.linalg.norm(A.p - B.p)
     theta = quaternions.quat2axangle(quaternions.qmult(A.q, quaternions.qinverse(B.q)))[1]
-    return xyz_dist , theta
+    return xyz_dist, theta
 
 
 class Waypoint:
@@ -60,7 +60,7 @@ class ArmMove(Waypoint):
         else:
             raise NotImplementedError
         return self.arm_contact_cost(sim, self.contact_epsilon) * self.weight_contact +\
-               xyz * self.weight_xyz +  theta + self.weight_angle
+               xyz * self.weight_xyz + theta * self.weight_angle
 
 
 class WaypointList(Waypoint):

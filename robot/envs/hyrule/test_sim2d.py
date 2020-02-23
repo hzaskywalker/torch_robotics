@@ -28,8 +28,6 @@ def main():
         world.step()
         world.render()
 
-
-
 if __name__ ==  '__main__':
     main()
 

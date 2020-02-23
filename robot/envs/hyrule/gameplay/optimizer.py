@@ -27,6 +27,7 @@ class Rollout:
                     #cost += self.sim.cost()
                     cost += self.sim.cost()
                 else:
+                    self.sim.do_simulation()
                     cost += calc_cost[0].cost(self.sim)
 
             rewards.append(cost)
