@@ -13,7 +13,7 @@ def main():
         return sim
 
     optimizer = CEMOptimizer(make, 1,
-                          iter_num=6, num_mutation=200, num_elite=20, std=1., alpha=0., num_proc=20)
+                          iter_num=20, num_mutation=300, num_elite=30, std=1., alpha=0., num_proc=20)
 
     sim = make()
     optimizer.optimize(sim)

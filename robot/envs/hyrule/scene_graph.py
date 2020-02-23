@@ -14,7 +14,7 @@ class Stablize(Constraint):
         self.eps = eps
 
     def postprocess(self, sim):
-        for i in range(5):
+        for i in range(20):
             sim.step_scene()
 
     def cost(self, sim_t: Simulator, s, t):

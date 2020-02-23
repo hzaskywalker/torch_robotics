@@ -12,11 +12,11 @@ def get_assets_path() -> str:
     return os.path.abspath(os.path.join(root, "assets"))
 
 
-def read_part_mobility(scene: sapien_core.Scene, id):
+def read_part_mobility(scene: sapien_core.Scene, id, scale=0.8, default_density=10000):
     urdf_file = sapien.asset.download_partnet_mobility(id)
     urdf_loader:sapien_core.URDFLoader = scene.create_urdf_loader()
-    urdf_loader.scale = 0.8
-    urdf_loader.default_density = 10000
+    urdf_loader.scale = scale
+    urdf_loader.default_density = default_density
     urdf_loader.fix_root_link = False
     return urdf_loader.load(urdf_file)
 
@@ -87,8 +87,8 @@ class Sim3D(Simulator):
         return self.agent.get_links()[self._ee_link_idx['agent']]
 
     def step_scene(self):
-        self.table.set_root_pose(self.table_pos)
-        self.agent.set_qf([0.001] * self.agent.dof)
+        #self.table.set_root_pose(self.table_pos)
+        #self.agent.set_qf([0.001] * self.agent.dof)
         super(Sim3D, self).step_scene()
 
         q = self.agent.get_qpos()

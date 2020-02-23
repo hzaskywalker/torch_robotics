@@ -1,7 +1,5 @@
 # controller for forward dynamics
-import numpy as np
 import torch
-import scipy.stats as stats
 from robot.utils.trunc_norm import trunc_norm
 
 
@@ -52,6 +50,7 @@ class CEM:
 
                 reward = self.eval_function(scene, populations)
                 reward[reward != reward] = self.inf
+                print(reward)
 
                 _, topk_idx = (-reward).topk(k=self.num_elite, dim=0)
 
