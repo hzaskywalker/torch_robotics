@@ -206,7 +206,6 @@ class Simulator:
         for j in self.parameters:
             r = l + j.size
             j.update(parameters[l:r])
-            j.forward(self)
             l = r
 
     def do_simulation(self, constraints=None):

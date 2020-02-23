@@ -25,7 +25,7 @@ def main():
         sim.set_qf = SetQF(qf, 'agent')
         return sim
 
-    optimizer = CEMOptimizer(make, 1,
+    optimizer = CEMOptimizer(make, horizon=20,
                              iter_num=20, num_mutation=300, num_elite=30, std=1., alpha=0., num_proc=1)
     sim = make()
 
@@ -37,8 +37,10 @@ def main():
     while True:
         sim.load_state_vector(state)
         sim.set_param(output)
+        print(sim.set_qf.idx)
 
         for i in range(horizon):
+            print(sim.set_qf.idx)
             sim.step()
             sim.render()
 
