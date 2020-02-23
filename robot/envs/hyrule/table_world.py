@@ -40,13 +40,13 @@ class SetQF(Parameter):
 
 
 class TableWorld(Sim3D):
-    def __init__(self, objs, map, dir=None, names=None):
+    def __init__(self, objs, map, dir=None, names=None, sim=None):
         self.objs = objs
         self.map = map
         self.dir = dir
         self.names = names
 
-        super(TableWorld, self).__init__()
+        super(TableWorld, self).__init__(sim=sim)
 
     def place_object(self, name, instance_id):
         obj_bbx = id2boundingbox(self.objs[instance_id])
@@ -110,7 +110,7 @@ class TableWorld(Sim3D):
 
     def step_scene(self):
         #Simulator.step_scene(self)
-        for i in range(5):
+        for i in range(3):
             Simulator.step_scene(self)
 
         q = self.agent.get_qpos()

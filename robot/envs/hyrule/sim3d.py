@@ -22,8 +22,8 @@ def read_part_mobility(scene: sapien_core.Scene, id, scale=0.8, default_density=
 
 
 class Sim3D(Simulator):
-    def __init__(self):
-        super(Sim3D, self).__init__()
+    def __init__(self, sim=None):
+        super(Sim3D, self).__init__(sim=sim)
         from .scene_graph import Stablize
         self.register('move_xyz', MoveXYZ)
         self.register('check_stable', Stablize)

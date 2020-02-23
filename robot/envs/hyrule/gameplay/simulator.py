@@ -83,7 +83,7 @@ class Simulator:
     """
     Major interface...
     """
-    def __init__(self, timestep=0.0025, gravity=(0, 0, -9.8)):
+    def __init__(self, timestep=0.0025, gravity=(0, 0, -9.8), sim=None):
         self.timestep = timestep
         self.viewer = None
         self._viewers = {}
@@ -102,9 +102,13 @@ class Simulator:
         self.parameters = []
 
         # --------------------- constrain system .................
-        self.sim = sapien_core.Simulation()
-        self._optifuser = sapien_core.OptifuserRenderer()
-        self.sim.set_renderer(self._optifuser)
+        if sim is None:
+            self.sim = sapien_core.Simulation()
+            self._optifuser = sapien_core.OptifuserRenderer()
+            self.sim.set_renderer(self._optifuser)
+        else:
+            self.sim = sim
+            self._optifuser = self.sim.get_renderer()
         self.scene: sapien_core.Scene = self.sim.create_scene(gravity=np.array(gravity))
         self.scene.set_timestep(timestep)
 
@@ -267,7 +271,6 @@ class Simulator:
         raise NotImplementedError
 
     def __del__(self):
-        self.sim = None
         self.scene = None
 
     def register(self, name, type):

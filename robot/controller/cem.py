@@ -1,4 +1,5 @@
 # controller for forward dynamics
+import tqdm
 import torch
 from robot.utils.trunc_norm import trunc_norm
 
@@ -26,7 +27,7 @@ class CEM:
         self.lower_bound = lower_bound
         self.inf = inf
 
-    def __call__(self, scene, mean=None, std=None):
+    def __call__(self, scene, mean=None, std=None, show_progress=False):
         shape = (self.num_mutation,) + tuple(mean.shape)
         # initial: batch, dim, time_step
         _x = mean
@@ -34,7 +35,8 @@ class CEM:
         with torch.no_grad():
             if std is None:
                 std = mean * 0 + self.std
-            for idx in range(self.iter_num):
+            ran = range if not show_progress else tqdm.trange
+            for idx in ran(self.iter_num):
                 _std = std
                 if self.upper_bound is not None and self.upper_bound is not None:
                     lb_dist = mean - self.lower_bound.to(mean.device)

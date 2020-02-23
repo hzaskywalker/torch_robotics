@@ -62,13 +62,12 @@ class CEMOptimizer:
     def eval(self, scene, a):
         s = scene[None, :].expand(a.shape[0], -1)
         out = self.model.rollout(s, a, [self.cost] * len(a))
-        print(out)
         return out
 
-    def optimize(self, sim: Simulator, cost=None):
+    def optimize(self, sim: Simulator, cost=None, show_progress=False):
         self.cost = cost
         state_vector = torch.tensor(sim.state_vector(), dtype=torch.float32)
         initial_action = torch.tensor(np.concatenate([i.data.reshape(-1) for i in sim.parameters]), dtype=torch.float32)
-        output = self.cem(state_vector, initial_action).detach().cpu().numpy()
+        output = self.cem(state_vector, initial_action, show_progress=show_progress).detach().cpu().numpy()
         sim.set_param(output)
         return output
