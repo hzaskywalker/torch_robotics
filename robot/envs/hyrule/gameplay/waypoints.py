@@ -140,3 +140,13 @@ class WaypointList(Waypoint):
         for i in self.args:
             total += i.cost(sim)
         return total
+
+
+class ControlNorm(Waypoint):
+    def __init__(self, agent, weight=0.01):
+        super(ControlNorm, self).__init__(agent)
+        self.weight = weight
+
+    def cost(self, sim: Simulator):
+        return (sim.objects[self.agent].get_qf()**2).sum() * self.weight
+

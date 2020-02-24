@@ -3,11 +3,12 @@ import pickle
 import argparse
 from robot.envs.hyrule.table_world import TableWorld, SetQF, Pose
 from robot.envs.hyrule.gameplay.optimizer import CEMOptimizer
-from robot.envs.hyrule.gameplay.waypoints import ArmMove, ObjectMove, Grasped, WaypointList
+from robot.envs.hyrule.gameplay.waypoints import ArmMove, ObjectMove, Grasped, WaypointList, ControlNorm
 
 
 import gym
 class Env(gym.Env):
+    #  xvfb-run python3 trajopt.py --env_name table_world --horizon 30 --iter_num 10 --timestep 100
     def __init__(self):
         super(Env, self).__init__()
         sim = TableWorld([], None)
@@ -28,7 +29,8 @@ class Env(gym.Env):
 
         self.cost = WaypointList(
             ObjectMove('box', Pose([0.9, 0.2, 1.]), 2., 0.),
-            Grasped('agent', 'box', 1)
+            Grasped('agent', 'box', 1),
+            ControlNorm('agent', 0.0001)
             #ArmMove('agent', Pose([0.9, 0.2, 1.1]), None, 0.01, 1., 0, 0.)
         )
 
