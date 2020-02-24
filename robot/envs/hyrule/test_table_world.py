@@ -3,7 +3,58 @@ import pickle
 import argparse
 from robot.envs.hyrule.table_world import TableWorld, SetQF, Pose
 from robot.envs.hyrule.gameplay.optimizer import CEMOptimizer
-from robot.envs.hyrule.gameplay.waypoints import ArmMove
+from robot.envs.hyrule.gameplay.waypoints import ArmMove, ObjectMove, Grasped, WaypointList
+
+
+import gym
+class Env(gym.Env):
+    def __init__(self):
+        super(Env, self).__init__()
+        sim = TableWorld([], None)
+        for i in range(100):
+            sim.step()
+        self.sim = sim
+
+        low = self.state_vector()*0-np.inf
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=low.shape, dtype=np.float32,
+        )
+        act_shape = np.array(self.sim.agent.get_qf()).shape
+        self.action_space = gym.spaces.Box(
+            low=-1,
+            high=1,
+            shape=act_shape, dtype=np.float32,
+        )
+
+        self.cost = WaypointList(
+            ObjectMove('box', Pose([0.9, 0.2, 1.]), 2., 0.),
+            Grasped('agent', 'box', 1)
+            #ArmMove('agent', Pose([0.9, 0.2, 1.1]), None, 0.01, 1., 0, 0.)
+        )
+
+        import os
+        a = os.path.dirname(__file__)
+        with open(os.path.join(a, 'trajectory.pkl'), 'rb') as f:
+            self.state, _, _ = pickle.load(f)
+        self.sim.load_state_vector(self.state)
+
+    def state_vector(self):
+        return self.sim.state_vector()
+
+    def set_state(self, qpos, qvel):
+        self.sim.load_state_vector(np.concatenate((qpos, qvel)))
+
+    def reset(self):
+        return self.sim.state_vector()
+
+    def step(self, action):
+        self.sim.agent.set_qf(action * 10)
+        for i in range(1):
+            self.sim.step()
+        return self.state_vector(), -self.cost.cost(self.sim), False, {}
+
+    def render(self, mode='human'):
+        return self.sim.render(mode)
 
 
 def main():
@@ -11,10 +62,10 @@ def main():
     parser.add_argument('--task', type=str, default='search', choices=['search', 'show'])
     args = parser.parse_args()
 
-    horizon = 20
+    horizon = 100
 
     def make():
-        sim = TableWorld(objs=[100469, 103502, 101284],
+        sim = TableWorld(objs=[], #100469, 103502, 101284
                          map=np.array([
                              [0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0],
@@ -27,7 +78,7 @@ def main():
         for i in range(100):
             sim.step()
         qf = np.array([sim.agent.get_qf() * 0 for _ in range(horizon)])
-        #sim.set_qf = SetQF(qf, 'agent')
+        sim.set_qf = SetQF(qf, 'agent')
         return sim
 
     if args.task == 'show':
@@ -35,19 +86,23 @@ def main():
         with open('trajectory.pkl', 'rb') as f:
             state, output, end = pickle.load(f)
         while True:
-            #sim.load_state_vector(state)
-            #sim.set_param(output)
+            sim.load_state_vector(state)
+            sim.set_param(output)
             for i in range(horizon):
                 sim.step()
                 sim.render()
-                print(i, sim.gripper.pose)
+                #print(i, sim.gripper.pose)
         return
 
     optimizer = CEMOptimizer(make, horizon=horizon,
                              iter_num=50, num_mutation=200, num_elite=10, std=3., alpha=0.1, num_proc=20) # should be 200 for better performance
     sim = make()
 
-    cost = ArmMove('agent', Pose([0.9, 0.2, 1.1]), None, 0.01, 1., 0, 0.)
+    #cost = ArmMove('agent', Pose([0.9, 0.2, 1.1]), None, 0.01, 1., 0, 0.)
+    cost = WaypointList(
+        ObjectMove('box', Pose([0.9, 0.2, 1.]), 2., 0.),
+        Grasped('agent', 'box', 1)
+    )
 
     state = sim.state_vector()
     output = optimizer.optimize(sim, cost, show_progress=True)

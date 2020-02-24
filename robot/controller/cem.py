@@ -52,7 +52,6 @@ class CEM:
 
                 reward = self.eval_function(scene, populations)
                 reward[reward != reward] = self.inf
-                print(reward)
 
                 _, topk_idx = (-reward).topk(k=self.num_elite, dim=0)
 

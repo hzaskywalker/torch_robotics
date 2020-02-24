@@ -24,6 +24,9 @@ def make(env_name):
         return TimeLimit(MoveReachEnv('dense'), 50)
     elif env_name == 'movo_reach_xyz':
         return TimeLimit(MoveReachXYZEnv('sparse'), 50)
+    elif env_name == 'table_world':
+        from robot.envs.hyrule.test_table_world import Env
+        return TimeLimit(Env(), 300)
     else:
         raise NotImplementedError
 

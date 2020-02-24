@@ -31,10 +31,15 @@ class SetQF(Parameter):
         self.name = name
 
     def forward(self, sim):
+        #if self.idx == 99:
+        #    print(self.data[self.idx])
         sim.objects[self.name].set_qf(self.data[self.idx])
         self.idx += 1
 
     def update(self, data):
+        #data[...,-5:] /= 10
+        data = data.copy().reshape(self.data.shape)
+        data[:, -5:] /= 10
         super(SetQF, self).update(data)
         self.idx = 0
 
@@ -70,7 +75,7 @@ class TableWorld(Sim3D):
         upper = obj_bbx[1]
         scale = min(min((upper_xy-lower_xy)/(upper[:2]-lower[:2])), 1)
         obj: sapien_core.Articulation = read_part_mobility(self.scene, self.objs[instance_id], scale=scale)
-        print(obj, self.objs[instance_id])
+        #print(obj, self.objs[instance_id])
         self.objects[name] = obj
 
         diff = (upper_xy + lower_xy)/2 - (upper+lower)[:2] * scale/2
@@ -86,21 +91,34 @@ class TableWorld(Sim3D):
 
         self.table_pos = Pose([0.8, 0, 0.25], PxIdentity)
         size = np.array([0.4, 0.4, 0.25])
-        self.table = self.add_box(*self.table_pos.p[:2], size, color=(0.5, 0.5, 0.5), name='table', fix=True)
+        self.table = self.add_box(*self.table_pos.p[:2], size, color=(0.5, 0.5, 0.5), name='table', fix=False, density=100000)
+        self.objects['table'] = self.table
 
         self.table_bbox = np.stack((self.table_pos.p - size, self.table_pos.p + size))
-        print(self.table_bbox)
 
         for i in range(len(self.objs)):
             name = f'obj{i}' if self.names is None else self.names[i]
             self.place_object(name, i)
 
-    def add_box(self, x, y, size, color, name, fix=False):
+
+        name = 'box'
+        actor_builder = self.scene.create_actor_builder()
+        pose = Pose((0.8, 0, 0.5 + 0.02))
+        size = np.array((0.02, 0.02, 0.02))
+        actor_builder.add_box_visual(Pose(), size, np.array([0, 1, 0]), name)
+        actor_builder.add_box_shape(Pose(), size, density=1000)
+        box = actor_builder.build(False)
+        box.set_pose(pose)
+        box.set_name(name)
+        self.objects[name] = box
+
+
+    def add_box(self, x, y, size, color, name, fix=False, density=1000):
         if isinstance(size, int) or isinstance(size, float):
             size = np.array([size, size, size])
         actor_builder = self.scene.create_actor_builder()
         actor_builder.add_box_visual(Pose(), size, color, name)
-        actor_builder.add_box_shape(Pose(), size, density=1000)
+        actor_builder.add_box_shape(Pose(), size, density=density)
         box = actor_builder.build(fix)
 
         pos = Pose(np.array((x, y, size[2]+1e-5)))

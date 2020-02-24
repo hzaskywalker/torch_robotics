@@ -60,6 +60,8 @@ def load_sapien_state(object):
     elif isinstance(object, sapien_core.pysapien.Actor):
         return {
             'pose': object.pose,
+            'velocity': object.velocity,
+            'angular_velocity': object.angular_velocity,
         }
     else:
         raise NotImplementedError
@@ -70,11 +72,10 @@ def set_sapien_state(object, state):
         object.set_qvel(state['qvel'])
         object.set_qf(state['qf'])
         object.set_root_pose(state['pose'])
-    elif isinstance(object, sapien_core.pysapien.KinematicArticulation):
-        # TODO: assume that articulation is fully characterized by qpos
-        object.set_root_pose(state['pose'])
     elif isinstance(object, sapien_core.pysapien.Actor):
         object.set_pose(state['pose'])
+        object.set_velocity(state['velocity'])
+        object.set_angular_velocity(state['angular_velocity'])
     else:
         raise NotImplementedError
 
@@ -86,16 +87,16 @@ class Simulator:
     def __init__(self, timestep=0.0025, gravity=(0, 0, -9.8), sim=None):
         self.timestep = timestep
         self.viewer = None
-        self._viewers = {}
+        self._viewers = OrderedDict()
 
-        self.metadata = {
+        self.metadata = OrderedDict({
             'render.modes': ['human'],
             'video.frames_per_second': int(np.round(1.0 / self.dt))
-        }
+        })
 
 
         # --------------------- constrain system .................
-        self._instr_set = {}
+        self._instr_set = OrderedDict()
         self._constraints = []
 
         # --------------------- Parameter system .................
@@ -109,7 +110,7 @@ class Simulator:
         else:
             self.sim = sim
             self._optifuser = self.sim.get_renderer()
-        self.scene: sapien_core.Scene = self.sim.create_scene(gravity=np.array(gravity))
+        self.scene: sapien_core.Scene = self.sim.create_scene(gravity=np.array(gravity), solver_type=sapien_core.SolverType.PGS)
         self.scene.set_timestep(timestep)
 
         self.seed()
@@ -118,10 +119,10 @@ class Simulator:
         self.objects = OrderedDict()
 
         # actuator system ........................................
-        self._actuator_range = {}
-        self._actuator_dof_idx = {}
-        self._actuator_joitn_idx = {}
-        self._ee_link_idx = {}
+        self._actuator_range = OrderedDict()
+        self._actuator_dof_idx = OrderedDict()
+        self._actuator_joitn_idx = OrderedDict()
+        self._ee_link_idx = OrderedDict()
 
         self.build_scene()
 
@@ -223,8 +224,6 @@ class Simulator:
         if constraints is not None:
             for i in constraints:
                 i.postprocess(self)
-        new_state = self.state_dict()
-        return new_state
 
     def step_scene(self):
         self.scene.step()
@@ -239,7 +238,8 @@ class Simulator:
             self.load_state_dict(state)
         if constraints is None:
             constraints = self._constraints
-        new_state = self.do_simulation(constraints)
+        self.do_simulation(constraints)
+        new_state = self.state_dict()
         total_cost = 0
         for i in constraints:
             total_cost += i.cost(self, state, new_state)
@@ -259,6 +259,9 @@ class Simulator:
         return constraints
 
     def step(self):
+        if len(self._constraints) == 0:
+            self.do_simulation()
+            return self
         state = self.state_dict()
         constraints = self.solve(state, self._constraints)
         self._constraints = [i for i in constraints if i.perpetual]

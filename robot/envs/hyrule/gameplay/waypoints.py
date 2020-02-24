@@ -66,21 +66,20 @@ class ArmMove(Waypoint):
 
 
 class Grasped(Waypoint):
-    def __init__(self, agent, obj_name, epsilon=0.01, range=0.1):
+    def __init__(self, agent, obj_name, weight):
         super(Grasped, self).__init__(agent)
-
         self.obj_name = obj_name
-        self.epsilon = epsilon
+        self.weight = weight
 
     def cost(self, sim: Simulator):
         agent = sim.objects[self.agent]
 
         def is_finger(actor):
-            if actor.name == 'right_gripper_figner1_finger_tip_link':
+            if actor.name == 'right_gripper_finger1_finger_tip_link':
                 return 1
-            if actor.name == 'right_gripper_figner2_finger_tip_link':
+            if actor.name == 'right_gripper_finger2_finger_tip_link':
                 return 2
-            if actor.name == 'right_gripper_figner3_finger_tip_link':
+            if actor.name == 'right_gripper_finger3_finger_tip_link':
                 return 3
             return 0
 
@@ -112,7 +111,7 @@ class Grasped(Waypoint):
             if finger_id:
                 link_cmass = link.pose * link.cmass_local_pose
                 mm[finger_id-1] = min(mm[finger_id-1], np.linalg.norm(cmass.p - link_cmass.p))
-        return -mm.sum() # 中心的位置。。
+        return mm.sum() * self.weight # 中心的位置。。
 
 
 class ObjectMove(Waypoint):
@@ -127,7 +126,7 @@ class ObjectMove(Waypoint):
     def cost(self, sim: Simulator):
         object = sim.objects[self.agent]
         xyz, theta = calc_dist(object.pose, Pose(self.target_pose_p, self.target_pose_q))
-        return  xyz * self.weight_xyz + theta * self.weight_angle
+        return xyz * self.weight_xyz + theta * self.weight_angle
 
 
 
