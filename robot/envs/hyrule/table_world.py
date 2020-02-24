@@ -85,6 +85,8 @@ class TableWorld(Sim3D):
     def build_scene(self):
         self.scene.add_ground(0.)
 
+        self.timestep = 0
+
         movo_material = self.sim.create_physical_material(3.0, 2.0, 0.01)
 
         self.agent = self._load_robot('agent', "all_robot", movo_material)
@@ -128,9 +130,27 @@ class TableWorld(Sim3D):
 
     def step_scene(self):
         #Simulator.step_scene(self)
+        self.timestep += 1
         for i in range(3):
             Simulator.step_scene(self)
 
         q = self.agent.get_qpos()
         q[self._fixed_joint] = self._fixed_value
         self.agent.set_qpos(q)
+
+    def state_vector(self):
+        state_vector = super(TableWorld, self).state_vector()
+        return np.concatenate(([self.timestep], state_vector), axis=0)
+
+    def load_state_vector(self, vec):
+        self.timestep = vec[0]
+        super(TableWorld, self).load_state_vector(vec[1:])
+        
+    def state_dict(self):
+        out = super(TableWorld, self).state_dict()
+        out['timestep'] = self.timestep
+        return out
+
+    def load_state_dict(self, dict):
+        super(TableWorld, self).load_state_dict(dict)
+        self.timestep = dict['timestep']

@@ -129,7 +129,6 @@ class ObjectMove(Waypoint):
         return xyz * self.weight_xyz + theta * self.weight_angle
 
 
-
 class WaypointList(Waypoint):
     def __init__(self, *args):
         object.__init__(self)
@@ -150,3 +149,16 @@ class ControlNorm(Waypoint):
     def cost(self, sim: Simulator):
         return (sim.objects[self.agent].get_qf()**2).sum() * self.weight
 
+
+class Trajectory(Waypoint):
+    def __init__(self, *waypoints):
+        object.__init__(self)
+        assert len(waypoints) > 0, "You must provide more than 1 way point.."
+        self.waypoints = waypoints
+
+    def cost(self, sim:Simulator):
+        cur = 0
+        for cost, t in self.waypoints:
+            if cur + t > sim.timestep:
+                break
+        return cost.cost(sim)
