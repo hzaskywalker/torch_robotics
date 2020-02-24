@@ -39,6 +39,7 @@ class Env(gym.Env):
             ), 50),
             (WaypointList(
                 ObjectMove('box', Pose([0.8, -0.2, 0.55]), 2, 0),
+                Grasped('agent', 'box', 1),
                 ControlNorm('agent', 0.0001)
             ), 50)
         )
