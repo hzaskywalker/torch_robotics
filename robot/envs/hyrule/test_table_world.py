@@ -27,6 +27,9 @@ class Env(gym.Env):
             high=1,
             shape=act_shape, dtype=np.float32,
         )
+        for i in range(100):
+            self.sim.step()
+        self.sim.timestep = 0
 
         self.cost = Trajectory(
             (WaypointList(
@@ -35,12 +38,10 @@ class Env(gym.Env):
                 ControlNorm('agent', 0.0001)
             ), 50),
             (WaypointList(
-                ObjectMove('box', Pose([0.9, 0.2, 0.55]), 2, 0),
+                ObjectMove('box', Pose([0.8, -0.2, 0.55]), 2, 0),
                 ControlNorm('agent', 0.0001)
             ), 50)
         )
-        for i in range(100):
-            self.sim.step()
 
 
     def state_vector(self):
@@ -50,6 +51,7 @@ class Env(gym.Env):
         self.sim.load_state_vector(np.concatenate((qpos, qvel)))
 
     def reset(self):
+        self.sim.timestep = 0
         return self.sim.state_vector()
 
     def step(self, action):
