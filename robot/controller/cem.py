@@ -38,7 +38,7 @@ class CEM:
             ran = range if not show_progress else tqdm.trange
             for idx in ran(self.iter_num):
                 _std = std
-                if self.upper_bound is not None and self.upper_bound is not None:
+                if self.lower_bound is not None and self.upper_bound is not None:
                     lb_dist = mean - self.lower_bound.to(mean.device)
                     ub_dist = -mean + self.upper_bound.to(mean.device)
                     _std = torch.min(torch.abs(torch.min(lb_dist, ub_dist)/2), std)
@@ -62,5 +62,4 @@ class CEM:
 
                 mean = mean * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
                 std = ((std ** 2) * self.alpha + (elite.std(dim=0, unbiased=False) ** 2) * (1 - self.alpha)) ** 0.5
-        m = mean - _x
         return mean
