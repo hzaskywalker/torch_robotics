@@ -26,6 +26,9 @@ class EnvWrapper(gym.Wrapper):
         self.env.env._position = a[1:].copy()
         self.env.env._target_position = b.copy()
 
+    def state2obs(self, s):
+        return s[1:3]
+
 
 def make(env_name):
     import cv2
