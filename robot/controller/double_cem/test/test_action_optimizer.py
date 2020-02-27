@@ -41,12 +41,6 @@ class Policy:
         self.actions = None
         self.timestep = 0
 
-    def init_weight(self, horizon):
-        # mean
-        if self.cur_weights is None:
-            self.cur_weights = self.network.init_weights()
-        return self.cur_weights[None, :].expand(horizon, -1) # the second dimension is the time
-
     def network_control(self, obs, weights):
         #TODO: hack
         action = self.network(obs, weights)

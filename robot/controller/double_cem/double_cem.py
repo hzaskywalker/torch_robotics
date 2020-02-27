@@ -1,11 +1,12 @@
 # controller for forward dynamics
+import numpy as np
 import tqdm
 import torch
 from robot.utils.trunc_norm import trunc_norm
 
 
 class DoubleCEM:
-    def __init__(self, constraint, rollout, optimizer, iter_num, num_mutation=100, num_elite=10, std=0.2,
+    def __init__(self, constraint, rollout, optimizer, iter_num, num_mutation=100, num_elite=10,
                  alpha=0., upper_bound=None, lower_bound=None, trunc_norm=False, inf=int(1e9)):
 
         self.constraint = constraint # the constraint function measures the loss if two states doesn't match..
@@ -16,7 +17,6 @@ class DoubleCEM:
         self.iter_num = iter_num
         self.num_mutation = num_mutation
         self.num_elite = num_elite
-        self.std = std
         self.alpha = alpha
         self.trunc_norm = trunc_norm
         self.inf = inf
@@ -28,14 +28,37 @@ class DoubleCEM:
         self.upper_bound = upper_bound
         self.lower_bound = lower_bound
 
-    def __call__(self, states, actions, states_std=None, actions_std=None, show_progress=True):
+        self.state = None
+
+
+    def population2state(self, pop):
+        #TODO: hack here
+        return torch.cat((pop[..., :1]*0, pop, pop * 0 + torch.tensor(self.state[-2:], dtype=torch.float)), dim=-1)
+
+
+    def value(self, populations, actions, targets=None, target_values=None, min_dim=1):
+        """
+        if min_dim == 1: return the reward of populations, otherwise, return the reward of targets ...
+        """
+        if len(actions.shape) == 2:
+            timestep = np.zeros((populations.shape[0],), dtype=np.int32) + actions.shape[0]
+            actions = actions[None, :].expand(populations.shape[0], -1, -1)
+        else:
+            raise NotImplementedError
+        t, r = self.rollout(self.population2state(populations), actions, timestep)
+        if targets is not None:
+            r = (self.constraint(t, targets) + target_values[None, :]).min(dim=min_dim)[0]  # choose the minimum among values
+        return r
+
+    def __call__(self, states, actions, states_std, actions_std=None, show_progress=True):
         # scene is the first states...
         # states (N, state_dim)
         # the first is the initial states
 
         N = len(states)
-        if states_std is None:
-            states_std = states * 0 + self.std
+        if isinstance(states_std, float):
+            states_std = states * 0 + states_std
+
         shape = (states.shape[0], self.num_mutation, *states.shape[1:])
         values = torch.zeros((states.shape[0], self.num_mutation), device=states.device)
 
@@ -62,17 +85,16 @@ class DoubleCEM:
 
                 targets, value = None, None
                 for i in range(N-1, -1, -1):
-                    actions[i], actions_std[i], values[i] = self.optimizer(populations[i], actions[i], actions_std[i], targets, value)
+                    actions[i], actions_std[i] = self.optimizer(
+                        self.population2state(populations[i]), actions[i], actions_std[i], targets, value)
+
+                    value = values[i] = self.value(populations[i], actions[i], targets, value)
                     targets = populations[i]
-                    value = values[i]
 
                 for i in range(1, N):
-                    reached, rewards = self.rollout(states[i-1], actions[i], actions_std[i])
-                    assert len(reached.shape) > 1
-
-                    reward = rewards + self.constraint(reached, populations) #reached to populations...
+                    reward = self.value(states[i-1][None,:], actions[i-1], populations[i], values[i], min_dim=0)
                     reward[reward != reward] = self.inf
-                    _, topk_idx = (-reward).topk(k=self.num_elite, dim=0)
+                    _, topk_idx = (-reward).topk(k=self.num_elite, dim=0) # choose the minimum
 
                     elite = populations[i].index_select(0, topk_idx)
 

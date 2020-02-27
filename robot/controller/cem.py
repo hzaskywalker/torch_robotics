@@ -27,7 +27,7 @@ class CEM:
         self.lower_bound = lower_bound
         self.inf = inf
 
-    def __call__(self, scene, mean=None, std=None, show_progress=False):
+    def __call__(self, scene, mean=None, std=None, show_progress=False, return_std=False):
         shape = (self.num_mutation,) + tuple(mean.shape)
         # initial: batch, dim, time_step
         _x = mean
@@ -62,4 +62,6 @@ class CEM:
 
                 mean = mean * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
                 std = ((std ** 2) * self.alpha + (elite.std(dim=0, unbiased=False) ** 2) * (1 - self.alpha)) ** 0.5
-        return mean
+        if not return_std:
+            return mean
+        return mean, std

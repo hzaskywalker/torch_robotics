@@ -43,7 +43,7 @@ class MPC:
                      dtype=torch.float, device=self.init_state_std.device)
         torch.tensor([(self.action_space.high + self.action_space.low) * 0.5 for _ in range(horizon)],
                      dtype=torch.float, device=self.init_action_std.device)
-        return
+        return states,
 
     def set_model(self, model):
         self.model = model
