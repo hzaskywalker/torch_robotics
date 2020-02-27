@@ -5,7 +5,7 @@ from robot.utils.trunc_norm import trunc_norm
 
 
 class DoubleCEM:
-    def __init__(self, constraint, rollout, optimizer, iter_num, num_mutation, num_elite, std=0.2,
+    def __init__(self, constraint, rollout, optimizer, iter_num, num_mutation=100, num_elite=10, std=0.2,
                  alpha=0., upper_bound=None, lower_bound=None, trunc_norm=False, inf=int(1e9)):
 
         self.constraint = constraint # the constraint function measures the loss if two states doesn't match..
@@ -28,7 +28,7 @@ class DoubleCEM:
         self.upper_bound = upper_bound
         self.lower_bound = lower_bound
 
-    def __call__(self, states, actions, states_std=None, actions_std=None):
+    def __call__(self, states, actions, states_std=None, actions_std=None, show_progress=True):
         # scene is the first states...
         # states (N, state_dim)
         # the first is the initial states
@@ -40,7 +40,8 @@ class DoubleCEM:
         values = torch.zeros((states.shape[0], self.num_mutation), device=states.device)
 
         with torch.no_grad():
-            for i in range(self.iter_num):
+            ran = tqdm.trange if show_progress else range
+            for _ in ran(self.iter_num):
                 # pass
                 mean = states
                 _std = states_std
@@ -78,4 +79,4 @@ class DoubleCEM:
                     states[i] = states[i] * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
                     states_std[i] = ((states_std[i] ** 2) * self.alpha + (elite.std(dim=0, unbiased=False) ** 2) * (1 - self.alpha)) ** 0.5
 
-        return states, states_std
+        return states, states_std, actions, actions_std
