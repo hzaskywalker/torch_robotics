@@ -10,12 +10,12 @@ from robot.controller.double_cem.double_cem import DoubleCEM
 
 
 class Policy:
-    def __init__(self, optimizer, N, horizon, env):
+    def __init__(self, optimizer, N, horizon, env, num_layer=2, mid_channels=32):
         self.optimizer = optimizer
         self.N = N
         self.horizon = horizon
         self.inp_dim = env.observation_space['observation'].shape[0]
-        self.network = NumpyWeightNetwork(self.inp_dim, env.action_space.shape[0], 2, 32)
+        self.network = NumpyWeightNetwork(self.inp_dim, env.action_space.shape[0], num_layer, mid_channels)
         self.state2obs = env.state2obs
 
         self.lb = env.action_space.low
@@ -41,11 +41,13 @@ class Policy:
             state = self.state2obs(state)
             return self.network_control(state, action)
 
-        init_action = torch.tensor(np.stack([self.network.init_weights() for i in range(self.N * self.horizon)]),
+        init_action = torch.tensor(np.stack([self.network.init_weights() for _ in range(self.N * self.horizon)]),
                             dtype=torch.float).reshape(self.N, self.horizon, -1)
-        action_std = init_action * 0 + 0.1**0.5
+        #init_action = init_action.expand(-1, self.horizon, -1).clone()
+        #action_std = init_action * 0 + 0.1**0.5
+        action_std = init_action * 0 + 1.
 
-        s = [self.state2obs(state)] + [(self.ob_lb + self.ob_ub)/2 for i in range(self.N-1)]
+        s = [self.state2obs(state)] + [(self.ob_lb + self.ob_ub)/2 for _ in range(self.N-1)]
         s_std = [self.ob_std * 0] + [self.ob_std for i in range(self.N-1)]
 
         s = torch.tensor(s, dtype=torch.float)
@@ -58,37 +60,37 @@ class Policy:
 
 
 def constraint(s, t):
-    d = ((s[:, None] - t[None, :])**2).sum(dim=-1)
-    return torch.exp( d - 1 ).clamp(0, 40)
-#for i in range(100):
-#    print(i/10., constraint(torch.tensor([[0.]]), torch.tensor([[i/10]])))
-#exit(0)
+    d = ((s[:, None] - t[None, :])**2).sum(dim=-1) **0.5
+    d = ((d>1.).float() * d * 2000)
+    return d
 
 
 def main():
     #pass
+
     env_name = 'pm'
-    model = DynamicModel(make, env_name, n=30)
+    num_layer = 1
+    model = DynamicModel(make, env_name, n=30, num_layer=num_layer)
 
     env = make(env_name)
     action_optimizer = ActionOptimizer(model, constraint, std=None,
-                                #iter_num=20,
                                 iter_num = 10,
-                                num_mutation=400, num_elite=40,
+                                num_mutation=100, num_elite=10,
                                 alpha=0.1, trunc_norm=True,
                                 )
 
     ob_space = env.observation_space['observation']
-    optimizer = DoubleCEM(constraint, model, action_optimizer, 1,
-                          num_mutation=100, num_elite=10, alpha=0.1,
-                          upper_bound=ob_space.high, lower_bound=ob_space.low)
+    optimizer = DoubleCEM(constraint, model, action_optimizer, iter_num=2,
+                          num_mutation=500, num_elite=5, alpha=0.,
+                          upper_bound=ob_space.high, lower_bound=ob_space.low, env=env, trunc_norm=True)
 
-    #policy = Policy(optimizer, 4, 25, env)
-    policy = Policy(optimizer, 1, 100, env)
+    N = 4
+    horizon = 25
+    policy = Policy(optimizer, N, horizon, env, num_layer=num_layer)
 
     state = None
-    eval_policy(policy, env, 12345, 10, 10, 'video{}.avi',
-                use_hidden_state=True, progress_episode=True, timestep=100, start_state = state)
+    eval_policy(policy, env, 12345, 1, 1, 'video{}.avi',
+                use_hidden_state=True, progress_episode=True, timestep=N*horizon, start_state = state)
 
 
 if __name__ == '__main__':

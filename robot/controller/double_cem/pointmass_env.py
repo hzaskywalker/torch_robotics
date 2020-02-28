@@ -11,6 +11,12 @@ class EnvWrapper(gym.Wrapper):
         env = TimeLimit(env, 100)
         super(EnvWrapper, self).__init__(env)
 
+    def reset(self, **kwargs):
+        self.env.reset()
+        #self.unwrapped._position = np.array([-2., -3.])
+        self.unwrapped._position = np.array([0., -3.])
+        self.unwrapped._target_position = np.array([0, 3.5])
+
     def render(self, mode='human'):
         self.env.env.render()
         if mode == 'human':
@@ -58,7 +64,7 @@ def test():
         a = env.action_space.sample()
         img = env.render(mode='rgb_array')
         cv2.imshow('img', img)
-        cv2.waitKey(1)
+        cv2.waitKey(0)
         o, r, done, info = env.step(a)
         print(r)
 

@@ -81,10 +81,12 @@ class Rollout:
         for s, a, timestep in zip(s, a, timestep):
             set_state(self.env, s)
             s = self.env.state2obs(s)
-
             if len(a.shape) > 1:
                 assert a.shape[0] == timestep
 
+            if self.env.unwrapped._position_inside_wall(s):
+                print(s)
+                raise NotImplementedError
             reward = 0
             for i in range(timestep):
                 if len(a.shape)>1:
@@ -96,13 +98,13 @@ class Rollout:
                 action = np.maximum(np.minimum(action, self.ub), self.lb)
                 s, r, done, _ = self.env.step(action)
                 s = s['observation']
-                reward += r
+                reward = r #TODO: only consider the last reward
 
                 if done:
                     break
 
-            rewards.append(reward)
             obs.append(s)
+            rewards.append(reward)
         return np.array(obs), np.array(rewards)
 
 
