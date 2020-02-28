@@ -17,7 +17,7 @@ class ActionOptimizer(CEM):
             xx = None
         else:
             #xx = int(x.shape[0])
-            xx = 40
+            xx = 50
             x = x[torch.randint(x.shape[0], size=(a.shape[0] * xx,))]
             a = a[:, None].expand(-1, xx, -1, -1)
             a = a.reshape(-1, *a.shape[2:])

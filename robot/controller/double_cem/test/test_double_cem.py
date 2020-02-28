@@ -42,7 +42,7 @@ class Policy:
             return self.network_control(state, action)
 
         #kk = self.horizon # or 1
-        kk = 1
+        kk = self.horizon
         init_action = torch.tensor(np.stack([self.network.init_weights() for _ in range(self.N * self.horizon)]),
                             dtype=torch.float).reshape(self.N, kk, -1)
         if kk == 1:
@@ -77,15 +77,14 @@ def main():
 
     env = make(env_name)
     action_optimizer = ActionOptimizer(model, constraint, std=None,
-                                iter_num=5,
-                                #num_mutation=100, num_elite=5,
-                                num_mutation=100, num_elite=10,
-                                alpha=0.1, trunc_norm=True,
-                                )
+                                       iter_num=5,
+                                       num_mutation=200, num_elite=10,
+                                       alpha=0.1, trunc_norm=True,
+                                       )
 
     ob_space = env.observation_space['observation']
     optimizer = DoubleCEM(constraint, model, action_optimizer, iter_num=4,
-                          num_mutation=1000, num_elite=100, alpha=0.2,
+                          num_mutation=2000, num_elite=200, alpha=0.2,
                           upper_bound=ob_space.high, lower_bound=ob_space.low, env=env, trunc_norm=True)
 
     N = 10
