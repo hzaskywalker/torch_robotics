@@ -85,7 +85,7 @@ def main():
 
     ob_space = env.observation_space['observation']
     optimizer = DoubleCEM(constraint, model, action_optimizer, iter_num=4,
-                          num_mutation=500, num_elite=50, alpha=0.2,
+                          num_mutation=1000, num_elite=100, alpha=0.2,
                           upper_bound=ob_space.high, lower_bound=ob_space.low, env=env, trunc_norm=True)
 
     N = 10
