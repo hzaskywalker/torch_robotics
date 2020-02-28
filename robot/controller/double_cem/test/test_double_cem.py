@@ -41,9 +41,12 @@ class Policy:
             state = self.state2obs(state)
             return self.network_control(state, action)
 
+        #kk = self.horizon # or 1
+        kk = 1
         init_action = torch.tensor(np.stack([self.network.init_weights() for _ in range(self.N * self.horizon)]),
-                            dtype=torch.float).reshape(self.N, self.horizon, -1)
-        #init_action = init_action.expand(-1, self.horizon, -1).clone()
+                            dtype=torch.float).reshape(self.N, kk, -1)
+        if kk == 1:
+            init_action = init_action.expand(-1, self.horizon, -1).clone()
         #action_std = init_action * 0 + 0.1**0.5
         action_std = init_action * 0 + 1.
 
@@ -60,8 +63,8 @@ class Policy:
 
 
 def constraint(s, t):
-    d = ((s[:, None] - t[None, :])**2).sum(dim=-1) **0.5
-    d = ((d>1.).float() * d * 2000)
+    d = ((s[:, None] - t[None, :])**2).sum(dim=-1) ** 0.5
+    d = ((d>0.5).float() * d * 10000)
     return d
 
 
@@ -74,18 +77,19 @@ def main():
 
     env = make(env_name)
     action_optimizer = ActionOptimizer(model, constraint, std=None,
-                                iter_num = 10,
+                                iter_num=5,
+                                #num_mutation=100, num_elite=5,
                                 num_mutation=100, num_elite=10,
                                 alpha=0.1, trunc_norm=True,
                                 )
 
     ob_space = env.observation_space['observation']
-    optimizer = DoubleCEM(constraint, model, action_optimizer, iter_num=2,
-                          num_mutation=500, num_elite=5, alpha=0.,
+    optimizer = DoubleCEM(constraint, model, action_optimizer, iter_num=4,
+                          num_mutation=500, num_elite=50, alpha=0.2,
                           upper_bound=ob_space.high, lower_bound=ob_space.low, env=env, trunc_norm=True)
 
-    N = 4
-    horizon = 25
+    N = 10
+    horizon = 10
     policy = Policy(optimizer, N, horizon, env, num_layer=num_layer)
 
     state = None

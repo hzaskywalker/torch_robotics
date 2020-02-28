@@ -17,7 +17,7 @@ class ActionOptimizer(CEM):
             xx = None
         else:
             #xx = int(x.shape[0])
-            xx = 30
+            xx = 40
             x = x[torch.randint(x.shape[0], size=(a.shape[0] * xx,))]
             a = a[:, None].expand(-1, xx, -1, -1)
             a = a.reshape(-1, *a.shape[2:])
@@ -34,11 +34,11 @@ class ActionOptimizer(CEM):
 
         if xx is not None:
             r = r.reshape(-1, xx).mean(dim=1)
-        print(r)
+        #print(r.mean())
         return r
 
     def __call__(self, scene, mean=None, std=None, targets=None, value=None, show_progress=False, return_std=False):
         self.targets = targets
         self.value = value
-        print(self.value)
+        #print(self.value)
         return super(ActionOptimizer, self).__call__(scene, mean, std, show_progress, return_std=return_std)

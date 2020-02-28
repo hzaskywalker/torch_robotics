@@ -56,7 +56,6 @@ class DoubleCEM:
     def print_value(self, targets, values, name):
         import cv2
         img = np.zeros((512, 512, 3), dtype=np.float32)
-        print(targets.shape, values.shape)
         for a, b in zip(targets, values):
             x, y = a
             x = int((x + 4)/8 * 512)
@@ -101,21 +100,24 @@ class DoubleCEM:
 
 
                 targets, value = None, None
-                for i in range(N-1, -1, -1):
+                for i in tqdm.trange(N-1, -1, -1):
                     for j in range(len(populations[i])):
                         while self.env.unwrapped._position_inside_wall(populations[i][j]):
                             populations[i][j] = torch.tensor(self.env.observation_space['observation'].sample(), dtype=torch.float)
 
-                    actions[i], actions_std[i] = self.optimizer(
+                    actions[i], _ = self.optimizer(
                         self.population2state(populations[i]), actions[i], actions_std[i], targets, value, return_std=True)
                     value = values[i] = self.value(populations[i], actions[i], targets, value)
+                    print(value.mean())
                     targets = populations[i]
+                    """"
                     print(values[i].mean())
                     if i == N-1:
                         idx = 0
                         for pop, v in zip(populations[i], value):
                             print(pop, v, self._reached[idx])
                             idx += 1
+                            """
                     self.print_value(targets, value, f'img{i}.jpg')
 
                 cur = states[0][None, :]
@@ -125,15 +127,15 @@ class DoubleCEM:
                     _, topk_idx = (-reward).topk(k=self.num_elite, dim=0) # choose the minimum
 
                     elite = populations[i].index_select(0, topk_idx)
+                    #cur = states[i][None,:]
+                    cur = elite[0][None,:] # break the tie, make sure it's a trajectory... actually we'd better do sample here..
 
                     states[i] = states[i] * self.alpha + elite.mean(dim=0) * (1 - self.alpha)
                     states_std[i] = ((states_std[i] ** 2) * self.alpha + (elite.std(dim=0, unbiased=False) ** 2) * (1 - self.alpha)) ** 0.5
 
-                    print(cur, self._reached, states[i])
-                    #cur = states[i][None,:]
-                    cur = self._reached
+                    #cur = self._reached
 
-                    print(populations[i][topk_idx], reward[topk_idx], values[i][topk_idx])
+                    #print(populations[i][topk_idx], reward[topk_idx], values[i][topk_idx])
 
                 print(states)
 

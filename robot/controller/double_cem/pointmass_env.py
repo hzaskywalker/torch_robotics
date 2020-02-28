@@ -14,7 +14,8 @@ class EnvWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         self.env.reset()
         #self.unwrapped._position = np.array([-2., -3.])
-        self.unwrapped._position = np.array([0., -3.])
+        #self.unwrapped._position = np.array([0., -3.])
+        self.unwrapped._position = np.array([0., 0.])
         self.unwrapped._target_position = np.array([0, 3.5])
 
     def render(self, mode='human'):
@@ -56,6 +57,7 @@ def make(env_name):
 def test():
     from robot.envs.sapien.exp.utils import set_state
     env = make('pm')
+    print(env.action_space.low, env.action_space.high)
     env.reset()
 
     state = env.state_vector()
