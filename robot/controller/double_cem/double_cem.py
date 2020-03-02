@@ -80,7 +80,7 @@ class DoubleCEM:
 
         with torch.no_grad():
             ran = tqdm.trange if show_progress else range
-            for _ in ran(self.iter_num):
+            for iter_ in ran(self.iter_num):
                 # pass
                 mean = states
                 _std = states_std
@@ -118,7 +118,7 @@ class DoubleCEM:
                             print(pop, v, self._reached[idx])
                             idx += 1
                             """
-                    self.print_value(targets, value, f'img{i}.jpg')
+                    self.print_value(targets, value, f'img_{iter_}_{i}.jpg')
 
                 cur = states[0][None, :]
                 for i in range(1, N):
