@@ -50,7 +50,7 @@ def test():
                 ['MOVEOBJ', dict(name='box', target=[0.8, -0.2, 0.55], weight_xyz=2, weight_angle=0)],
                 ['CTRLNORM', dict(name='agent', weight=0.0001)],
             ],
-            duration = 50,
+            duration=50,
         )
     ]
 
@@ -60,6 +60,9 @@ def test():
     load_scene(env, params)
 
     env.reset()
+    dump_json('x.json', params)
+    print(env.costs)
+    exit(0)
     #print(env.action_space, env.observation_space)
     for i in range(10000):
         env.render()

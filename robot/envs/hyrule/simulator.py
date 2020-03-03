@@ -84,7 +84,7 @@ class Simulator(Env):
     """
     Major interface...
     """
-    def __init__(self, dt=0.0025, frameskip=4, gravity=(0, 0, -9.8), sim=None):
+    def __init__(self, dt=0.01, frameskip=1, gravity=(0, 0, -9.8), sim=None):
         self.dt = dt
         self.frameskip = frameskip
         self.viewer = None

@@ -77,7 +77,6 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
             continue
         assert joint.get_dof() == 1
         qname = joint.name
-        print(qname)
         if qname in lock:
             for idx, _name in enumerate(lock):
                 if _name == qname: lock_id = idx
@@ -143,7 +142,7 @@ def load_box(sim: Simulator, name, params: OrderedDict):
     return box
 
 
-def load_scene(sim: Simulator, scene: OrderedDict):
+def load_scene(sim: Simulator, scene: OrderedDict, warmup=20):
     # ground
     OBJ_TYPE = {
         'robot': load_robot,
@@ -153,9 +152,12 @@ def load_scene(sim: Simulator, scene: OrderedDict):
         if name == 'ground':
             sim.scene.add_ground(param)
         elif name == 'waypoints':
-            sim.cost = load_waypoints(param)
-        else:
+            sim.costs = load_waypoints(param)
+        elif name != 'trajectories':
             OBJ_TYPE[param['type']](sim, name, param)
+    for i in range(warmup):
+        sim.do_simulation()
+    sim.reset()
 
 
 
