@@ -7,7 +7,18 @@ def test():
         agent=OrderedDict(
             type='robot',
             lock=['pan_joint', 'tilt_joint', 'linear_joint'],
-            lock_value = [0, 0, 0]
+            lock_value = [0, 0, 0],
+            actuator=['right_shoulder_pan_joint',
+                      'right_shoulder_lift_joint',
+                      'right_arm_half_joint',
+                      'right_elbow_joint',
+                      'right_wrist_spherical_1_joint',
+                      'right_wrist_spherical_2_joint',
+                      'right_wrist_3_joint',
+                      'right_gripper_finger3_joint',
+                      'right_gripper_finger2_joint',
+                      'right_gripper_finger1_joint'],
+            actuator_range = [[-50, 50] for i in range(7)] + [[-5, 5] for i in range(3)]
         ),
         table=OrderedDict(
             type='box',
@@ -44,15 +55,18 @@ def test():
     ]
 
     params['waypoints'] = waypoints
-    dump_json('x.json', params)
-    exit(0)
 
     env = Simulator()
     load_scene(env, params)
 
+    env.reset()
+    #print(env.action_space, env.observation_space)
     for i in range(10000):
         env.render()
-        env.do_simulation()
+        action = env.action_space.sample() * 0
+        env.step(action)
+        if i % 100 == 0:
+            env.reset()
 
 if __name__ == '__main__':
     test()

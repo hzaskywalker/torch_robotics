@@ -3,6 +3,8 @@ from gym.utils import seeding
 from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
 from robot.envs.sapien.camera import CameraRender
 from collections import OrderedDict
+from gym import Env
+from gym.spaces import Box
 
 DEFAULT_SIZE = 500
 
@@ -78,7 +80,7 @@ def set_sapien_state(object, state):
         raise NotImplementedError
 
 
-class Simulator:
+class Simulator(Env):
     """
     Major interface...
     """
@@ -120,6 +122,7 @@ class Simulator:
 
         self.timestep = 0
         self.costs = None
+        self._reset = False
 
 
     def seed(self, seed=None):
@@ -181,12 +184,24 @@ class Simulator:
             q[item] = self._lock_value[name]
             self.objects[name].set_qpos(q)
 
+    def reset(self):
+        # pass
+        if not self._reset:
+            self._start_state = self.state_vector().copy()
+            self.observation_space = Box(-np.inf, np.inf, self._start_state.shape)
+            self.action_space = Box(-1, 1, self._actuator_joint['agent'].shape)
+        self.load_state_vector(self._start_state)
+        self._reset = True
+
     def step(self, action):
+        if not self._reset:
+            self.reset()
         # do_simulation
         if len(self._actuator_dof['agent']) > 0:
             action = np.array(action).clip(-1, 1)
             qf = np.zeros(self.agent.dof)
-            qf[self._actuator_dof['agent']] = action * self._actuator_range['agent']
+            #TODO: we should not multiply them together
+            qf[self._actuator_dof['agent']] = action * self._actuator_range['agent'][:, 0]
             self.agent.set_qf(qf)
 
         for i in range(self.frameskip):
@@ -194,10 +209,10 @@ class Simulator:
         reward = 0
         if self.costs is not None:
             reward = - self.costs.cost(self)
-        return None, reward, False, {}
+        return self._get_obs(), reward, False, {}
 
     def _get_obs(self):
-        return None
+        return self.state_vector()
 
 
     def __del__(self):

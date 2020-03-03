@@ -77,6 +77,7 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
             continue
         assert joint.get_dof() == 1
         qname = joint.name
+        print(qname)
         if qname in lock:
             for idx, _name in enumerate(lock):
                 if _name == qname: lock_id = idx
