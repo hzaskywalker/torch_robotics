@@ -9,7 +9,6 @@ from gym.spaces import Box
 DEFAULT_SIZE = 500
 
 import sapien.core as sapien_core
-print('USE sapien core')
 from sapien.core import Pose
 
 PxIdentity = np.array([1, 0, 0, 0])
@@ -110,6 +109,7 @@ class Simulator(Env):
 
         self.agent = None # agent is always special in the scene, it should be the only articulation object
         self.objects = OrderedDict()
+        self.kinematic_objects = OrderedDict()
 
         # actuator system ........................................
         self._actuator_range = OrderedDict()
@@ -124,11 +124,9 @@ class Simulator(Env):
         self.costs = None
         self._reset = False
 
-
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
-
 
     def _get_viewer(self, mode):
         self._renderer = self._viewers.get(mode)
@@ -190,13 +188,15 @@ class Simulator(Env):
             self._start_state = self.state_vector().copy()
             self.observation_space = Box(-np.inf, np.inf, self._start_state.shape)
             self.action_space = Box(-1, 1, self._actuator_joint['agent'].shape)
+
         self.load_state_vector(self._start_state)
         self._reset = True
+        self.timestep = 0
 
     def step(self, action):
-        if not self._reset:
-            self.reset()
         # do_simulation
+        assert self._reset
+
         if len(self._actuator_dof['agent']) > 0:
             action = np.array(action).clip(-1, 1)
             qf = np.zeros(self.agent.dof)
@@ -214,10 +214,8 @@ class Simulator(Env):
     def _get_obs(self):
         return self.state_vector()
 
-
     def __del__(self):
         self.scene = None
-
 
     def viewer_setup(self):
         self.scene.set_ambient_light([.4, .4, .4])

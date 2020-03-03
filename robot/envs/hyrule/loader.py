@@ -16,10 +16,6 @@ x2y = np.array([0.7071068, 0, 0, 0.7071068])
 x2z = np.array([0.7071068, 0, 0.7071068, 0])
 
 
-def load_camera(sim, params):
-    pass
-
-
 def get_assets_path() -> str:
     #root = get_project_root()
     root = '/home/hza/physx_simulation/'
@@ -37,6 +33,20 @@ def read_part_mobility(scene: sapien_core.Scene, id, scale=0.8, default_density=
 
 
 def load_robot(sim: Simulator, name, params: OrderedDict):
+    initial_qpos = [0., -1.381, 0, 0.05, -0.9512, 0.387, 0.608, 2.486, 0.986, 0.986, 0.986, 0., 0.]
+    initial_qvel = [0] * len(initial_qpos)
+
+    if name in sim.objects:
+        # no way to change the articulation
+        agent = sim.objects[name]
+        initial_qpos = np.array(params.get('qpos', initial_qpos))
+        initial_qvel = np.array(params.get('qvel', initial_qvel))
+
+        agent.set_qpos(initial_qpos)
+        agent.set_qvel(initial_qvel)
+        agent.set_qf(agent.get_qf() * 0)
+        return agent
+
     material = sim.sim.create_physical_material(3.0, 2.0, 0.01)
     urdf_path = params.get('urdf', "all_robot")
 
@@ -106,13 +116,11 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
             sim._ee_link_idx[name] = idx
             break
 
-    initial_qpos = [0., -1.381, 0, 0.05, -0.9512, 0.387, 0.608, 2.486, 0.986, 0.986, 0.986, 0., 0.]
-    initial_qvel = [0] * len(initial_qpos)
-
     initial_qpos = np.array( params.get('qpos', initial_qpos) )
     initial_qvel = np.array( params.get('qvel', initial_qvel) )
     agent.set_qpos(initial_qpos)
-    agent.set_qpos(initial_qvel)
+    agent.set_qvel(initial_qvel)
+    agent.set_qf(agent.get_qf() * 0)
 
     sim.objects[name] = agent
     sim.agent = agent
@@ -122,6 +130,12 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
 
 def load_box(sim: Simulator, name, params: OrderedDict):
     # table is fixed objects.. which is not counted a object
+    if name in sim.objects:
+        sim.scene.remove_actor(sim.objects[name])
+
+    if name in sim.kinematic_objects:
+        sim.scene.remove_actor(sim.kinematic_objects[name])
+
     center = params.get('center', [0.8, 0, 0.25])
     size = params.get('size', [0.4, 0.4, 0.25])
     color = params.get('color', (0.5, 0.5, 0.5))
@@ -139,30 +153,36 @@ def load_box(sim: Simulator, name, params: OrderedDict):
 
     if not fix:
         sim.objects[name] = box
+    else:
+        sim.kinematic_objects[name] = box
     return box
 
 
 def load_scene(sim: Simulator, scene: OrderedDict, warmup=20):
     # ground
+    sim = sim.unwrapped
     OBJ_TYPE = {
         'robot': load_robot,
         'box': load_box,
     }
     for name, param in scene.items():
         if name == 'ground':
-            sim.scene.add_ground(param)
+            if name not in sim.kinematic_objects:
+                sim.scene.add_ground(param)
+                # pass
+                sim.kinematic_objects[name] = 'ground'
+            else:
+                pass
         elif name == 'waypoints':
             sim.costs = load_waypoints(param)
         elif name != 'trajectories':
             OBJ_TYPE[param['type']](sim, name, param)
+    print(sim.agent.get_qpos(), sim.agent.get_qvel())
     for i in range(warmup):
         sim.do_simulation()
+
+    sim._reset = False
     sim.reset()
-
-
-
-def load_trajectory():
-    pass
 
 
 def load_json(filepath):
