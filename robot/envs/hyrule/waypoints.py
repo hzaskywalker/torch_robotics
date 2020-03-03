@@ -116,7 +116,9 @@ class ObjectMove(Waypoint):
 
     @classmethod
     def load(cls, params: OrderedDict):
-        return cls(params['name'], params['target'], params['weight_xyz'], params['weigth_angle'])
+        xx = params['target']
+        assert len(xx) == 3
+        return cls(params['name'], Pose(xx[:3]), params['weight_xyz'], params['weight_angle'])
 
 
 class ControlNorm(Waypoint):
@@ -152,7 +154,7 @@ class WaypointList(Waypoint):
     @classmethod
     def load(cls, params: List):
         # TODO: seems very stupid
-        return WaypointList( [WAYPOINTS[waypoint[0]].load(waypoint[1]) for waypoint in params])
+        return WaypointList(*[WAYPOINTS[waypoint[0]].load(waypoint[1]) for waypoint in params])
 
 
 class Trajectory(Waypoint):
@@ -170,10 +172,8 @@ class Trajectory(Waypoint):
 
     @classmethod
     def load(cls, params: List):
-        return Trajectory([(WaypointList.load(i['list']), i['duration']) for i in params])
+        return Trajectory(*[(WaypointList.load(i['list']), i['duration']) for i in params])
 
 
 def load_waypoints(params):
-    if isinstance(params, list):
-        # a set of waypoints...
-        pass
+    return Trajectory.load(params)

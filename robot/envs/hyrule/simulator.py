@@ -82,8 +82,9 @@ class Simulator:
     """
     Major interface...
     """
-    def __init__(self, dt=0.0025, gravity=(0, 0, -9.8), sim=None):
+    def __init__(self, dt=0.0025, frameskip=4, gravity=(0, 0, -9.8), sim=None):
         self.dt = dt
+        self.frameskip = frameskip
         self.viewer = None
         self._viewers = OrderedDict()
 
@@ -118,6 +119,7 @@ class Simulator:
         self._lock_value = OrderedDict()
 
         self.timestep = 0
+        self.costs = None
 
 
     def seed(self, seed=None):
@@ -170,7 +172,7 @@ class Simulator:
             obj.unpack(vec[l:r])
             l = r
 
-    def step(self):
+    def do_simulation(self):
         self.scene.step()
         self.timestep += 1
 
@@ -178,6 +180,24 @@ class Simulator:
             q = self.objects[name].get_qpos()
             q[item] = self._lock_value[name]
             self.objects[name].set_qpos(q)
+
+    def step(self, action):
+        # do_simulation
+        if len(self._actuator_dof['agent']) > 0:
+            action = np.array(action).clip(-1, 1)
+            qf = np.zeros(self.agent.dof)
+            qf[self._actuator_dof['agent']] = action * self._actuator_range['agent']
+            self.agent.set_qf(qf)
+
+        for i in range(self.frameskip):
+            self.do_simulation()
+        reward = 0
+        if self.costs is not None:
+            reward = - self.costs.cost(self)
+        return None, reward, False, {}
+
+    def _get_obs(self):
+        return None
 
 
     def __del__(self):

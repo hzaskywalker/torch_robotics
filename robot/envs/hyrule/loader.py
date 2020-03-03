@@ -85,7 +85,8 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
 
         if qname in actuator:
             for idx, _name in enumerate(actuator):
-                if _name == qname: actuator_id = idx
+                if _name == qname:
+                    actuator_id = idx
             _actuator_range[actuator_id] = actuator_range[actuator_id]
             _actuator_dof[actuator_id] = dof_count
             _actuator_joint[actuator_id] = joint_id
@@ -114,22 +115,9 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
     agent.set_qpos(initial_qvel)
 
     sim.objects[name] = agent
+    sim.agent = agent
 
     return agent
-
-
-def add_box(scene, x, y, size, color, name, fix=False, density=1000):
-    if isinstance(size, int) or isinstance(size, float):
-        size = np.array([size, size, size])
-    actor_builder = scene.create_actor_builder()
-    actor_builder.add_box_visual(Pose(), size, color, name)
-    actor_builder.add_box_shape(Pose(), size, density=density)
-    box = actor_builder.build(fix)
-
-    pos = Pose(np.array((x, y, size[2]+1e-5)))
-    box.set_pose(pos)
-    box.set_name(name)
-    return box
 
 
 def load_box(sim: Simulator, name, params: OrderedDict):
@@ -163,6 +151,8 @@ def load_scene(sim: Simulator, scene: OrderedDict):
     for name, param in scene.items():
         if name == 'ground':
             sim.scene.add_ground(param)
+        elif name == 'waypoints':
+            sim.cost = load_waypoints(param)
         else:
             OBJ_TYPE[param['type']](sim, name, param)
 
