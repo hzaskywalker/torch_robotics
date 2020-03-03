@@ -1,5 +1,5 @@
 import argparse
-from robot.envs.hyrule.sim3d import Sim3DV2, x2y, Pose
+from robot.envs.hyrule.legacy.sim3d import Sim3DV2, x2y, Pose
 from robot.envs.hyrule.gameplay.optimizer import CEMOptimizer
 
 def main():

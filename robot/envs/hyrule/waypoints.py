@@ -2,8 +2,9 @@
 from typing import List
 import numpy as np
 from transforms3d import quaternions
-from .simulator import Simulator
+from robot.envs.hyrule.simulator import Simulator
 from sapien.core import Pose
+from collections import OrderedDict
 
 
 def calc_dist(A, B):
@@ -59,10 +60,11 @@ class ArmMove(Waypoint):
             xyz, theta = calc_dist(ee_pose, Pose(self.target_pose_p, self.target_pose_q))
         else:
             raise NotImplementedError
+
         cost = 0
         if self.weight_contact > 0:
             cost = self.arm_contact_cost(sim, self.contact_epsilon) * self.weight_contact
-        return  cost + xyz * self.weight_xyz + theta * self.weight_angle
+        return cost + xyz * self.weight_xyz + theta * self.weight_angle
 
 
 class Grasped(Waypoint):
@@ -83,26 +85,6 @@ class Grasped(Waypoint):
                 return 3
             return 0
 
-        """
-        def is_object(actor):
-            #if not isinstance(actor, sap)
-            if actor.get_articulation().name != self.obj_name:
-                return False
-            return True
-        
-        for contact in sim.scene.get_contacts():
-            finger_id_1 = is_finger(contact.actor_1)
-            is_object_1 = is_object(contact.actor_1)
-
-            finger_id_2 = is_finger(contact.actor_2)
-            is_object_2 = is_object(contact.actor_2)
-
-            if finger_id_1 and is_object_2:
-                mm[finger_id_1-1] = min(mm[finger_id_1-1], contact.separation)
-            if finger_id_2 and is_object_1:
-                mm[finger_id_2-1] = min(mm[finger_id_2-1], contact.separation)
-        """
-
         mm = np.zeros(3) + np.inf
         object = sim.objects[self.obj_name]
         cmass = object.pose * object.cmass_local_pose
@@ -112,6 +94,10 @@ class Grasped(Waypoint):
                 link_cmass = link.pose * link.cmass_local_pose
                 mm[finger_id-1] = min(mm[finger_id-1], np.linalg.norm(cmass.p - link_cmass.p))
         return mm.sum() * self.weight # 中心的位置。。
+
+    @classmethod
+    def load(cls, params: OrderedDict):
+        return cls(params['agent'], params['object'], params['weight'])
 
 
 class ObjectMove(Waypoint):
@@ -128,6 +114,29 @@ class ObjectMove(Waypoint):
         xyz, theta = calc_dist(object.pose, Pose(self.target_pose_p, self.target_pose_q))
         return xyz * self.weight_xyz + theta * self.weight_angle
 
+    @classmethod
+    def load(cls, params: OrderedDict):
+        return cls(params['name'], params['target'], params['weight_xyz'], params['weigth_angle'])
+
+
+class ControlNorm(Waypoint):
+    def __init__(self, agent, weight=0.01):
+        super(ControlNorm, self).__init__(agent)
+        self.weight = weight
+
+    def cost(self, sim: Simulator):
+        return (sim.objects[self.agent].get_qf()**2).sum() * self.weight
+
+    @classmethod
+    def load(cls, params: OrderedDict):
+        return cls(params['name'], params['weight'])
+
+
+WAYPOINTS = OrderedDict(
+    GRASP = Grasped,
+    MOVEOBJ = ObjectMove,
+    CTRLNORM = ControlNorm
+)
 
 class WaypointList(Waypoint):
     def __init__(self, *args):
@@ -140,14 +149,10 @@ class WaypointList(Waypoint):
             total += i.cost(sim)
         return total
 
-
-class ControlNorm(Waypoint):
-    def __init__(self, agent, weight=0.01):
-        super(ControlNorm, self).__init__(agent)
-        self.weight = weight
-
-    def cost(self, sim: Simulator):
-        return (sim.objects[self.agent].get_qf()**2).sum() * self.weight
+    @classmethod
+    def load(cls, params: List):
+        # TODO: seems very stupid
+        return WaypointList( [WAYPOINTS[waypoint[0]].load(waypoint[1]) for waypoint in params])
 
 
 class Trajectory(Waypoint):
@@ -162,3 +167,13 @@ class Trajectory(Waypoint):
             if cur + t > sim.timestep:
                 break
         return cost.cost(sim)
+
+    @classmethod
+    def load(cls, params: List):
+        return Trajectory([(WaypointList.load(i['list']), i['duration']) for i in params])
+
+
+def load_waypoints(params):
+    if isinstance(params, list):
+        # a set of waypoints...
+        pass

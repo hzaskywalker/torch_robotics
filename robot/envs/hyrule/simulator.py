@@ -1,7 +1,5 @@
 import numpy as np
 from gym.utils import seeding
-from .parameters import Parameter
-import logging
 from transforms3d.quaternions import qmult, rotate_vector, axangle2quat
 from robot.envs.sapien.camera import CameraRender
 from collections import OrderedDict
@@ -84,8 +82,8 @@ class Simulator:
     """
     Major interface...
     """
-    def __init__(self, timestep=0.0025, gravity=(0, 0, -9.8), sim=None):
-        self.timestep = timestep
+    def __init__(self, dt=0.0025, gravity=(0, 0, -9.8), sim=None):
+        self.dt = dt
         self.viewer = None
         self._viewers = OrderedDict()
 
@@ -93,14 +91,6 @@ class Simulator:
             'render.modes': ['human'],
             'video.frames_per_second': int(np.round(1.0 / self.dt))
         })
-
-
-        # --------------------- constrain system .................
-        self._instr_set = OrderedDict()
-        self._constraints = []
-
-        # --------------------- Parameter system .................
-        self.parameters = []
 
         # --------------------- constrain system .................
         if sim is None:
@@ -111,7 +101,7 @@ class Simulator:
             self.sim = sim
             self._optifuser = self.sim.get_renderer()
         self.scene: sapien_core.Scene = self.sim.create_scene(gravity=np.array(gravity), solver_type=sapien_core.SolverType.PGS)
-        self.scene.set_timestep(timestep)
+        self.scene.set_timestep(dt)
 
         self.seed()
 
@@ -120,36 +110,20 @@ class Simulator:
 
         # actuator system ........................................
         self._actuator_range = OrderedDict()
-        self._actuator_dof_idx = OrderedDict()
-        self._actuator_joitn_idx = OrderedDict()
+        self._actuator_dof = OrderedDict()
+        self._actuator_joint = OrderedDict()
         self._ee_link_idx = OrderedDict()
 
-        self.build_scene()
+        self._lock_dof = OrderedDict()
+        self._lock_value = OrderedDict()
 
-    def add_force_actuator(self, name: str, dof_idx: int, low: float, high: float, joint_idx: int):
-        _dof_idx = self._actuator_dof_idx.get(name, np.array([], dtype=np.int))
-        _joint_idx = self._actuator_joitn_idx.get(name, np.array([], dtype=np.int))
-        _range = self._actuator_range.get(name, np.zeros([0, 2]))
+        self.timestep = 0
 
-        self._actuator_dof_idx[name] = np.append(_dof_idx, [dof_idx])
-        self._actuator_joitn_idx[name] = np.append(_joint_idx, [joint_idx])
-        self._actuator_range[name] = np.append(_range, np.array([[low, high]]), axis=0)
-
-    @property
-    def dt(self):
-        return self.timestep
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def viewer_setup(self):
-        """
-        This method is called when the viewer is initialized.
-        Optionally implement this method, if you need to tinker with camera position
-        and so forth.
-        """
-        self.build_renderer()
 
     def _get_viewer(self, mode):
         self._renderer = self._viewers.get(mode)
@@ -176,19 +150,6 @@ class Simulator:
             time.sleep(sleep)
         return tmp
 
-    def add_constraints(self, constraint):
-        if not constraint.prerequisites(self):
-            logging.warning("Add constraint failed")
-            return self
-
-        self._constraints.append(constraint)
-        k = np.argsort([i.priority for i in self._constraints])
-        self._constraints = [self._constraints[i] for i in k]
-        return self
-
-    def remove_constraints(self, constraints):
-        self._constraints.remove(constraints)
-
     def state_dict(self):
         return dict([(name, load_sapien_state(obj)) for name, obj in self.objects.items()])
 
@@ -197,103 +158,39 @@ class Simulator:
             set_sapien_state(self.objects[name], value)
 
     def state_vector(self):
-        return np.concatenate([np.array(obj.pack()) for name, obj in self.objects.items()])
+        return np.concatenate([[self.timestep]] + [np.array(obj.pack()) for name, obj in self.objects.items()])
 
     def load_state_vector(self, vec):
+        self.timestep = int(vec[0])
+
+        vec = vec[1:]
         l = 0
         for name, obj in self.objects.items():
             r = l + len(obj.pack())
             obj.unpack(vec[l:r])
             l = r
 
-    def set_param(self, parameters):
-        l = 0
-        for j in self.parameters:
-            r = l + j.size
-            j.update(parameters[l:r])
-            l = r
-
-    def do_simulation(self, constraints=None):
-        for i in self.parameters:
-            i.forward(self)
-        if constraints is not None:
-            for i in constraints:
-                i.preprocess(self)
-
-        self.step_scene()
-        if constraints is not None:
-            for i in constraints:
-                i.postprocess(self)
-
-    def step_scene(self):
-        self.scene.step()
-
-    def cost(self, state=None, constraints=None):
-        """
-        do one step simulation, return the violated constraints
-        if state is not none, reset the state
-        if the constraints are None, use the constraints of the simulator
-        """
-        if state is not None:
-            self.load_state_dict(state)
-        if constraints is None:
-            constraints = self._constraints
-        self.do_simulation(constraints)
-        new_state = self.state_dict()
-        total_cost = 0
-        for i in constraints:
-            total_cost += i.cost(self, state, new_state)
-        return total_cost
-
-    def solve(self, state, constraints):
-        # assume constraints are sortest from the small to large
-        cur = self.cost(state, constraints)
-        while cur != 0:
-            for i in range(len(constraints)):
-                new_constrain = [constraints[j] for j in range(len(constraints)) if j!=i]
-                tmp = self.cost(state, new_constrain)
-                if tmp < cur:
-                    cur = tmp
-                    constraints = new_constrain
-                    break
-        return constraints
-
     def step(self):
-        if len(self._constraints) == 0:
-            self.do_simulation()
-            return self
-        state = self.state_dict()
-        constraints = self.solve(state, self._constraints)
-        self._constraints = [i for i in constraints if i.perpetual]
-        return self
+        self.scene.step()
+        self.timestep += 1
 
-    def build_scene(self):
-        raise NotImplementedError
+        for name, item in self._lock_dof.items():
+            q = self.objects[name].get_qpos()
+            q[item] = self._lock_value[name]
+            self.objects[name].set_qpos(q)
 
-    def build_renderer(self):
-        raise NotImplementedError
 
     def __del__(self):
         self.scene = None
 
-    def register(self, name, type):
-        self._instr_set[name] = type
-        return self
 
-    def __setattr__(self, key, value):
-        if isinstance(value, Parameter):
-            self.parameters.append(value)
-        super(Simulator, self).__setattr__(key, value)
+    def viewer_setup(self):
+        self.scene.set_ambient_light([.4, .4, .4])
+        self.scene.set_shadow_light([1, -1, -1], [.5, .5, .5])
+        self.scene.add_point_light([2, 2, 2], [1, 1, 1])
+        self.scene.add_point_light([2, -2, 2], [1, 1, 1])
+        self.scene.add_point_light([-2, 0, 2], [1, 1, 1])
 
-    def __getattr__(self, item):
-        if item in self.objects:
-            return self.objects[item]
-        if item in self._instr_set:
-            out = self._instr_set[item]
-            def run(*args, **kwargs):
-                self.add_constraints(out(*args, **kwargs))
-                return self
-            return run
-        else:
-            raise AttributeError(f"No registered instruction {item}")
-
+        self._renderer.set_camera_position(3, -1.5, 1.65)
+        self._renderer.set_camera_rotation(-3.14 - 0.5, -0.2)
+        self._renderer.set_current_scene(self.scene)

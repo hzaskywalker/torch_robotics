@@ -1,6 +1,5 @@
 import argparse
-import time
-from robot.envs.hyrule.sim3d import Sim3D
+from robot.envs.hyrule.legacy.sim3d import Sim3D
 
 def main():
     parser = argparse.ArgumentParser()

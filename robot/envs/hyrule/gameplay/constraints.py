@@ -1,5 +1,3 @@
-from .simulator import Simulator
-
 class Constraint:
     def __init__(self, priority, perpetual=True):
         self.priority = priority

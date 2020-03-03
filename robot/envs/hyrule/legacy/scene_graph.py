@@ -1,6 +1,6 @@
 import numpy as np
 from transforms3d import quaternions
-from .gameplay import Constraint, Simulator
+from robot.envs.hyrule.gameplay import Constraint, Simulator
 
 def calc_dist(A, B):
     xyz_dist = np.linalg.norm(A.p - B.p)

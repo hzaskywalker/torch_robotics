@@ -1,9 +1,9 @@
 import numpy as np
 import pickle
 import argparse
-from robot.envs.hyrule.table_world import TableWorld, SetQF, Pose
+from robot.envs.hyrule.legacy.table_world import TableWorld, SetQF, Pose
 from robot.envs.hyrule.gameplay.optimizer import CEMOptimizer
-from robot.envs.hyrule.gameplay.waypoints import ArmMove, ObjectMove, Grasped, WaypointList, ControlNorm, Trajectory
+from robot.envs.hyrule.waypoints import ObjectMove, Grasped, WaypointList, ControlNorm, Trajectory
 
 
 import gym

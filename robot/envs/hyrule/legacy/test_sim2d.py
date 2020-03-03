@@ -1,6 +1,5 @@
 import argparse
-import time
-from robot.envs.hyrule.sim2d import Sim2D, Fixed
+from robot.envs.hyrule.legacy.sim2d import Sim2D, Fixed
 
 def main():
     parser = argparse.ArgumentParser()

@@ -3,8 +3,8 @@
 # first we need to make the simulator and the world body (which is the register
 # we need define
 import numpy as np
-from .gameplay.simulator import Simulator, Pose, PxIdentity, x2y, add_link, sapien_core
-from .gameplay import Constraint
+from robot.envs.hyrule.simulator import Simulator, Pose, PxIdentity, x2y, add_link
+from robot.envs.hyrule.gameplay import Constraint
 
 # define the sim
 class Sim2D(Simulator):

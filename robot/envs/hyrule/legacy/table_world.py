@@ -1,8 +1,8 @@
 import numpy as np
 import json
-from .gameplay.simulator import Simulator, PxIdentity
-from .gameplay.parameters import Parameter
-from .sim3d import Sim3D, sapien_core, read_part_mobility, Pose, x2y
+from robot.envs.hyrule.simulator import Simulator, PxIdentity
+from robot.envs.hyrule.gameplay.parameters import Parameter
+from .sim3d import Sim3D, sapien_core, read_part_mobility, Pose
 import sapien
 
 def id2boundingbox(id):

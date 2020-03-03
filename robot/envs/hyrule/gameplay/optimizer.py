@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from .simulator import Simulator
+from robot.envs.hyrule.simulator import Simulator
 from robot.controller.cem import CEM
 
 class Optimizer:

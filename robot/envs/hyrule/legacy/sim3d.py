@@ -2,8 +2,8 @@ import numpy as np
 import sapien
 import sapien.core as sapien_core
 import os
-from .gameplay.simulator import Simulator, PxIdentity, x2y, add_link, Pose
-from .gameplay import Constraint, Parameter
+from robot.envs.hyrule.simulator import Simulator, x2y, Pose
+from robot.envs.hyrule.gameplay import Constraint, Parameter
 
 def get_assets_path() -> str:
     #root = get_project_root()
