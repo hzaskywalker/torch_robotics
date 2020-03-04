@@ -44,14 +44,14 @@ def test():
             ],
             duration=50,
         ),
-        OrderedDict(
-            list=[
-                ['GRASP', dict(agent='agent', object='box', weight=1)],
-                ['MOVEOBJ', dict(name='box', target=[0.8, -0.2, 0.55], weight_xyz=2, weight_angle=0)],
-                #['CTRLNORM', dict(name='agent', weight=0.0001)],
-            ],
-            duration=50,
-        )
+        #OrderedDict(
+        #    list=[
+        #        ['GRASP', dict(agent='agent', object='box', weight=1)],
+        #        ['MOVEOBJ', dict(name='box', target=[0.8, -0.2, 0.55], weight_xyz=2, weight_angle=0)],
+        #        #['CTRLNORM', dict(name='agent', weight=0.0001)],
+        #    ],
+        #    duration=50,
+        #)
     ]
 
     params['waypoints'] = waypoints
