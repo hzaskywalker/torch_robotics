@@ -111,7 +111,7 @@ class Grasped(Waypoint):
         achieved = np.array(achieved)
         if len(achieved.shape) == 1: achieved = achieved[0]
         else: achieved = achieved[..., 0]
-        return achieved * self.weight
+        return achieved.clip(0, 3) * self.weight
 
 
 class ObjectMove(Waypoint):
@@ -135,7 +135,7 @@ class ObjectMove(Waypoint):
         return sim.objects[self.agent].pose.p, self.target_pose_p
 
     def compute_cost(self, achieved, target, info=None):
-        return self.weight_xyz * np.linalg.norm(target - achieved, axis=-1)
+        return self.weight_xyz * np.linalg.norm(target - achieved, axis=-1).clip(0, 1)
 
 
 class ControlNorm(Waypoint):
