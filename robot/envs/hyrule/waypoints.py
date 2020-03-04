@@ -43,34 +43,25 @@ class Waypoint:
 
 class ArmMove(Waypoint):
     # move to desired position without contact with others
-    def __init__(self, agent, target_pose, target_obj=None, contact_epsilon=0.01,
-                 weight_xyz=1., weight_angle=0., weight_contact=1.):
+    def __init__(self, agent, target, weight=1.):
         super(ArmMove, self).__init__(agent)
 
-        self.target_pose_p = np.array(target_pose.p)
-        self.target_pose_q = np.array(target_pose.q)
-        self.target_obj = target_obj
-        self.contact_epsilon = contact_epsilon
+        self.target = np.array(target)
+        self.weight = weight
+        self._goal_dim = 3
 
-        self.weight_xyz = weight_xyz
-        self.weight_angle = weight_angle
-        self.weight_contact = weight_contact
+    @classmethod
+    def load(cls, params: OrderedDict):
+        return cls(params['agent'], params['target'], params['weight'])
 
-
-    def cost(self, sim: Simulator):
+    def _get_obs(self, sim: Simulator):
         agent = sim.objects[self.agent]
         ee_idx = sim._ee_link_idx[self.agent]
         ee_pose = agent.get_links()[ee_idx].pose
+        return ee_pose.p, self.target
 
-        if self.target_obj is None:
-            xyz, theta = calc_dist(ee_pose, Pose(self.target_pose_p, self.target_pose_q))
-        else:
-            raise NotImplementedError
-
-        cost = 0
-        if self.weight_contact > 0:
-            cost = self.arm_contact_cost(sim, self.contact_epsilon) * self.weight_contact
-        return cost + xyz * self.weight_xyz + theta * self.weight_angle
+    def compute_cost(self, achieved, target, info):
+        return self.weight * np.linalg.norm(achieved - target)
 
 
 class Grasped(Waypoint):
@@ -154,7 +145,8 @@ class ControlNorm(Waypoint):
 WAYPOINTS = OrderedDict(
     GRASP = Grasped,
     MOVEOBJ = ObjectMove,
-    CTRLNORM = ControlNorm
+    CTRLNORM = ControlNorm,
+    MOVEARM = ArmMove
 )
 
 
@@ -182,12 +174,11 @@ class WaypointList(Waypoint):
     def compute_cost(self, achieved, desired, info):
         r = 0
         for cost in self.args:
-            if cost._goal_dim > 0:
-                p = [cost._goal_dim,]
-                _achieved, achieved = np.split(achieved, p, axis=-1)
-                assert _achieved.shape[-1] == cost._goal_dim
-                _desired, desired = np.split(desired, p, axis=-1)
-                r += cost.compute_cost(_achieved, _desired, info)
+            p = [cost._goal_dim,]
+            _achieved, achieved = np.split(achieved, p, axis=-1)
+            assert _achieved.shape[-1] == cost._goal_dim
+            _desired, desired = np.split(desired, p, axis=-1)
+            r += cost.compute_cost(_achieved, _desired, info)
         return r
 
 

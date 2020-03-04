@@ -18,28 +18,31 @@ def test():
                       'right_gripper_finger3_joint',
                       'right_gripper_finger2_joint',
                       'right_gripper_finger1_joint'],
-            actuator_range = [[-50, 50] for i in range(7)] + [[-5, 5] for i in range(3)]
+            actuator_range = [[-50, 50] for i in range(7)] + [[-5, 5] for i in range(3)],
+            ee="right_ee_link",
         ),
-        table=OrderedDict(
-            type='box',
-            density=100000,
-            fix=True,
-        ),
-        box=OrderedDict(
-            type='box',
-            density=1000,
-            center=[0.8, 0, 0.5 + 0.02],
-            size=[0.02, 0.02, 0.02],
-            color=[0, 1, 0],
-            fix=False,
-        )
     )
+
+    """
+    table=OrderedDict(
+        type='box',
+        density=100000,
+        fix=True,
+    ),
+    box=OrderedDict(
+        type='box',
+        density=1000,
+        center=[0.8, 0, 0.5 + 0.02],
+        size=[0.02, 0.02, 0.02],
+        color=[0, 1, 0],
+        fix=False,
+    )"""
 
     waypoints = [
         OrderedDict(
             list=[
-                ['GRASP', dict(agent='agent', object='box', weight=1)],
-                ['MOVEOBJ', dict(name='box', target=[0.9, 0.2, 1.], weight_xyz=2, weight_angle=0)],
+                ['MOVEARM', dict(agent='agent', target=[0.9, 0.2, 1], weight=1)],
+                #['MOVEOBJ', dict(name='box', target=[0.9, 0.2, 1.], weight_xyz=2, weight_angle=0)],
                 #['CTRLNORM', dict(name='agent', weight=0.0001)]
             ],
             duration=50,
@@ -61,7 +64,7 @@ def test():
 
     env.reset()
     dump_json('x.json', params)
-    print(env.costs)
+    print(env._ee_link_idx)
     exit(0)
     #print(env.action_space, env.observation_space)
     for i in range(10000):
