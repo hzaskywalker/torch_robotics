@@ -1,3 +1,4 @@
+# we should not use reset...
 import argparse
 from robot.envs.sapien.exp.utils import RLRecorder
 from robot.controller.her.ddpg_agent import DDPGAgent

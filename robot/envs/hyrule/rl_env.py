@@ -10,7 +10,7 @@ import numpy as np
 class RLEnv(Simulator):
     def __init__(self, param_path):
         super(RLEnv, self).__init__()
-        self.params = [os.path.join(param_path, i) for i in os.listdir(param_path)]
+        self.params = [os.path.join(param_path, i) for i in sorted(os.listdir(param_path))]
         self._param_path = None
 
     def reset(self, filepath=None):
@@ -20,6 +20,7 @@ class RLEnv(Simulator):
                 filepath = self._param_path
             else:
                 filepath = self.params[0]
+                print(self.params[0])
 
         if self._param_path != filepath:
             self._param_path = filepath

@@ -21,10 +21,12 @@ def main():
             z = np.random.random() * 0.5  + 0.5
             base['waypoints'][0]['list'][1][1]['target'] = [x, y, z]
 
+            """
             x = np.random.random() * (1.0 - 0.5) + 0.5
             y = np.random.random() * (0.3 + 0.3) - 0.3
             z = np.random.random() * 0.5  + 0.5
             base['waypoints'][1]['list'][1][1]['target'] = [x, y, z]
+            """
 
         dump_json(f'scenes/{i}.json', base)
 

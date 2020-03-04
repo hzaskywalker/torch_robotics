@@ -177,10 +177,12 @@ class Simulator(Env):
         self.scene.step()
         self.timestep += 1
 
+        """
         for name, item in self._lock_dof.items():
             q = self.objects[name].get_qpos()
             q[item] = self._lock_value[name]
             self.objects[name].set_qpos(q)
+            """
 
     def reset(self):
         # pass
