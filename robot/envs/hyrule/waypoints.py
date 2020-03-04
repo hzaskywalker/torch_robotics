@@ -12,6 +12,7 @@ def calc_dist(A, B):
     theta = quaternions.quat2axangle(quaternions.qmult(A.q, quaternions.qinverse(B.q)))[1]
     return xyz_dist, theta
 
+
 def arm_contact_cost(self, sim, epsilon=0.01, allowed=None):
     assert  epsilon > 0
     ans = 0
@@ -25,6 +26,7 @@ def arm_contact_cost(self, sim, epsilon=0.01, allowed=None):
                 continue
         ans += max(epsilon-i.separation, 0)/epsilon # if i.separation < epsilon, linear, otherwise, 0. When i.separation is 0, it's one
     return ans
+
 
 class Waypoint:
     def __init__(self, agent):
@@ -198,7 +200,6 @@ class Trajectory(Waypoint):
     @classmethod
     def load(cls, params: List):
         return Trajectory(*[(WaypointList.load(i['list']), i['duration']) for i in params])
-
 
 
 def load_waypoints(params):
