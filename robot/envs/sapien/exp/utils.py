@@ -100,7 +100,8 @@ class RLRecorder:
                  eval_episodes=10,
                  save_video=0,
                  max_timestep=None,
-                 tb=True):
+                 tb=True, make=None):
+        self.make = make
 
         assert isinstance(network_loss, slice) or isinstance(network_loss, int) or network_loss is None
         assert isinstance(evaluate, slice) or isinstance(evaluate, int) or evaluate is None
@@ -175,7 +176,10 @@ class RLRecorder:
 
         if self.on_time(self.episode, self.evaluate):
             if isinstance(self.env, str):
-                self.env =  make(self.env)
+                if self.make is None:
+                    self.env =  make(self.env)
+                else:
+                    self.env = self.make(self.env)
             kwargs['reward_eval'] = eval_policy(agent, self.env, eval_episodes=self.eval_episodes, save_video=self.save_video,
                                                 video_path=os.path.join(self.path, "video{}.avi"))
 

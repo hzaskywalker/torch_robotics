@@ -177,7 +177,6 @@ def load_scene(sim: Simulator, scene: OrderedDict, warmup=20):
             sim.costs = load_waypoints(param)
         elif name != 'trajectories':
             OBJ_TYPE[param['type']](sim, name, param)
-    print(sim.agent.get_qpos(), sim.agent.get_qvel())
     for i in range(warmup):
         sim.do_simulation()
 

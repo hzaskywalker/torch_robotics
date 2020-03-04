@@ -12,26 +12,32 @@ def calc_dist(A, B):
     theta = quaternions.quat2axangle(quaternions.qmult(A.q, quaternions.qinverse(B.q)))[1]
     return xyz_dist, theta
 
+def arm_contact_cost(self, sim, epsilon=0.01, allowed=None):
+    assert  epsilon > 0
+    ans = 0
+    for i in sim.scene.get_contacts():
+        is_arm1 = 'right_' in i.actor1.name
+        is_arm2 = 'right_' in i.actor2.name
+        if (not is_arm1 and not is_arm2) or (is_arm1 and is_arm2):
+            continue
+        if allowed is not None:
+            if allowed == i.actor1.name or allowed == i.actor2.name:
+                continue
+        ans += max(epsilon-i.separation, 0)/epsilon # if i.separation < epsilon, linear, otherwise, 0. When i.separation is 0, it's one
+    return ans
 
 class Waypoint:
     def __init__(self, agent):
         self.agent = agent
-
-    def arm_contact_cost(self, sim, epsilon=0.01, allowed=None):
-        assert  epsilon > 0
-        ans = 0
-        for i in sim.scene.get_contacts():
-            is_arm1 = 'right_' in i.actor1.name
-            is_arm2 = 'right_' in i.actor2.name
-            if (not is_arm1 and not is_arm2) or (is_arm1 and is_arm2):
-                continue
-            if allowed is not None:
-                if allowed == i.actor1.name or allowed == i.actor2.name:
-                    continue
-            ans += max(epsilon-i.separation, 0)/epsilon # if i.separation < epsilon, linear, otherwise, 0. When i.separation is 0, it's one
-        return ans
+        self._goal_dim = 0
 
     def cost(self, sim):
+        return self.compute_cost(*self._get_obs(sim), None)
+
+    def _get_obs(self, sim: Simulator):
+        return None, None
+
+    def compute_cost(self, achieved, target, info):
         raise NotImplementedError
 
 
@@ -73,7 +79,13 @@ class Grasped(Waypoint):
         self.obj_name = obj_name
         self.weight = weight
 
-    def cost(self, sim: Simulator):
+        self._goal_dim = 1
+
+    @classmethod
+    def load(cls, params: OrderedDict):
+        return cls(params['agent'], params['object'], params['weight'])
+
+    def _get_obs(self, sim: Simulator):
         agent = sim.objects[self.agent]
 
         def is_finger(actor):
@@ -93,11 +105,13 @@ class Grasped(Waypoint):
             if finger_id:
                 link_cmass = link.pose * link.cmass_local_pose
                 mm[finger_id-1] = min(mm[finger_id-1], np.linalg.norm(cmass.p - link_cmass.p))
-        return mm.sum() * self.weight # 中心的位置。。
+        return (mm.sum(),), (0,)
 
-    @classmethod
-    def load(cls, params: OrderedDict):
-        return cls(params['agent'], params['object'], params['weight'])
+    def compute_cost(self, achieved, target, info):
+        achieved = np.array(achieved)
+        if len(achieved.shape) == 1: achieved = achieved[0]
+        else: achieved = achieved[..., 0]
+        return achieved * self.weight
 
 
 class ObjectMove(Waypoint):
@@ -108,17 +122,20 @@ class ObjectMove(Waypoint):
 
         self.weight_xyz = weight_xyz
         self.weight_angle = weight_angle
-
-    def cost(self, sim: Simulator):
-        object = sim.objects[self.agent]
-        xyz, theta = calc_dist(object.pose, Pose(self.target_pose_p, self.target_pose_q))
-        return xyz * self.weight_xyz + theta * self.weight_angle
+        assert self.weight_angle == 0
+        self._goal_dim = 3
 
     @classmethod
     def load(cls, params: OrderedDict):
         xx = params['target']
         assert len(xx) == 3
         return cls(params['name'], Pose(xx[:3]), params['weight_xyz'], params['weight_angle'])
+
+    def _get_obs(self, sim: Simulator):
+        return sim.objects[self.agent].pose.p, self.target_pose_p
+
+    def compute_cost(self, achieved, target, info=None):
+        return self.weight_xyz * np.linalg.norm(target - achieved, axis=-1)
 
 
 class ControlNorm(Waypoint):
@@ -140,21 +157,38 @@ WAYPOINTS = OrderedDict(
     CTRLNORM = ControlNorm
 )
 
+
 class WaypointList(Waypoint):
     def __init__(self, *args):
         object.__init__(self)
         self.args: List[Waypoint] = args
 
-    def cost(self, sim: Simulator):
-        total = 0
-        for i in self.args:
-            total += i.cost(sim)
-        return total
-
     @classmethod
     def load(cls, params: List):
         # TODO: seems very stupid
         return WaypointList(*[WAYPOINTS[waypoint[0]].load(waypoint[1]) for waypoint in params])
+
+    def _get_obs(self, sim: Simulator):
+        achieved_goal = []
+        desired_goal = []
+        for cost in self.args:
+            achieved, target = cost._get_obs(sim)
+            if achieved is not None:
+                achieved_goal.append(achieved)
+            if target is not None:
+                desired_goal.append(target)
+        return np.concatenate(achieved_goal), np.concatenate(desired_goal)
+
+    def compute_cost(self, achieved, desired, info):
+        r = 0
+        for cost in self.args:
+            if cost._goal_dim > 0:
+                p = [cost._goal_dim,]
+                _achieved, achieved = np.split(achieved, p, axis=-1)
+                assert _achieved.shape[-1] == cost._goal_dim
+                _desired, desired = np.split(desired, p, axis=-1)
+                r += cost.compute_cost(_achieved, _desired, info)
+        return r
 
 
 class Trajectory(Waypoint):
@@ -173,6 +207,7 @@ class Trajectory(Waypoint):
     @classmethod
     def load(cls, params: List):
         return Trajectory(*[(WaypointList.load(i['list']), i['duration']) for i in params])
+
 
 
 def load_waypoints(params):
