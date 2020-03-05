@@ -11,9 +11,9 @@ class RLEnv(Simulator):
     def __init__(self, param_path):
         super(RLEnv, self).__init__()
         self.params = [os.path.join(param_path, i) for i in sorted(os.listdir(param_path))]
-        self._param_path = None
 
-    def reset(self, filepath=None):
+    def reload_param(self, filepath):
+        self._param_path = None
         # pass
         if filepath is None:
             if self._param_path is not None:
@@ -27,6 +27,7 @@ class RLEnv(Simulator):
             load_scene(self, load_json(self._param_path))
             return self.reset()
 
+    def reset(self, filepath=None):
         if not self._reset:
             self._start_state = self.state_vector().copy()
             obs = self._get_obs()
@@ -77,3 +78,35 @@ class RLEnv(Simulator):
     def compute_reward(self, achieved_goal, desired_goal, info=None):
         # TODO: hack now, I don't want to implement a pickable reward system...
         return -self.get_current_cost().compute_cost(achieved_goal, desired_goal, info)
+
+
+class ReachEnv(RLEnv):
+    def __init__(self):
+        super(ReachEnv, self).__init__(param_path=None)
+
+    def reset(self, filepath=None):
+        if self._param_path != filepath:
+            from collections import OrderedDict
+            params = OrderedDict(
+                ground=0,
+                agent=OrderedDict(
+                    type='robot',
+                    lock=['pan_joint', 'tilt_joint', 'linear_joint'],
+                    lock_value=[0, 0, 0],
+                    actuator=['right_shoulder_pan_joint',
+                              'right_shoulder_lift_joint',
+                              'right_arm_half_joint',
+                              'right_elbow_joint',
+                              'right_wrist_spherical_1_joint',
+                              'right_wrist_spherical_2_joint',
+                              'right_wrist_3_joint',
+                              'right_gripper_finger3_joint',
+                              'right_gripper_finger2_joint',
+                              'right_gripper_finger1_joint'],
+                    actuator_range=[[-50, 50] for i in range(7)] + [[-5, 5] for i in range(3)],
+                    ee="right_ee_link",
+                ),
+            )
+            self.params.append(1)
+            self._param_path = 1
+            return load_scene(self, params)

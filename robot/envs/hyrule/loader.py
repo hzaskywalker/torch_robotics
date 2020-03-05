@@ -184,7 +184,7 @@ def load_scene(sim: Simulator, scene: OrderedDict, warmup=20):
         sim.do_simulation()
 
     sim._reset = False
-    sim.reset()
+    return sim.reset()
 
 
 def load_json(filepath):
