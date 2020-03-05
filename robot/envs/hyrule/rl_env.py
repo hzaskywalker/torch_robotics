@@ -11,7 +11,7 @@ from .cost import ArmMove
 
 
 class ArmReach(Simulator):
-    def __init__(self, reward_type='dense', eps=0.03, jacobian=False):
+    def __init__(self, reward_type='dense', eps=0.06, jacobian=False):
         Simulator.__init__(self)
 
         assert reward_type in ['dense', 'sparse']
@@ -143,4 +143,4 @@ class ArmReach(Simulator):
         if self.reward_type == 'dense':
             return - d
         else:
-            return -(d < self.eps).astype(np.float32)
+            return -(d > self.eps).astype(np.float32)

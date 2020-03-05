@@ -6,9 +6,8 @@ from gym.wrappers import TimeLimit
 
 
 def make(env_name):
-    from robot.envs.hyrule.rl_env import RLEnv
-    env = RLEnv(env_name)
-    env.reset()
+    from robot.envs.hyrule.rl_env import ArmReach
+    env = ArmReach('sparse')
     env = TimeLimit(env, 50)
     return env
 
@@ -21,8 +20,8 @@ def main():
     parser.add_argument('--num_epoch', type=int, default=1000000)
     parser.add_argument('--timestep', type=int, default=50)
     parser.add_argument('--n_batch', type=int, default=50)
-    parser.add_argument('--noise_eps', type=float, default=0.1)
-    parser.add_argument('--random_eps', type=float, default=0.1)
+    parser.add_argument('--noise_eps', type=float, default=0.2)
+    parser.add_argument('--random_eps', type=float, default=0.2)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--future_K', type=int, default=4) #set this to 0 to avoid use her
     parser.add_argument('--gamma', type=float, default=0.98)
