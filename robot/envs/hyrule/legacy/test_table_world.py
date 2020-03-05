@@ -3,7 +3,7 @@ import pickle
 import argparse
 from robot.envs.hyrule.legacy.table_world import TableWorld, SetQF, Pose
 from robot.envs.hyrule.gameplay.optimizer import CEMOptimizer
-from robot.envs.hyrule.waypoints import ObjectMove, Grasped, WaypointList, ControlNorm, Trajectory
+from robot.envs.hyrule.cost import ObjectMove, Grasped, CostList, ControlNorm, Trajectory
 
 
 import gym
@@ -32,12 +32,12 @@ class Env(gym.Env):
         self.sim.timestep = 0
 
         self.cost = Trajectory(
-            (WaypointList(
+            (CostList(
                 ObjectMove('box', Pose([0.9, 0.2, 1.]), 2., 0.),
                 Grasped('agent', 'box', 1),
                 ControlNorm('agent', 0.0001)
             ), 50),
-            (WaypointList(
+            (CostList(
                 ObjectMove('box', Pose([0.8, -0.2, 0.55]), 2, 0),
                 Grasped('agent', 'box', 1),
                 ControlNorm('agent', 0.0001)
@@ -107,7 +107,7 @@ def main():
     sim = make()
 
     #cost = ArmMove('agent', Pose([0.9, 0.2, 1.1]), None, 0.01, 1., 0, 0.)
-    cost = WaypointList(
+    cost = CostList(
         ObjectMove('box', Pose([0.9, 0.2, 1.]), 2., 0.),
         Grasped('agent', 'box', 1)
     )

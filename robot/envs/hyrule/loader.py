@@ -8,7 +8,6 @@ import sapien.core as sapien_core
 from sapien.core import Pose
 
 from .simulator import Simulator
-from .waypoints import load_waypoints
 
 
 PxIdentity = np.array([1, 0, 0, 0])
@@ -92,8 +91,6 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
                 if _name == qname: lock_id = idx
             _lock_dof[lock_id] = dof_count
             _lock_value[lock_id] = lock_value[lock_id]
-            #joint.set_drive_property(100000, 100000)
-            #joint.set_drive_target(lock_value[lock_id])
             joint.set_limits([[lock_value[lock_id], lock_value[lock_id]+1e-5]])
 
         if qname in actuator:
@@ -168,6 +165,7 @@ def load_scene(sim: Simulator, scene: OrderedDict, warmup=20):
         'robot': load_robot,
         'box': load_box,
     }
+
     for name, param in scene.items():
         if name == 'ground':
             if name not in sim.kinematic_objects:
@@ -176,15 +174,11 @@ def load_scene(sim: Simulator, scene: OrderedDict, warmup=20):
                 sim.kinematic_objects[name] = 'ground'
             else:
                 pass
-        elif name == 'waypoints':
-            sim.costs = load_waypoints(param)
-        elif name != 'trajectories':
+        else:
             OBJ_TYPE[param['type']](sim, name, param)
+
     for i in range(warmup):
         sim.do_simulation()
-
-    sim._reset = False
-    return sim.reset()
 
 
 def load_json(filepath):

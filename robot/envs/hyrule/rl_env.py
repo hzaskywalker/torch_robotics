@@ -1,75 +1,137 @@
 # Goal-conditioned Environment...
 import gym
 import os
+from collections import OrderedDict
+from sapien.core import Pose
 from gym.spaces import Box, Dict
 from .simulator import Simulator
-from .loader import load_scene, load_json
+from .loader import load_scene
 import numpy as np
+from .cost import ArmMove
 
 
-class RLEnv(Simulator):
-    def __init__(self, param_path):
-        super(RLEnv, self).__init__()
-        self.params = [os.path.join(param_path, i) for i in sorted(os.listdir(param_path))]
+class ArmReach(Simulator):
+    def __init__(self, reward_type='dense', eps=0.03, jacobian=False):
+        Simulator.__init__(self)
 
-    def reload_param(self, filepath):
-        self._param_path = None
-        # pass
-        if filepath is None:
-            if self._param_path is not None:
-                filepath = self._param_path
-            else:
-                filepath = self.params[0]
-                print(self.params[0])
+        assert reward_type in ['dense', 'sparse']
+        self.eps = eps
+        self.jacobian = jacobian
 
-        if self._param_path != filepath:
-            self._param_path = filepath
-            load_scene(self, load_json(self._param_path))
-            return self.reset()
+        params = OrderedDict(
+            ground=0,
+            agent=OrderedDict(
+                type='robot',
+                lock=['pan_joint', 'tilt_joint', 'linear_joint', 'right_gripper_finger3_joint', 'right_gripper_finger2_joint', 'right_gripper_finger1_joint'],
+                lock_value=[0, 0, 0, 0.8, 0.8, 0.8],
+                actuator=['right_shoulder_pan_joint',
+                          'right_shoulder_lift_joint',
+                          'right_arm_half_joint',
+                          'right_elbow_joint',
+                          'right_wrist_spherical_1_joint',
+                          'right_wrist_spherical_2_joint',
+                          'right_wrist_3_joint',
+                          ],
+                actuator_range=[[-50, 50] for i in range(7)],
+                ee="right_ee_link",
+            ),
+        )
+        load_scene(self, params)
+        self.agent = self.objects['agent']
 
-    def reset(self, filepath=None):
-        if not self._reset:
-            self._start_state = self.state_vector().copy()
-            obs = self._get_obs()
+        self.goal_space = Box(low=np.array([0.5, -0.4, 0.3]), high=np.array([1., 0.4, 1]))
+        self._goal = self.goal_space.sample()
 
-            self.observation_space = Dict(
-                observation=Box(-np.inf, np.inf, shape=obs['observation'].shape),
-                desired_goal=Box(-np.inf, np.inf, shape=obs['desired_goal'].shape),
-                achieved_goal = Box(-np.inf, np.inf, shape=obs['achieved_goal'].shape),
-            )
+        self._start_state = self.state_vector().copy()
 
-            self.action_space = Box(-1., 1., self._actuator_joint['agent'].shape)
+        obs = self._get_obs()
+        self.reward_type = reward_type
 
-        else:
-            self.load_state_vector(self._start_state)
-            obs = self._get_obs()
+        self.observation_space = Dict(
+            observation=Box(-np.inf, np.inf, shape=obs['observation'].shape),
+            desired_goal=self.goal_space,
+            achieved_goal=self.goal_space,
+        )
+
+        self.action_space = Box(-1., 1., self._actuator_joint['agent'].shape)
+        self.build_goal_vis()
+        self.reset()
+
+    def build_goal_vis(self):
+        actor_builder = self.scene.create_actor_builder()
+        actor_builder.add_box_visual(Pose(), (self.eps, self.eps, self.eps), (0, 0, 1), 'goal')
+        box = actor_builder.build(True)
+        self.vis_goal = box
+
+    def reset(self):
+        self.load_state_vector(self._start_state)
+        obs = self._get_obs()
+        self._goal = self.goal_space.sample()
+        self.vis_goal.set_pose(Pose(self._goal))
 
         self._reset = True
         self.timestep = 0
 
         return obs
 
+    def get_jacobian(self):
+        name = 'agent'
+        ee_idx = self._ee_link_idx[name]
+        joints = self.agent.get_joints()
+        jac = self.agent.compute_jacobian()[ee_idx*6:ee_idx*6+6] # in joint space
+        actuator_idx = self._actuator_dof[name]
+        jac = jac[:, actuator_idx]
 
-    def get_current_cost(self):
-        cur = 0
-        for cost, t in self.costs.waypoints:
-            if cur + t > self.timestep:
-                break
-        return cost
+        qf = self.agent.compute_passive_force()[self._actuator_dof['agent']]
+        return jac, qf
 
+    def step(self, action):
+        # do_simulation
+        assert self._reset
+
+        if len(self._actuator_dof['agent']) > 0:
+            action = np.array(action).clip(-1, 1)
+            qf = np.zeros(self.agent.dof)
+            qf[self._actuator_dof['agent']] = action * self._actuator_range['agent'][:, 1]
+            self.agent.set_qf(qf)
+
+        for i in range(self.frameskip):
+            self.do_simulation()
+
+        obs = self._get_obs()
+        reward = self.compute_reward(obs['achieved_goal'], obs['desired_goal'])
+        if self.reward_type == 'dense':
+            is_success = (-reward < self.eps)
+        else:
+            is_success = reward > -0.5
+
+        info = {'is_success': is_success}
+
+        if self.jacobian:
+            # return the current jacobian in info
+            jac, qf = self.get_jacobian()
+            info['jacobian'] = jac
+            info['passive'] = qf
+
+        return obs, reward, False, info
+
+    def state_vector(self):
+        return np.concatenate([super(ArmReach, self).state_vector(), self._goal], axis=0)
+
+    def load_state_vector(self, state):
+        self._goal = state[-3:]
+        super(ArmReach, self).load_state_vector(state[:-3])
 
     def _get_obs(self):
         # pass
-        observations = []
-        for name, item in self.objects.items():
-            if name == 'agent':
-                observations +=[item.get_qpos(), item.get_qvel()]
-            else:
-                observations +=[np.array(item.pose.p), np.array(item.pose.q), np.array(item.velocity), np.array(item.angular_velocity)]
+        observation = np.concatenate([self.agent.get_qpos(), self.agent.get_qvel()])
 
-        achieved_goal, desired_goal = self.get_current_cost()._get_obs(self)
+        ee_idx = self._ee_link_idx['agent']
+        achieved_goal = self.agent.get_links()[ee_idx].pose.p
+        desired_goal = self._goal.copy()
+
         return {
-            'observation': np.concatenate(observations),
+            'observation': observation,
             'achieved_goal': achieved_goal,
             'desired_goal': desired_goal
         }
@@ -77,36 +139,8 @@ class RLEnv(Simulator):
 
     def compute_reward(self, achieved_goal, desired_goal, info=None):
         # TODO: hack now, I don't want to implement a pickable reward system...
-        return -self.get_current_cost().compute_cost(achieved_goal, desired_goal, info)
-
-
-class ReachEnv(RLEnv):
-    def __init__(self):
-        super(ReachEnv, self).__init__(param_path=None)
-
-    def reset(self, filepath=None):
-        if self._param_path != filepath:
-            from collections import OrderedDict
-            params = OrderedDict(
-                ground=0,
-                agent=OrderedDict(
-                    type='robot',
-                    lock=['pan_joint', 'tilt_joint', 'linear_joint'],
-                    lock_value=[0, 0, 0],
-                    actuator=['right_shoulder_pan_joint',
-                              'right_shoulder_lift_joint',
-                              'right_arm_half_joint',
-                              'right_elbow_joint',
-                              'right_wrist_spherical_1_joint',
-                              'right_wrist_spherical_2_joint',
-                              'right_wrist_3_joint',
-                              'right_gripper_finger3_joint',
-                              'right_gripper_finger2_joint',
-                              'right_gripper_finger1_joint'],
-                    actuator_range=[[-50, 50] for i in range(7)] + [[-5, 5] for i in range(3)],
-                    ee="right_ee_link",
-                ),
-            )
-            self.params.append(1)
-            self._param_path = 1
-            return load_scene(self, params)
+        d = np.linalg.norm(achieved_goal - desired_goal, axis=-1)
+        if self.reward_type == 'dense':
+            return - d
+        else:
+            return -(d < self.eps).astype(np.float32)

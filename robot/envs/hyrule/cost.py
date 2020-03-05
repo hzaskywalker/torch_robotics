@@ -28,7 +28,7 @@ def arm_contact_cost(self, sim, epsilon=0.01, allowed=None):
     return ans
 
 
-class Waypoint:
+class Cost:
     def __init__(self, agent):
         self.agent = agent
         self._goal_dim = 0
@@ -43,7 +43,7 @@ class Waypoint:
         raise NotImplementedError
 
 
-class ArmMove(Waypoint):
+class ArmMove(Cost):
     # move to desired position without contact with others
     def __init__(self, agent, target, weight=1.):
         super(ArmMove, self).__init__(agent)
@@ -66,7 +66,7 @@ class ArmMove(Waypoint):
         return self.weight * np.linalg.norm(achieved - target)
 
 
-class Grasped(Waypoint):
+class Grasped(Cost):
     def __init__(self, agent, obj_name, weight):
         super(Grasped, self).__init__(agent)
         self.obj_name = obj_name
@@ -107,7 +107,7 @@ class Grasped(Waypoint):
         return achieved.clip(0, 3) * self.weight
 
 
-class ObjectMove(Waypoint):
+class ObjectMove(Cost):
     def __init__(self, agent, target_pose, weight_xyz=1., weight_angle=0.):
         super(ObjectMove, self).__init__(agent)
         self.target_pose_p = target_pose.p
@@ -131,7 +131,7 @@ class ObjectMove(Waypoint):
         return self.weight_xyz * np.linalg.norm(target - achieved, axis=-1).clip(0, 1)
 
 
-class ControlNorm(Waypoint):
+class ControlNorm(Cost):
     def __init__(self, agent, weight=0.01):
         super(ControlNorm, self).__init__(agent)
         self.weight = weight
@@ -152,15 +152,15 @@ WAYPOINTS = OrderedDict(
 )
 
 
-class WaypointList(Waypoint):
+class CostList(Cost):
     def __init__(self, *args):
         object.__init__(self)
-        self.args: List[Waypoint] = args
+        self.args: List[Cost] = args
 
     @classmethod
     def load(cls, params: List):
         # TODO: seems very stupid
-        return WaypointList(*[WAYPOINTS[waypoint[0]].load(waypoint[1]) for waypoint in params])
+        return CostList(*[WAYPOINTS[waypoint[0]].load(waypoint[1]) for waypoint in params])
 
     def _get_obs(self, sim: Simulator):
         achieved_goal = []
@@ -182,25 +182,3 @@ class WaypointList(Waypoint):
             _desired, desired = np.split(desired, p, axis=-1)
             r += cost.compute_cost(_achieved, _desired, info)
         return r
-
-
-class Trajectory(Waypoint):
-    def __init__(self, *waypoints):
-        object.__init__(self)
-        assert len(waypoints) > 0, "You must provide more than 1 way point.."
-        self.waypoints = waypoints
-
-    def cost(self, sim:Simulator):
-        cur = 0
-        for cost, t in self.waypoints:
-            if cur + t > sim.timestep:
-                break
-        return cost.cost(sim)
-
-    @classmethod
-    def load(cls, params: List):
-        return Trajectory(*[(WaypointList.load(i['list']), i['duration']) for i in params])
-
-
-def load_waypoints(params):
-    return Trajectory.load(params)

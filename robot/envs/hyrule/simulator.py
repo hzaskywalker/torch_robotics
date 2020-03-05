@@ -48,42 +48,11 @@ def add_link(builder, father, link_pose, local_pose=None, name=None, joint_name=
     return link
 
 
-def load_sapien_state(object):
-    if isinstance(object, sapien_core.pysapien.Articulation):
-        return {
-            'qpos': object.get_qpos(),
-            'qvel': object.get_qvel(),
-            'qf': object.get_qf(),
-            'pose': object.get_links()[0].pose,
-        }
-    elif isinstance(object, sapien_core.pysapien.Actor):
-        return {
-            'pose': object.pose,
-            'velocity': object.velocity,
-            'angular_velocity': object.angular_velocity,
-        }
-    else:
-        raise NotImplementedError
-
-def set_sapien_state(object, state):
-    if isinstance(object, sapien_core.pysapien.Articulation):
-        object.set_qpos(state['qpos'])
-        object.set_qvel(state['qvel'])
-        object.set_qf(state['qf'])
-        object.set_root_pose(state['pose'])
-    elif isinstance(object, sapien_core.pysapien.Actor):
-        object.set_pose(state['pose'])
-        object.set_velocity(state['velocity'])
-        object.set_angular_velocity(state['angular_velocity'])
-    else:
-        raise NotImplementedError
-
-
 class Simulator(Env):
     """
     Major interface...
     """
-    def __init__(self, dt=0.01, frameskip=1, gravity=(0, 0, -9.8), sim=None):
+    def __init__(self, dt=0.0025, frameskip=4, gravity=(0, 0, -9.8), sim=None):
         self.dt = dt
         self.frameskip = frameskip
         self.viewer = None
@@ -96,7 +65,7 @@ class Simulator(Env):
 
         # --------------------- constrain system .................
         if sim is None:
-            self.sim = sapien_core.Simulation()
+            self.sim = sapien_core.Engine()
             self._optifuser = sapien_core.OptifuserRenderer()
             self.sim.set_renderer(self._optifuser)
         else:
@@ -152,13 +121,6 @@ class Simulator(Env):
             import time
             time.sleep(sleep)
         return tmp
-
-    def state_dict(self):
-        return dict([(name, load_sapien_state(obj)) for name, obj in self.objects.items()])
-
-    def load_state_dict(self, dict):
-        for name, value in dict.items():
-            set_sapien_state(self.objects[name], value)
 
     def state_vector(self):
         return np.concatenate([[self.timestep]] + [np.array(obj.pack()) for name, obj in self.objects.items()])
