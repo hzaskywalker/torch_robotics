@@ -7,8 +7,8 @@ from gym.wrappers import TimeLimit
 
 def make(env_name):
     from robot.envs.hyrule.rl_env import ArmReach
-    env = ArmReach('sparse')
-    env = TimeLimit(env, 50)
+    env = ArmReach('sparse', fix_goal=False)
+    env = TimeLimit(env, 100)
     return env
 
 

@@ -11,7 +11,7 @@ from .cost import ArmMove
 
 
 class ArmReach(Simulator):
-    def __init__(self, reward_type='dense', eps=0.06, jacobian=False):
+    def __init__(self, reward_type='dense', eps=0.06, jacobian=False, fix_goal=False):
         Simulator.__init__(self)
 
         assert reward_type in ['dense', 'sparse']
@@ -39,7 +39,11 @@ class ArmReach(Simulator):
         load_scene(self, params)
         self.agent = self.objects['agent']
 
-        self.goal_space = Box(low=np.array([0.5, -0.4, 0.3]), high=np.array([1., 0.4, 1]))
+        if not fix_goal:
+            self.goal_space = Box(low=np.array([0.5, -0.4, 0.3]), high=np.array([1., 0.4, 1]))
+        else:
+            self.goal_space = Box(low=np.array([0.9, 0, 0.8]), high=np.array([0.9+0.0001, 0.0001, 0.8+0.0001]))
+
         self._goal = self.goal_space.sample()
 
         self._start_state = self.state_vector().copy()
