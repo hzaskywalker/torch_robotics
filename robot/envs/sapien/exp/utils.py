@@ -167,6 +167,14 @@ class RLRecorder:
         else:
             raise NotImplementedError
 
+    def get_env(self):
+        if isinstance(self.env, str):
+            if self.make is None:
+                self.env =  make(self.env)
+            else:
+                self.env = self.make(self.env)
+        return self.env
+
     def step(self, agent, reward, episode_timesteps, train_output=None, **kwargs):
         if train_output is not None:
             self._train_output += train_output
@@ -176,12 +184,7 @@ class RLRecorder:
                 self._train_output = []
 
         if self.on_time(self.episode, self.evaluate):
-            if isinstance(self.env, str):
-                if self.make is None:
-                    self.env =  make(self.env)
-                else:
-                    self.env = self.make(self.env)
-            kwargs['reward_eval'] = eval_policy(agent, self.env, eval_episodes=self.eval_episodes, save_video=self.save_video,
+            kwargs['reward_eval'] = eval_policy(agent, self.get_env(), eval_episodes=self.eval_episodes, save_video=self.save_video,
                                                 video_path=os.path.join(self.path, "video{}.avi"))
 
         if self.on_time(self.episode, self.save_model):

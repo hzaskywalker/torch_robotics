@@ -28,7 +28,7 @@ class RolloutCEM:
 
     def cost(self, x, a):
         x = x[None, :].expand(a.shape[0], -1)
-        return self.model.rollout(x, a, self._goal)
+        return -self.model.rollout(x, a, self._goal)
 
 
     def init_actions(self, horizon):

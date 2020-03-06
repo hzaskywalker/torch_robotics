@@ -27,8 +27,8 @@ def main():
     reward = model.rollout(obs, action[None, :], goal)
     print(reward)
 
-    worker = Worker(env, model, maxlen=int(1e6), timestep=timestep, num_train=5, batch_size=200, horizon=5,
-                    num_mutation=100, num_elite=10, recorder=recorder)
+    worker = Worker(env, model, maxlen=int(1e6), timestep=timestep, num_train=5, batch_size=200, iter_num=6, horizon=3,
+                    num_mutation=200, num_elite=10, recorder=recorder)
 
     for i in range(1000):
         worker.epoch(1, use_tqdm=True)
