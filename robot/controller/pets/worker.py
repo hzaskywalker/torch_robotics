@@ -1,6 +1,7 @@
 # Wrapper of the model and model based controller
 import numpy as np
 import gym
+import torch
 import os
 import tqdm
 from robot.utils import rollout, AgentBase, tocpu, evaluate
@@ -21,36 +22,51 @@ class Worker:
             1. take model as a parameter and output the actions
     """
     def __init__(self, env, model, maxlen=int(1e6), timestep=100,
-                 num_train=50, batch_size=200,
+                 num_train=50, batch_size=200, iter_num=5,
                  horizon=20, num_mutation=500, num_elite = 50, recorder=None):
         assert isinstance(model, AgentBase)
         self.env = env
         self.model: EnBNNAgent = model
-        self.controller = RolloutCEM(self.model, self.env.action_space, horizon=horizon, num_mutation=num_mutation, num_elite=num_elite)
+        self.controller = RolloutCEM(self.model, self.env.action_space,
+                                     iter_num=iter_num, horizon=horizon, num_mutation=num_mutation,
+                                     num_elite=num_elite, device=self.model.device)
 
-        self.buffer = ReplayBuffer(maxlen, timestep)
+        self.buffer = ReplayBuffer(timestep, maxlen)
         self.num_train = num_train
         self.batch_size = batch_size
 
         self.num_train_step = num_train
         self.timestep = timestep
+
         self.recoder = recorder
 
-    def __call__(self, x, goal):
+    def select_action(self, x, goal):
+        x = torch.tensor(x, dtype=torch.float, device=self.model.device)
+        goal = torch.tensor(goal, dtype=torch.float, device=self.model.device)
         out = tocpu(self.controller(x, goal))
         return out
 
-    def epoch(self, n_rollout):
+
+    def reset(self):
+        self.controller.reset()
+
+    def __call__(self, observation):
+        return self.select_action(observation['observation'], observation['desired_goal'])
+
+    def epoch(self, n_rollout, use_tqdm=False):
         # new rollout
         mb_obs, mb_actions = [], []
         total_reward = 0
-        for _ in range(n_rollout):
+        ran = range if not use_tqdm else tqdm.trange
+        success_rate = []
 
+        for _ in ran(n_rollout):
+            self.controller.reset()
             observation = self.env.reset()
             obs, ag, g = [observation[i] for i in ['observation', 'achieved_goal', 'desired_goal']]
             ep_obs, ep_actions = [], []
-            for t in range(self.timestep):
-                action = self(obs, g)
+            for t in ran(self.timestep):
+                action = self.select_action(obs, g)
 
                 observation_new, r, done, info = self.env.step(action)
                 total_reward += r
@@ -60,6 +76,10 @@ class Worker:
 
                 if done:
                     break
+
+            if 'is_success' in info:
+                success_rate.append(info['is_success'])
+
             ep_obs.append(obs.copy())
             mb_obs.append(ep_obs); mb_actions.append(ep_actions)
         total_reward /= n_rollout
@@ -81,14 +101,23 @@ class Worker:
         t = t.reshape(-1, t.shape[-1])
         idxs = np.arange(len(s))
 
-        for i in range(self.num_train):
+
+        train_output = []
+
+        for _ in ran(self.num_train):
             idxs = np.random.permutation(idxs)
 
             batch_size = self.batch_size
             num_batch = (len(idxs) + batch_size - 1) // batch_size
 
-            for j in range(num_batch):
+            for j in ran(num_batch):
                 idx = idxs[j * batch_size:(j + 1) * batch_size]
-                self.model.update(s[idx], a[idx], t[idx])
-        return total_reward
+                train_output.append(self.model.update(s[idx], a[idx], t[idx]))
+
+        if self.recoder is not None:
+            kwargs = {}
+            if len(success_rate) > 0:
+                kwargs['success_rate'] = np.mean(success_rate)
+
+            self.recoder.step(self, total_reward, self.timestep, train_output, **kwargs)
 

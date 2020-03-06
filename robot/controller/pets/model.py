@@ -221,7 +221,7 @@ class EnBNNAgent(AgentBase):
             self.sync_grads(self.forward_model)
             self.optim.step()
         return {
-            'loss': loss.detach().cpu().numpy()
+            'loss': loss.mean().detach().cpu().numpy()
         }
 
 

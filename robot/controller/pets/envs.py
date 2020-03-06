@@ -1,5 +1,6 @@
 import numpy as np
 from robot.envs.toy.plane import GoalPlane
+from gym.wrappers import TimeLimit
 
 class Plane:
     inp_dim = 2
@@ -14,7 +15,7 @@ class Plane:
 
     @classmethod
     def compute_reward(cls, s, t):
-        return -np.linalg.norm(s-t)
+        return -(((s-t) ** 2).sum(dim=-1)) ** 0.5
 
 
 DICT = {
@@ -24,5 +25,5 @@ DICT = {
 
 def make(env_name):
     if env_name == 'plane':
-        return GoalPlane(), DICT[env_name]
+        return TimeLimit(GoalPlane(), 50), DICT[env_name]
 

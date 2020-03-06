@@ -29,7 +29,7 @@ def calc_accuracy_recall(info, tp, fp, fn, tn):
 def merge_training_output(train_outputs, prefix=None):
     keys = []
     for j in train_outputs[:3]:
-        keys += [i for i in keys if j[i].size == 1]
+        keys += [i for i in j.keys() if j[i].size == 1]
     keys = set(keys)
     train_info = {i: np.mean([j[i] for j in train_outputs if i in j])
                   for i in keys}

@@ -50,11 +50,9 @@ class RolloutCEM:
                 return act
 
         self._goal = goal
-
-        obs = torch.tensor(obs, device=self.init_std.device, dtype=torch.float)
         self.prev_actions = self.optimizer(obs, self.prev_actions, self.init_std)
         self.optimizer.iter_num = self._iter
 
         self.ac_buf, self.prev_actions = torch.split(self.prev_actions, [self.replan_period, self.prev_actions.shape[0]-self.replan_period])
         self.prev_actions = torch.cat((self.prev_actions, self.init_actions(self.replan_period)))
-        return self.__call__(obs).detach().cpu().numpy()
+        return self.__call__(obs, goal)

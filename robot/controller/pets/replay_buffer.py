@@ -20,8 +20,8 @@ class ReplayBuffer:
 
         if self.buffers is None:
             self.buffers = {
-                'obs': np.empty([self.size, self.T + 1, mb_obs.shape[1]]),
-                'actions': np.empty([self.size, self.T, mb_actions.shape[1]]),
+                'obs': np.empty([self.size, self.T + 1, mb_obs.shape[-1]]),
+                'actions': np.empty([self.size, self.T, mb_actions.shape[-1]]),
             }
 
 

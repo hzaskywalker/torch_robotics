@@ -32,6 +32,7 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
     ran = range if not progress_episode else tqdm.trange
     acc = []
     for episode_id in ran(eval_episodes):
+        print(episode_id)
         state, done = eval_env.reset(), False
         if start_state is not None:
             set_state(eval_env, start_state)
@@ -171,7 +172,7 @@ class RLRecorder:
             self._train_output += train_output
 
             if self.on_time(self.episode, self.network_loss) and len(train_output) > 0:
-                kwargs = {**merge_training_output(train_output), **kwargs}
+                kwargs = {**merge_training_output(self._train_output), **kwargs}
                 self._train_output = []
 
         if self.on_time(self.episode, self.evaluate):
