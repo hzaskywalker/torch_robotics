@@ -249,6 +249,15 @@ class GoalPlane(gym.Env):
         else:
             return image
 
+    def render_state(self, state):
+        tmp = np.array(self.env.state).copy()
+        self.env.state = state['observation']/self.maze_size
+
+        image = self.render(mode='rgb_array')
+
+        self.env.state = tmp
+        return image
+
 
 if __name__ == '__main__':
     env = GoalPlane()
