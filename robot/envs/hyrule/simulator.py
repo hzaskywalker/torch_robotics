@@ -53,14 +53,14 @@ class Simulator(Env):
     Major interface...
     """
     def __init__(self, dt=0.0025, frameskip=4, gravity=(0, 0, -9.8), sim=None):
-        self.dt = dt
+        self._dt = dt
         self.frameskip = frameskip
         self.viewer = None
         self._viewers = OrderedDict()
 
         self.metadata = OrderedDict({
             'render.modes': ['human'],
-            'video.frames_per_second': int(np.round(1.0 / self.dt))
+            'video.frames_per_second': int(np.round(1.0 / self._dt))
         })
 
         # --------------------- constrain system .................
@@ -72,7 +72,7 @@ class Simulator(Env):
             self.sim = sim
             self._optifuser = self.sim.get_renderer()
         self.scene: sapien_core.Scene = self.sim.create_scene(gravity=np.array(gravity), solver_type=sapien_core.SolverType.PGS)
-        self.scene.set_timestep(dt)
+        self.scene.set_timestep(self._dt)
 
         self.seed()
 
@@ -92,6 +92,11 @@ class Simulator(Env):
         self.timestep = 0
         self.costs = None
         self._reset = False
+
+
+    @property
+    def dt(self):
+        return self._dt * self.frameskip
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)

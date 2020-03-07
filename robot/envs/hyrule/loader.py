@@ -118,6 +118,7 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
 
     initial_qpos = np.array( params.get('qpos', initial_qpos) )
     initial_qvel = np.array( params.get('qvel', initial_qvel) )
+
     agent.set_qpos(initial_qpos)
     agent.set_qvel(initial_qvel)
     agent.set_qf(agent.get_qf() * 0)

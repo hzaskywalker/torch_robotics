@@ -30,6 +30,8 @@ class Normalizer(nn.Module):
         self.recompute_stats()
 
     def add(self, sum, sumsq, count):
+        assert sum.shape == self.sum.shape
+        assert sumsq.shape == self.sumsq.shape
         self.sum += sum
         self.sumsq += sumsq
         self.count[0] += count
