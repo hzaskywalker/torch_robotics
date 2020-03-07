@@ -148,3 +148,31 @@ class ArmReach(Simulator):
             return - d
         else:
             return -(d > self.eps).astype(np.float32)
+
+
+class ArmReachWithXYZ(ArmReach):
+    def build_goal_vis(self):
+        super(ArmReachWithXYZ, self).build_goal_vis()
+
+        end_ee_builder = self.scene.create_actor_builder()
+        end_ee_builder.add_box_visual(Pose(), (self.eps, self.eps, self.eps), (1, 0, 0), 'end_ee')
+        box = end_ee_builder.build(True)
+        self.end_ee = box
+
+    def _get_obs(self):
+        obs = super(ArmReachWithXYZ, self)._get_obs()
+        obs['observation'] = np.concatenate((obs['observation'], obs['achieved_goal']))
+        return obs
+
+    def render_state(self, state):
+        # state is in fact the observation
+        _state = self.state_vector()
+        state = state['observation']
+
+        tmp_qpos = self.agent.get_qpos()
+        self.agent.set_qpos(state[:len(tmp_qpos)])
+        self.end_ee.set_pose(Pose(state[-3:]))
+
+        img = self.render(mode='rgb_array')
+        self.load_state_vector(_state)
+        return img
