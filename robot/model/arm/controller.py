@@ -34,6 +34,13 @@ class Controller:
         self.env.load_state_vector(state_vector)
         return qf/self.env._actuator_range['agent'][:, 1]
 
+class RandomController:
+    def __init__(self, env: ArmReachWithXYZ):
+        self.action_space = env.action_space
+
+    def __call__(self, obs):
+        return self.action_space.sample()
+
 
 if __name__ == '__main__':
     env = ArmReachWithXYZ()

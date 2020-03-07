@@ -13,7 +13,7 @@ def main():
                        weight_decay=[0.000025, 0.00005, 0.000075, 0.000075, 0.0001],
                        var_reg=0.01, ensemble_size=5, num_layers=5, mid_channels=200, npart=20).cuda()
 
-    recorder = RLRecorder(env, 'tmp', save_model=slice(100000000, None, 1), network_loss=slice(0, None, 1),
+    recorder = RLRecorder(env, 'tmp_arm', save_model=slice(100000000, None, 1), network_loss=slice(0, None, 1),
                           evaluate=slice(10, None, 10), save_video=1, max_timestep=timestep, eval_episodes=5)
 
     worker = Worker(env, model, maxlen=int(1e6), timestep=timestep, num_train=5, batch_size=200, iter_num=5, horizon=5,
