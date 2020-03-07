@@ -93,15 +93,13 @@ class Worker:
 
         # train networks
         tmp = self.buffer.get()
-        s, a, t = tmp['obs'][...,:-1, :], tmp['actions'], tmp['obs'][...,1:, :]
+        s, a, t = tmp['obs'][..., :-1, :], tmp['actions'], tmp['obs'][..., 1:, :]
         s = s.reshape(-1, s.shape[-1])
         a = a.reshape(-1, a.shape[-1])
         t = t.reshape(-1, t.shape[-1])
         idxs = np.arange(len(s))
 
-
         train_output = []
-
         for _ in ran(self.num_train):
             idxs = np.random.permutation(idxs)
 

@@ -4,7 +4,7 @@ import torch
 from robot.controller.pets.envs import make
 from robot.controller.pets.model import EnBNNAgent
 from robot.controller.pets.worker import Worker
-from robot.controller.pets.forward_recorder import Recoder as RLRecorder
+from robot.controller.pets.forward_recorder import RLRecorder as RLRecorder
 
 def main():
     env, env_params = make('cheetah')
