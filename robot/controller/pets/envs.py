@@ -1,6 +1,8 @@
 import numpy as np
 from robot.envs.toy.plane import GoalPlane
 from gym.wrappers import TimeLimit
+from robot.envs.gym.half_cheetah import GoalHalfCheetahEnv
+import torch
 from robot.envs.hyrule.rl_env import ArmReachWithXYZ
 
 class Plane:
@@ -15,8 +17,8 @@ class Plane:
         return s + delta
 
     @classmethod
-    def compute_reward(cls, s, t):
-        return -(((s-t) ** 2).sum(dim=-1)) ** 0.5
+    def compute_reward(cls, s, a, t, g):
+        return -(((t-g) ** 2).sum(dim=-1)) ** 0.5
 
 class ARMReachInfo:
     inp_dim = 29
@@ -31,15 +33,50 @@ class ARMReachInfo:
         return s + delta
 
     @classmethod
-    def compute_reward(cls, s, t):
-        while len(t.shape) < len(s.shape):
-            t = t[None,:]
-        return -(((s[..., -3:]-t) ** 2).sum(dim=-1)) ** 0.5
+    def compute_reward(cls, s, a, t, g):
+        while len(g.shape) < len(t.shape):
+            g = g[None,:]
+        return -(((t[..., -3:]-g) ** 2).sum(dim=-1)) ** 0.5
+
+
+class HalfCheetahPrior:
+    inp_dim = 18
+    oup_dim = 18
+
+    @classmethod
+    def encode_obs(cls, obs):
+        return torch.cat([
+            obs[..., 1:2],
+            obs[..., 2:3].sin(),
+            obs[..., 2:3].cos(),
+            obs[..., 3:]
+        ], dim=-1)
+
+    @classmethod
+    def add_state(self, obs, pred):
+        assert isinstance(obs, torch.Tensor)
+        return torch.cat([
+            pred[..., :1],
+            obs[..., 1:] + pred[..., 1:]
+        ], dim=-1)
+
+    @classmethod
+    def obs_cost_fn(cls, obs):
+        return -obs[..., 0]
+
+    @classmethod
+    def ac_cost_fn(cls, acs):
+        return 0.1 * (acs ** 2).sum(dim=-1)
+
+    @classmethod
+    def compute_reward(cls, s, a, t, g):
+        return -(cls.obs_cost_fn(s) + cls.ac_cost_fn(a))
 
 
 DICT = {
     'plane': Plane,
-    'armreach': ARMReachInfo
+    'armreach': ARMReachInfo,
+    'cheetah': HalfCheetahPrior
 }
 
 
@@ -48,6 +85,8 @@ def make(env_name):
         return TimeLimit(GoalPlane(), 50), DICT[env_name]
     elif env_name == 'armreach':
         return TimeLimit(ArmReachWithXYZ(), 50), DICT[env_name]
+    elif env_name == 'cheetah':
+        return TimeLimit(GoalHalfCheetahEnv(), 1000), DICT[env_name]
     else:
         raise NotImplementedError
 

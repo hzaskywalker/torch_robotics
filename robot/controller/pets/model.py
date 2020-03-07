@@ -5,7 +5,6 @@ from robot.utils import AgentBase
 import numpy as np
 import torch.nn.functional as F
 from robot.utils.normalizer import Normalizer
-from robot.utils import as_input
 
 
 # get the flat grads or params
@@ -173,15 +172,15 @@ class EnBNNAgent(AgentBase):
                 s = s[None, :].expand(a.shape[0], -1)
             s = s[None, :].expand(self.npart, -1, -1).reshape(self.ensemble_size, -1, *s.shape[1:])
 
-            costs = 0
+            reward = 0
             for i in range(a.shape[1]):
                 act = a[None, :, i].expand(self.npart, -1, -1).reshape(self.ensemble_size, -1, *a.shape[2:])
                 mean, log_var = self.predict(s, act)
                 t = torch.randn_like(log_var) * torch.exp(log_var * 0.5) + mean # sample
-                costs = self.compute_reward(t, goal) + costs
+                reward = self.compute_reward(s, act, t, goal) + reward
                 s = t
 
-            return costs.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
+            return reward.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
     def update_normalizer(self, batch, normalizer='obs'):
         batch = batch.reshape(-1, batch.shape[-1])

@@ -84,6 +84,35 @@ class HalfCheetahEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.viewer.cam.distance = self.model.stat.extent * 0.25
         self.viewer.cam.elevation = -55
 
+class GoalHalfCheetahEnv(HalfCheetahEnv):
+    def __init__(self):
+        super(GoalHalfCheetahEnv, self).__init__()
+
+        from gym.spaces import Dict, Box
+        self.observation_space = Dict(
+            observation=self.observation_space,
+            desired_goal=Box(low=-1, high=1, shape=(1,)),
+            achieved_goal = Box(low=-1, high=1, shape=(1,))
+        )
+
+    def _get_obs(self):
+        return {
+            'observation': super(GoalHalfCheetahEnv, self)._get_obs(),
+            'achieved_goal': np.zeros(1),
+            'desired_goal': np.zeros(1),
+        }
+
+    def step(self, action):
+        self.prev_qpos = np.copy(self.sim.data.qpos.flat)
+        self.do_simulation(action, self.frame_skip)
+        ob = self._get_obs()
+
+        reward_ctrl = -0.1 * np.square(action).sum()
+        reward_run = ob['observation'][0] - 0.0 * np.square(ob['observation'][2])
+        reward = reward_run + reward_ctrl
+
+        done = False
+        return ob, reward, done, {}
 
 class HalfCheetahEnv2(HalfCheetahEnv):
     def __init__(self):

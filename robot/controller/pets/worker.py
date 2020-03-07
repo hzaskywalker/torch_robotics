@@ -1,11 +1,8 @@
 # Wrapper of the model and model based controller
 import numpy as np
-import gym
 import torch
-import os
 import tqdm
-from robot.utils import rollout, AgentBase, tocpu, evaluate
-from robot.utils.trainer import merge_training_output
+from robot.utils import AgentBase, tocpu
 from .replay_buffer import ReplayBuffer
 from .planner import RolloutCEM
 from .model import EnBNNAgent
@@ -23,13 +20,13 @@ class Worker:
     """
     def __init__(self, env, model, maxlen=int(1e6), timestep=100,
                  num_train=50, batch_size=200, iter_num=5,
-                 horizon=20, num_mutation=500, num_elite = 50, recorder=None):
+                 horizon=20, num_mutation=500, num_elite = 50, recorder=None, **kwargs):
         assert isinstance(model, AgentBase)
         self.env = env
         self.model: EnBNNAgent = model
         self.controller = RolloutCEM(self.model, self.env.action_space,
                                      iter_num=iter_num, horizon=horizon, num_mutation=num_mutation,
-                                     num_elite=num_elite, device=self.model.device)
+                                     num_elite=num_elite, device=self.model.device, **kwargs)
 
         self.buffer = ReplayBuffer(timestep, maxlen)
         self.num_train = num_train
@@ -53,7 +50,8 @@ class Worker:
     def __call__(self, observation):
         return self.select_action(observation['observation'], observation['desired_goal'])
 
-    def epoch(self, n_rollout, use_tqdm=False):
+    def epoch(self, n_rollout, use_tqdm=False, policy=None):
+        if policy is None: policy = self.select_action
         # new rollout
         mb_obs, mb_actions = [], []
         total_reward = 0
@@ -65,8 +63,8 @@ class Worker:
             observation = self.env.reset()
             obs, ag, g = [observation[i] for i in ['observation', 'achieved_goal', 'desired_goal']]
             ep_obs, ep_actions = [], []
-            for t in ran(self.timestep):
-                action = self.select_action(obs, g)
+            for _ in ran(self.timestep):
+                action = policy(obs, g)
 
                 observation_new, r, done, info = self.env.step(action)
                 total_reward += r

@@ -176,3 +176,4 @@ class ArmReachWithXYZ(ArmReach):
         img = self.render(mode='rgb_array')
         self.load_state_vector(_state)
         return img
+
