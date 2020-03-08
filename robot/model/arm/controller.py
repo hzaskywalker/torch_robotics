@@ -25,12 +25,12 @@ class Controller:
 
         jac = self.env.get_jacobian()[0]
 
-        pos_ctrl = (goal - achieved)/0.3
-        delta = np.linalg.lstsq(jac[:3], pos_ctrl)[0] # desired_velocity
+        delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] * 10 # desired_velocity
         q_delta = qvel.copy() * 0
         q_delta[self.env._actuator_dof['agent']] = delta
+        qacc = (q_delta - qvel)/self.env.dt
 
-        qf = self.env.agent.compute_drive_force(q_delta - qvel)[self.env._actuator_dof['agent']]
+        qf = self.env.agent.compute_inverse_dynamics(qacc)[self.env._actuator_dof['agent']]
         self.env.load_state_vector(state_vector)
         return qf/self.env._actuator_range['agent'][:, 1]
 
@@ -47,4 +47,4 @@ if __name__ == '__main__':
     policy = Controller(env)
     from robot.utils.rl_utils import eval_policy
 
-    eval_policy(policy, env, save_video=1, progress_episode=True, timestep=50)
+    eval_policy(policy, env, save_video=0, progress_episode=True, timestep=50)
