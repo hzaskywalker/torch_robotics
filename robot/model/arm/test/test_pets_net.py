@@ -14,14 +14,15 @@ def main():
                        weight_decay=[0.000025, 0.00005, 0.000075, 0.000075, 0.0001],
                        var_reg=0.01, ensemble_size=5, num_layers=5, mid_channels=200, npart=20).cuda()
 
+    num_train = 10000
     recorder = ModelRecorder(env, 'tmp_arm', save_model=slice(100000000, None, 1), network_loss=slice(0, None, 50),
-                          evaluate=slice(999, None, 1000), save_video=1, max_timestep=timestep, eval_episodes=5)
+                          evaluate=slice(num_train-1, None, num_train), save_video=1, max_timestep=timestep, eval_episodes=5)
 
     worker = Worker(env, model, dataset, num_train=5, batch_size=256, iter_num=5, horizon=5,
                     num_mutation=500, num_elite=50, recorder=recorder)
 
     for i in range(1000):
-        worker.epoch(1000, 20, use_tqdm=True)
+        worker.epoch(num_train, 200, use_tqdm=True)
 
 
 if __name__ == '__main__':
