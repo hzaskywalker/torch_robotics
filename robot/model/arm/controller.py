@@ -45,6 +45,6 @@ class RandomController:
 if __name__ == '__main__':
     env = ArmReachWithXYZ()
     policy = Controller(env)
-    from robot.envs.sapien.exp.utils import eval_policy
+    from robot.utils.rl_utils import eval_policy
 
     eval_policy(policy, env, save_video=1, progress_episode=True, timestep=50)

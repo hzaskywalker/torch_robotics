@@ -1,5 +1,4 @@
-from robot.envs.sapien.exp.utils import eval_policy, make
-import os
+from robot.utils.rl_utils import eval_policy, make
 import torch
 import argparse
 

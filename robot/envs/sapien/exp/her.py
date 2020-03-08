@@ -1,5 +1,5 @@
 import argparse
-from robot.envs.sapien.exp.utils import RLRecorder, make
+from robot.utils.rl_utils import RLRecorder, make
 from robot.controller.her.ddpg_agent import DDPGAgent
 
 

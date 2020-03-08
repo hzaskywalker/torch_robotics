@@ -67,16 +67,21 @@ class grad_sequential(nn.Sequential):
         self.__buffer = None
         return jacobian
 
-"""
-w = torch.rand(100, 8, device='cuda:0', requires_grad=True)
-b = torch.rand(8, device='cuda:0', requires_grad=True)
+def get_jacobian(net, x, noutputs):
+    # a better way of doing this ...? I am not sure..
+    x = x.squeeze()
+    n = x.size()[0]
+    x = x.repeat(noutputs, 1)
+    x.requires_grad_(True)
+    y = net(x)
+    y.backward(torch.eye(noutputs))
+    return x.grad.data
 
-inp = torch.rand(100, 100, device='cuda:0', requires_grad=True)
-x = (inp @ w + b)
-musk = torch.ones_like(w)
+def dHdt(L, dLdq, q, dq):
+    # H = LL^T
+    dldt = dLdq @ dq
+    return L @ dldt.T + dldt @ L.T
 
-grad = torch.autograd.grad(x.sum(), w,
-        create_graph=True,
-        retain_graph=True)
-print(grad)
-"""
+def dq_dqTHdq(L, dLdq, q, dq):
+    #mid = dLdq.T @ L.T +
+    raise NotImplementedError

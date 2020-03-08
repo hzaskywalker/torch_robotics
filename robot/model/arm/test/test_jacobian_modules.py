@@ -23,10 +23,12 @@ def main():
 
     y = model(x)
 
-    grad_x = torch.autograd.grad(y.sum(), x, only_inputs=True)[0]
+    grad_x_0 = torch.autograd.grad(y.sum(), x, only_inputs=True, retain_graph=True)[0]
+    grad_x_1 = torch.autograd.grad((y**2).sum(), x, only_inputs=True)[0]
+    grad_x = torch.stack((grad_x_0.detach(), grad_x_1.detach()))
 
-    grad_x_2 = model.get_jacobian(x, y*0+1)
-    print(((grad_x.detach()-grad_x_2)**2).sum())
+    grad_x_2 = model.get_jacobian(x, torch.stack([y*0+1, 2*y]))
+    print(((grad_x-grad_x_2)**2).sum())
 
 if __name__ == '__main__':
     main()

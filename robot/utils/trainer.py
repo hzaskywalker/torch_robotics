@@ -158,3 +158,42 @@ def train_loop(agent, dataset, path,
                 agent.save(path)
 
     return agent
+
+
+def on_time(x, timestep, max_timestep=None):
+    if timestep is None:
+        return False
+
+    if max_timestep is None:
+        max_timestep = 2e9
+
+    if isinstance(timestep, int):
+        timestep = slice(timestep,None,None)
+
+    start, stop, step = timestep.start, timestep.stop, timestep.step
+
+    if start is None:
+        start = 0
+    if stop is None:
+        stop = np.inf
+    if step is None:
+        step = 1
+
+    if start < 0:
+        assert max_timestep is not None, "to support negative index, you have to use the index"
+        start = max_timestep + start
+
+    if stop < 0:
+        assert max_timestep is not None, "to support negative index, you have to use the index"
+        end = max_timestep + stop
+
+    if step > 0:
+        if stop is not None and x >= stop or x < start:
+            return False
+        return (x - start) % step == 0
+    elif step < 0:
+        #TODO: this is a little complex, we just don't support such operator..
+        raise NotImplementedError
+    else:
+        raise NotImplementedError
+

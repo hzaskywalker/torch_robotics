@@ -1,17 +1,13 @@
-import gym
-import os
 import torch
-from robot.controller.td3 import td3
-from robot.envs.sapien.exp.utils import make
+from robot.utils.rl_utils import make
 
 import argparse
 import numpy as np
-from robot.controller.poplin import PoplinController, WeightNetwork
-from robot.envs.sapien.exp.utils import set_state, get_state, eval_policy
+from robot.controller.poplin import PoplinController
+from robot.utils.rl_utils import set_state, eval_policy
 from robot.utils.data_parallel import DataParallel
 from robot.utils import as_input
 
-from robot.envs.sapien.exp.trajopt import add_parser
 
 class NumpyWeightNetwork:
     def __init__(self, in_feature, out_feature, num_layers, mid_channels, device='cuda:0'):

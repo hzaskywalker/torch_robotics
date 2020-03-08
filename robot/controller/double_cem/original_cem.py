@@ -3,7 +3,7 @@ import torch
 import argparse
 import numpy as np
 from robot.controller.rollout_controller import RolloutCEM
-from robot.envs.sapien.exp.utils import set_state, get_state, eval_policy
+from robot.utils.rl_utils import set_state, eval_policy
 from robot.utils.data_parallel import DataParallel
 
 

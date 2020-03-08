@@ -1,7 +1,7 @@
 # forward recorder that can r the
 import numpy as np
 from .worker import Worker
-from robot.envs.sapien.exp.utils import RLRecorder
+from robot.utils.rl_utils import RLRecorder, on_time
 
 class Recoder(RLRecorder):
     def step(self, agent: Worker, reward, episode_timesteps, train_output=None, **kwargs):
@@ -32,7 +32,7 @@ class Recoder(RLRecorder):
             for a, b in zip(real_trajs, fake_trajs):
                 yield np.concatenate((a, b), axis=1)
 
-        if self.on_time(self.episode, self.evaluate):
+        if on_time(self.episode, self.evaluate):
             kwargs['video_model'] = gen_video()
         super(Recoder, self).step(agent, reward, episode_timesteps, train_output, **kwargs)
 

@@ -197,7 +197,12 @@ class EnBNNAgent(AgentBase):
 
         normalizer.add(s, sq, count)
 
-    def update(self, s, a, t):
+    def update(self, s, a, t=None):
+        if t is None:
+            assert s.shape[1] == 2
+            s, t = s[:, 0], s[:, 1]
+            a = a[:, 0]
+
         if not isinstance(s, torch.Tensor):
             s = torch.tensor(s, dtype=torch.float, device=self.device)
             a = torch.tensor(a, dtype=torch.float, device=self.device)

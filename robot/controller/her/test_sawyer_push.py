@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 from robot.controller.her.ddpg_agent import DDPGAgent
-from robot.envs.sapien.exp.utils import RLRecorder
+from robot.utils.rl_utils import RLRecorder
 from gym.wrappers import TimeLimit
 
 class Wrapper(gym.Wrapper):
@@ -52,8 +52,6 @@ def main():
     env_name = 'SawyerPushAndReachArenaTrainEnvBig-v0'
 
     def make2(env_name):
-        from multiworld.envs import mujoco
-
         env = TimeLimit(Wrapper(make(env_name)), timestep)
         return env
     env = make2(env_name)

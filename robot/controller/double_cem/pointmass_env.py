@@ -42,11 +42,6 @@ class EnvWrapper(gym.Wrapper):
 
 
 def make(env_name):
-    import cv2
-    import tqdm
-    from multiworld.envs import pygame
-    from multiworld.envs import mujoco
-
     mode = 0
     if env_name == 'pm':
         env_name = 'PointmassUWallTrainEnvBig-v0'
@@ -66,7 +61,7 @@ def make(env_name):
 
 
 def test():
-    from robot.envs.sapien.exp.utils import set_state
+    from robot.utils.rl_utils import set_state
     env = make('pnr_torque')
     env.reset()
 

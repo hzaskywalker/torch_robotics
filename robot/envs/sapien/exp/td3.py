@@ -1,9 +1,7 @@
 # run td3 about the environments...
-import numpy as np
 import argparse
-import gym
 from robot.controller.td3 import td3
-from robot.envs.sapien.exp.utils import make, RLRecorder
+from robot.utils.rl_utils import make, RLRecorder
 
 
 def main():

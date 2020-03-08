@@ -1,5 +1,5 @@
 import argparse
-from robot.envs.sapien.exp.utils import make, RLRecorder
+from robot.utils.rl_utils import make, RLRecorder
 from robot.controller.sac import sac
 
 def main():

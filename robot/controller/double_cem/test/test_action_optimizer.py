@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import argparse
-from robot.envs.sapien.exp.utils import set_state, get_state, eval_policy
+from robot.utils.rl_utils import eval_policy
 
 from robot.controller.double_cem.pointmass_env import make
 from robot.controller.double_cem.action_optimizer import ActionOptimizer

@@ -3,7 +3,7 @@ import cv2
 import torch
 import tqdm
 import argparse
-from robot.envs.sapien.exp.utils import make, get_state, set_state
+from robot.utils.rl_utils import make, get_state, set_state
 from robot.controller.cem import CEM
 
 

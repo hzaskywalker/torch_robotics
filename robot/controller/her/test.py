@@ -1,6 +1,6 @@
 import gym
 from robot.controller.her.ddpg_agent import DDPGAgent
-from robot.envs.sapien.exp.utils import RLRecorder
+from robot.utils.rl_utils import RLRecorder
 
 def main():
     #env = gym.make()

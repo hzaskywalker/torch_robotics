@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from robot.envs.sapien.exp.utils import set_state
+from robot.utils.rl_utils import set_state
 from robot.utils.data_parallel import DataParallel
 
 def normc_init(shape, std=1.):
