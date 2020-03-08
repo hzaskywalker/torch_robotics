@@ -235,7 +235,10 @@ class GNNForwardAgent(AgentBase):
 
         # now let's begin...
         # it's a problem that if geom is given as the input
-        # our answer is, yes!
+        # our answer is, it depends....
+        #     the thing is that we now have a different way to represent one things... should we use all of the informations?
+        #     Actually I think so in some sense.
+        #     But better way is to calculate the Jacobian and Hamiltonian.. with the neural network... what's that?
 
         if self.training:
             self.optim.zero_grad()
