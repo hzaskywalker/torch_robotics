@@ -23,7 +23,7 @@ class Worker:
     def __init__(self, env, model, dataset, batch_size=256,
                  num_train=1000, num_valid=200,
                  iter_num=5, horizon=20, num_mutation=500, num_elite = 50,
-                 traj_length=2, recorder=None, **kwargs):
+                 traj_length=2, recorder=None, use_geom=False, **kwargs):
         assert isinstance(model, AgentBase)
         self.env = env
         self.model: EnBNNAgent = model
@@ -38,6 +38,7 @@ class Worker:
         self.device = self.model.device
         self.traj_length = traj_length
 
+        self.use_geom = use_geom # if use_geom, we will provide geom for training the networks.. and we may add the corresponding visualization
         self.recoder = recorder
 
     def select_action(self, x, goal):
@@ -60,11 +61,11 @@ class Worker:
 
         # train
         for _ in ran(num_train):
-            obs, actions = [torch.tensor(i, dtype=torch.float, device=self.device)
-                            for i in self.dataset.sample(batch_size=self.batch_size, timestep=self.traj_length)]
-            self.model.update_normalizer(obs, 'obs')
-            self.model.update_normalizer(actions, 'action')
-            info = self.model.update(obs, actions)
+            data = [torch.tensor(i, dtype=torch.float, device=self.device)
+                            for i in self.dataset.sample(batch_size=self.batch_size, timestep=self.traj_length, use_geom=self.use_geom)]
+            self.model.update_normalizer(data[0], 'obs')
+            self.model.update_normalizer(data[1], 'action')
+            info = self.model.update(*data)
             self.recoder.step(self, 1, [info])
 
         # evaluate
@@ -72,9 +73,9 @@ class Worker:
         assert not self.model.training
         valid_output = []
         for _ in ran(num_valid):
-            obs, actions = [torch.tensor(i, dtype=torch.float, device=self.device)
-                            for i in self.dataset.sample(mode='valid', batch_size=self.batch_size, timestep=self.traj_length)]
-            info = self.model.update(obs, actions)
+            data = [torch.tensor(i, dtype=torch.float, device=self.device)
+                            for i in self.dataset.sample(mode='valid', batch_size=self.batch_size, timestep=self.traj_length, use_geom=self.use_geom)]
+            info = self.model.update(*data)
             valid_output.append(info)
         self.recoder.step_eval(valid_output)
         self.model.train()

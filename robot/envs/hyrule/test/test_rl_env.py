@@ -6,7 +6,7 @@ def main():
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
 
-    env = ArmReach('sparse', jacobian=False)
+    env = ArmReach('sparse', jacobian=True, geom=True)
 
     obs = env.reset()
     achieved = obs['achieved_goal']

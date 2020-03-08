@@ -15,10 +15,10 @@ def main():
                        var_reg=0.01, ensemble_size=5, num_layers=5, mid_channels=200, npart=20).cuda()
 
     num_train = 10000
-    recorder = ModelRecorder(env, 'tmp_arm', save_model=slice(100000000, None, 1), network_loss=slice(0, None, 50),
+    recorder = ModelRecorder(env, 'pets_arm', save_model=slice(100000000, None, 1), network_loss=slice(0, None, 50),
                           evaluate=slice(num_train-1, None, num_train), save_video=1, max_timestep=timestep, eval_episodes=5)
 
-    worker = Worker(env, model, dataset, num_train=5, batch_size=256, iter_num=5, horizon=5,
+    worker = Worker(env, model, dataset, num_train=num_train, batch_size=256, iter_num=20, horizon=15,
                     num_mutation=500, num_elite=50, recorder=recorder)
 
     for i in range(1000):
