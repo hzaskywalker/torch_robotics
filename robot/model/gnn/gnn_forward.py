@@ -175,49 +175,22 @@ class GraphNormalizer(nn.Module):
             self.g.update(G.g)
 
 
-class GNNForwardAgent(AgentBase):
-    def __init__(self, lr, env, normalize=False, *args, **kwargs):
-        self.global_space = env.global_space
-        self.scene = self.global_space(env.get_global(), is_batch=False).tensor('cuda:0')
-        self.node_attr = self.scene['node']
-        self.edge_attr = self.scene['edge']
-        self.graph = self.scene['graph']
+class ForwardModel(nn.Module):
+    def __init__(self, inp_dim, oup_dim, attr_dim, graph, layers, mid_channels):
+        super(ForwardModel, self).__init__()
+        node_dim = inp_dim[0] + attr_dim[0] # node dim
+        edge_dim = inp_dim[1] + attr_dim[1]
+        # TODO: better way to get the number of nodes..
+        n = graph.max() + 1
+        self.node_attr = nn.Parameter(torch.randn(size=(n, attr_dim[0])), requires_grad=True)
+        self.edge_attr = nn.Parameter(torch.randn(size=(n, attr_dim[1])), requires_grad=True)
+        self.graph = nn.Parameter(graph, requires_grad=False)
+        self.model = GNResidule(node_dim, edge_dim, oup_dim[0], oup_dim[1], layers=layers, mid_channels=mid_channels)
 
-        self.observation_space = env.observation_space
-        self.action_space = env.action_space
-        self.extension = env.extension
-
-        inp_shape = self.extension.observation_shape
-        node_dim = inp_shape[-1] +self.node_attr.shape[-1] # node dim
-        edge_dim = 1 + self.edge_attr.shape[-1]
-        oup_dim = self.extension.derivative_shape[-1]
-
-        if normalize:
-            self.inp_norm = GraphNormalizer(node_dim, edge_dim) # normalize graph
-            self.oup_norm = Normalizer((oup_dim,)) # normalize output
-        else:
-            self.inp_norm = self.oup_norm = None
-
-        model = GNResidule(node_dim, edge_dim, oup_dim, 1, *args, **kwargs)
-
-        super(GNNForwardAgent, self).__init__(model, lr)
-
-        self.forward_model = model
-        self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optim, 0.975)
-        self.step = 0
-
-
-    def build_graph(self, state, action, g=None):
-        """
-        :param state: (batch, n, d_x)
-        :param action: (batch, e, action)
-        """
-        batch_size = state.shape[0]
-        node = self.extension.encode_obs(state)
-        edge = self.extension.encode_action(action)
-
+    def build_graph(self, node, edge):
+        batch_size = node.shape[0]
         node = torch.cat((node, self.node_attr[None, :].expand(batch_size, -1, -1)), dim=2)
-        edge = torch.cat((edge[:, :, None], self.edge_attr[None,:].expand(batch_size, -1, -1)), dim=2)
+        edge = torch.cat((edge, self.edge_attr[None, :].expand(batch_size, -1, -1)), dim=2)
 
         _, n, d = node.shape
         _, _, d_a = edge.shape
@@ -225,36 +198,48 @@ class GNNForwardAgent(AgentBase):
         edge = edge.view(-1, d_a)
         self.n = n
         graph, batch = batch_graphs(batch_size, n, self.graph)
+        return Graph(node, edge, graph, batch, None)
 
-        return Graph(node, edge, graph, batch, g)
+    def forward(self, node, edge):
+        graph = self.build_graph(node, edge)
+        delta = self.model(graph)
+        return delta
 
-    def decode_node(self, graph):
-        return graph.node.reshape(-1, self.n, graph.node.shape[-1])
 
-    def cuda(self, device='cuda:0'):
-        # make
-        self.edge_attr = self.edge_attr.to(device)
-        self.node_attr = self.node_attr.to(device)
-        self.graph = self.graph.to(device)
+class GNNForwardAgent(AgentBase):
+    def __init__(self, lr, encode_obs, add_state, compute_reward,
+                 inp_dim, oup_dim, attr_dim, graph,
+                 layers=3, mid_channels=256):
 
-        if self.inp_norm is not None:
-            self.inp_norm.cuda()
-        if self.oup_norm is not None:
-            self.oup_norm.cuda()
+        self.attr_dim = attr_dim
+        self.graph = graph
+        self.encode_obs = encode_obs
+        self.add_state = add_state
+        self.compute_reward = compute_reward
 
-        return super(GNNForwardAgent, self).cuda()
+        self.inp_norm = GraphNormalizer(inp_dim[0], inp_dim[1]) # normalize graph
+        self.oup_norm = GraphNormalizer(oup_dim[0], oup_dim[1])
+        model = ForwardModel(inp_dim, oup_dim, attr_dim, layers, mid_channels)
+        super(GNNForwardAgent, self).__init__(model, lr)
 
-    def add_noise(self, graph):
-        # TODO: Need to add noise.
-        return graph
+        self.forward_model = model
+        self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optim, 0.975)
+        self.step = 0
 
-    def update(self, s, a, t):
+
+    def update(self, obs, a, geom):
         # predict t given s, and a
         # support that s is encoded by state_format
+        s = obs[:, 0]
+        t = obs[:, 1]
+
+        # now let's begin...
+        # it's a problem that if geom is given as the input
+        # our answer is, yes!
+
         if self.training:
             self.optim.zero_grad()
 
-        graph = self.build_graph(s, a)
         delta = self.extension.sub(t, s)
 
         if self.inp_norm is not None:
@@ -287,7 +272,6 @@ class GNNForwardAgent(AgentBase):
         graph = self.build_graph(s, a)
         if self.inp_norm is not None:
             graph = self.inp_norm(graph)
-        delta = self.decode_node(self.forward_model(graph))
 
         if self.oup_norm is not None:
             delta = self.oup_norm.denorm(delta)

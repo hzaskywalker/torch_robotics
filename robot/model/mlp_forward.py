@@ -1,6 +1,6 @@
 import torch
 from robot.utils import AgentBase, tocpu
-from .gnn_forward import mlp, Concat
+from robot.model.gnn.gnn_forward import mlp, Concat
 
 class MLPForward(AgentBase):
     def __init__(self, lr, env, *args, **kwargs):
