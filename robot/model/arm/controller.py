@@ -4,13 +4,17 @@ from robot.envs.hyrule.rl_env import ArmReachWithXYZ
 
 
 class Controller:
-    def __init__(self, env: ArmReachWithXYZ):
+    def __init__(self, env: ArmReachWithXYZ, p=0):
         self.env = env
+        self.p = p
 
     def __call__(self, state):
         # pass
         #raise NotImplementedError
         #self.
+        if np.random.random() < self.p:
+            return self.env.action_space.sample()
+
         state_vector = self.env.state_vector()
 
         state, goal = state['observation'], state['desired_goal']
@@ -44,7 +48,7 @@ class RandomController:
 
 if __name__ == '__main__':
     env = ArmReachWithXYZ()
-    policy = Controller(env)
+    policy = Controller(env, p=0.0)
     from robot.utils.rl_utils import eval_policy
 
     eval_policy(policy, env, save_video=0, progress_episode=True, timestep=50)

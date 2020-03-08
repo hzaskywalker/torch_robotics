@@ -7,7 +7,10 @@ import tqdm
 import numpy as np
 
 # easier for parallel
-def data_collector(env, make_policy, num_episode, timestep, path, make=None, use_tqdm=False):
+def data_collector(env, make_policy, num_episode, timestep, path, make=None, use_tqdm=False, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+
     if isinstance(env, str):
         env = make(env)
     policy = make_policy(env)
@@ -40,12 +43,30 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
 
 def make_dataset(path, env=None):
     if path == '/dataset/arm':
-        if env is None:
-            from robot.envs.hyrule.rl_env import ArmReachWithXYZ
-            from robot.model.arm.controller import RandomController
-            env = ArmReachWithXYZ()
-        data_collector(env, lambda x: RandomController(x),
-                       num_episode=1000, timestep=50, path=os.path.join(path, '1.pkl'), use_tqdm=True)
+        from robot.model.arm.controller import RandomController, Controller
+        from robot.envs.hyrule.rl_env import ArmReachWithXYZ
+        #if env is None:
+        #    env = ArmReachWithXYZ()
+        #data_collector(env, lambda x: RandomController(x),
+        #               num_episode=1000, timestep=50, path=os.path.join(path, '1.pkl'), use_tqdm=True)
+        from multiprocessing import Process
+        workers = []
+        for i in range(20):
+            if i >= 10:
+                policy = lambda x: RandomController(x)
+            elif i >= 15:
+                policy = lambda x: Controller(x, 0)
+            else:
+                policy = lambda x, i=i: Controller(x, float(i+1)/11)
+            make = lambda x: ArmReachWithXYZ()
+            workers.append(Process(
+                target=data_collector,
+                args=("not a env", policy, 5000, 50, os.path.join(path, f"{i}.pkl"), make, i==19, i)
+            ))
+        for i in workers:
+            i.start()
+        for i in workers:
+            i.join()
     else:
         raise NotImplementedError
 
