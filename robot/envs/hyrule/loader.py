@@ -17,7 +17,9 @@ x2z = np.array([0.7071068, 0, 0.7071068, 0])
 
 def get_assets_path() -> str:
     #root = get_project_root()
-    root = '/home/hza/physx_simulation/'
+    path = os.path.dirname(os.path.abspath(__file__))
+    #root = '/home/hza/physx_simulation/'
+    root = os.path.join(path, '../../../')
     if not os.path.exists(root): raise FileExistsError(f"NO file {root}")
     return os.path.abspath(os.path.join(root, "assets"))
 
