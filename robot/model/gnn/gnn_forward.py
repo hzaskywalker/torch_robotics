@@ -178,13 +178,14 @@ class GraphNormalizer(nn.Module):
 class ForwardModel(nn.Module):
     def __init__(self, inp_dim, oup_dim, attr_dim, graph, layers, mid_channels):
         super(ForwardModel, self).__init__()
-        node_dim = inp_dim[0] + attr_dim[0] # node dim
-        edge_dim = inp_dim[1] + attr_dim[1]
         # TODO: better way to get the number of nodes..
         n = graph.max() + 1
         self.node_attr = nn.Parameter(torch.randn(size=(n, attr_dim[0])), requires_grad=True)
         self.edge_attr = nn.Parameter(torch.randn(size=(n, attr_dim[1])), requires_grad=True)
         self.graph = nn.Parameter(graph, requires_grad=False)
+
+        node_dim = inp_dim[0] + attr_dim[0] # node dim
+        edge_dim = inp_dim[1] + attr_dim[1]
         self.model = GNResidule(node_dim, edge_dim, oup_dim[0], oup_dim[1], layers=layers, mid_channels=mid_channels)
 
     def build_graph(self, node, edge):
@@ -214,6 +215,7 @@ class GNNForwardAgent(AgentBase):
         self.attr_dim = attr_dim
         self.graph = graph
         self.encode_obs = encode_obs
+
         self.add_state = add_state
         self.compute_reward = compute_reward
 
@@ -227,7 +229,7 @@ class GNNForwardAgent(AgentBase):
         self.step = 0
 
 
-    def update(self, obs, a, geom):
+    def update(self, obs, a, geom=None):
         # predict t given s, and a
         # support that s is encoded by state_format
         s = obs[:, 0]
