@@ -63,8 +63,7 @@ class Worker:
         for _ in ran(num_train):
             data = [torch.tensor(i, dtype=torch.float, device=self.device)
                             for i in self.dataset.sample(batch_size=self.batch_size, timestep=self.traj_length, use_geom=self.use_geom)]
-            self.model.update_normalizer(data[0], 'obs')
-            self.model.update_normalizer(data[1], 'action')
+            self.model.update_normalizer(data, 'batch')
             info = self.model.update(*data)
             self.recoder.step(self, 1, [info])
 

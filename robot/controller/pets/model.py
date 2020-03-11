@@ -183,6 +183,10 @@ class EnBNNAgent(AgentBase):
             return reward.reshape(self.ensemble_size, -1, a.shape[0]).mean(dim=(0, 1))
 
     def update_normalizer(self, batch, normalizer='obs'):
+        if normalizer == 'batch':
+            self.update_normalizer(batch[0], 'obs')
+            self.update_normalizer(batch[0], 'action')
+            return
         batch = torch.tensor(batch.reshape(-1, batch.shape[-1]), dtype=torch.float32, device=self.device)
 
         if normalizer == 'obs':
