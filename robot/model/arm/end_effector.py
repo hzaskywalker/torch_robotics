@@ -95,7 +95,7 @@ class Trainer:
         self.dof_id = self.env._actuator_dof['agent']
 
     def sample_data(self, mode):
-        data = self.dataset.sample(batch_size=self.batch_size, timestep=1, use_geom=False)
+        data = self.dataset.sample(mode=mode, batch_size=self.batch_size, timestep=1, use_geom=False)
         x = data[0][:, 0]
         # this should absolutely wrong...
         return x[:, self.dof_id], x[:, -3:]
@@ -138,7 +138,6 @@ class Trainer:
         for _ in ran(num_valid):
             data = self.sample_data('valid')
             info = self.agent.update(*data)
-
             valid_output.append(info)
 
         to_vis = merge_training_output(valid_output)
