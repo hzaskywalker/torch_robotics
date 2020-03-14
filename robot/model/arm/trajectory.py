@@ -5,6 +5,7 @@ import tqdm
 from robot.utils.models import fc
 import numpy as np
 from robot.utils.normalizer import Normalizer
+from robot.utils import tocpu
 from robot.utils.trainer import AgentBase, merge_training_output
 from robot.utils.tensorboard import Visualizer
 from robot.model.arm.dataset import Dataset
@@ -14,15 +15,29 @@ import torch
 from torch import nn
 
 
-class INFO:
-    inp_dim= (2 * 7, 7)
-    oup_dim= (2 * 7, 3) # predict the end effector position...
+def make_info(env):
+    env = env.unwrapped
+    dofs = env._actuator_dof['agent']
 
-    @classmethod
-    def compute_reward(cls, s, a, ee, g):
-        while len(g.shape) < len(ee.shape):
-            g = g[None,:]
-        return -(((ee[..., -3:]-g) ** 2).sum(dim=-1)) ** 0.5
+    class INFO:
+        inp_dim= (2 * 7, 7)
+        oup_dim= (2 * 7, 3) # predict the end effector position...
+        dof_id = np.concatenate((dofs, dofs + 13))
+
+        @classmethod
+        def compute_reward(cls, s, a, ee, g):
+            while len(g.shape) < len(ee.shape):
+                g = g[None,:]
+            return -(((ee[..., -3:]-g) ** 2).sum(dim=-1)) ** 0.5
+
+        @classmethod
+        def encode_obs(cls, s):
+            s = s[..., cls.dof_id]
+            assert len(cls.dof_id) == 14
+            s[..., 7:] *= 0.01  # times dt to make it consistent with state
+            return s
+
+    return INFO
 
 
 class MLP(nn.Module):
@@ -64,14 +79,32 @@ class RolloutAgent(AgentBase):
         self.loss = nn.MSELoss()
         self.compute_reward = compute_reward
 
+        # the maximum angle can only be 10
+        self.max_q = 7
+        # maximum velocity is limited to 2000, but note we change the meaning of dq by timing it with 0.01
+        self.max_dq = 2000 * 0.01
+        self.max_a = 1
+
     def _rollout(self, s, a, goal=None):
         # s (inp_dim)
         # a (pop, T, acts)
         reward = 0
         states = []
         ees = []
+        dim = s.shape[-1]//2
+
+        # do clamp
+        a = a.clamp(-self.max_a, self.max_a)
         for i in range(a.shape[1]):
+            #s = torch.cat((s[...,:dim].clamp(-self.max_q, self.max_q),
+            #               s[...,dim:].clamp(-self.max_dq, self.max_dq)), dim=-1)
+            #s[...,:dim].clamp_(-self.max_q, self.max_q)
+            #s[...,dim:].clamp_(-self.max_dq, self.max_dq)
+            s = s.clamp(-self.max_dq, self.max_dq)
+
             t, ee = self.model(s, a[:, i])
+
+            # clip the state prediction
             if goal is not None:
                 reward = self.compute_reward(s, a, t, goal) + reward
             states.append(t)
@@ -100,10 +133,8 @@ class RolloutAgent(AgentBase):
 
         if self.training:
             (q_loss + dq_loss + ee_loss).backward()
-
-            torch.nn.utils.clip_grad_norm(self.model.parameters(), 1.) # to avoid exploision
-
             self.optim.step()
+
         return {
             'qloss': q_loss.detach().cpu().numpy(),
             'dqloss': dq_loss.detach().cpu().numpy(),
@@ -115,35 +146,42 @@ class RolloutAgent(AgentBase):
         pass
 
 class Tester:
-    def __init__(self, env, make, path):
+    def __init__(self, env, agent, path, encode_obs, horizon, iter_num, num_mutation, num_elite, device, **kwargs):
         self.env = env
-        self.make = make
         self.path = path
 
-        self.controller = RolloutCEM(self.model, self.env.action_space,
-                                     iter_num=iter_num, horizon=horizon, num_mutation=num_mutation,
-                                     num_elite=num_elite, device=self.model.device, **kwargs)
+        from robot.controller.pets.planner import RolloutCEM
 
-    def get_env(self):
-        if isinstance(self.env, str):
-            if self.make is None:
-                self.env = make(self.env)
-            else:
-                self.env = self.make(self.env)
-        return self.env
+        self.agent = agent
+        self.device = device
+
+        self.encode_obs = encode_obs
+        self.controller = RolloutCEM(self.agent, self.env.action_space,
+                                     iter_num=iter_num, horizon=horizon, num_mutation=num_mutation,
+                                     num_elite=num_elite, device=device, **kwargs)
+
+    def reset(self):
+        self.controller.reset()
+
+    def __call__(self, observation):
+        x = observation['observation']
+        goal = observation['desired_goal']
+        x = self.encode_obs(torch.tensor(x, dtype=torch.float, device=self.device))
+        goal = torch.tensor(goal, dtype=torch.float, device=self.device)
+        out = tocpu(self.controller(x, goal))
+        return out
 
     def add_video(self, agent, to_vis):
         self.agent = agent
-        to_vis['reward_eval'] = eval_policy(self, self.get_env(), eval_episodes=,
-                                            save_video=1.,
-                                            video_path=os.path.join(self.path, "video{}.avi"))
-        to_vis['rollout'] = gen_video(self.get_env(), self, horizon=24)
+        to_vis['reward_eval'] = eval_policy(self, self.env, eval_episodes=5,
+                                            save_video=1., video_path=os.path.join(self.path, "video{}.avi"))
+        to_vis['rollout'] = gen_video(self.env, self, horizon=24)
         return to_vis
 
 class Trainer:
     # pass
     # hard coding the training code here..
-    def __init__(self, env, agent, dataset, batch_size, path, timestep=10, tester=None):
+    def __init__(self, env, agent, dataset, batch_size, path, encode_obs, timestep=10, tester=None):
         self.env = env.unwrapped
         self.agent = agent
         self.dataset = dataset
@@ -151,16 +189,14 @@ class Trainer:
         self.path = path
         self.vis = Visualizer(path)
 
-        dofs = self.env._actuator_dof['agent']
-        self.dof_id = np.concatenate((dofs, dofs + 13))
         self.timestep = timestep
         self.tester = tester
+        self.encode_obs = encode_obs
 
     def sample_data(self, mode):
         data = self.dataset.sample(mode=mode, batch_size=self.batch_size, timestep=self.timestep, use_geom=False)
 
-        all_states = data[0][:, :, self.dof_id]
-        all_states[...,7:] *= 0.01 # times dt to make it consistent with state
+        all_states = self.encode_obs(data[0])
 
         inp = all_states[:, 0]
         actions = data[1]
@@ -172,7 +208,8 @@ class Trainer:
 
     def render_state(self, s, b=None):
         q = np.zeros((29,))
-        q[self.dof_id[:7]] = s #only
+        # TODO: remove the hack here
+        q[np.arange(7)+1] = s #only
         if b is not None:
             q[-3:] = b
         return self.env.unwrapped.render_state({'observation': q}, reset=False)
@@ -251,7 +288,8 @@ def main():
     parser.add_argument("--timestep", type=int, default=10)
     args = parser.parse_args()
 
-    info = INFO()
+    env, env_params = make('armreach')
+    info = make_info(env)
 
     if args.model == 'mlp':
         model = MLP_ARM(info.inp_dim, info.oup_dim, 4, 256, batchnorm=args.batchnorm)
@@ -261,9 +299,11 @@ def main():
     agent = RolloutAgent(model, lr=args.lr, compute_reward=info.compute_reward).cuda()
 
     dataset = Dataset('/dataset/arm')
-    env, env_params = make('armreach')
 
-    trainer = Trainer(env, agent, dataset, batch_size=args.batch_size, path=args.path, timestep=args.timestep)
+    tester = Tester(env, agent, args.path, encode_obs=info.encode_obs,
+                    horizon=15, iter_num=10, num_mutation=500, num_elite=50, device='cuda:0')
+    trainer = Trainer(env, agent, dataset, encode_obs=info.encode_obs,
+                      batch_size=args.batch_size, path=args.path, timestep=args.timestep, tester=tester)
 
     for i in range(args.num_epoch):
         print("TRAIN EPOCH", i)

@@ -96,7 +96,10 @@ class Dataset:
                     geoms.append(data[2])
 
         self.obs = np.concatenate(observations)
-        self.action = np.concatenate(actions)
+        self.action = np.concatenate(actions).clip(-1, 1)
+        print('MAX ACTION', np.abs(self.action).max(axis=(0,1)))
+        print('MAX Q', np.abs(self.obs[...,:,1:8]).max(axis=(0,1)))
+        print('MAX DQ', np.abs(self.obs[...,:, 13+1:8+13]).max(axis=(0,1)))
 
         if len(geoms)>0:
             self.geoms = np.concatenate(geoms)
