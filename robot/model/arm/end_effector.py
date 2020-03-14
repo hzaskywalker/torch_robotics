@@ -171,7 +171,7 @@ def main():
     agent = EndEffectorAgent(model, lr=args.lr, normalizer=None).cuda()
 
     dataset = Dataset('/dataset/arm')
-    env, env_params = make('armreach')
+    env, _ = make('armreach')
 
     trainer = Trainer(env, agent, dataset, batch_size=args.batch_size, path=args.path)
 

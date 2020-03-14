@@ -190,9 +190,11 @@ class ArmReachWithXYZ(ArmReach):
         obs['observation'] = np.concatenate((obs['observation'], obs['achieved_goal']))
         return obs
 
-    def render_state(self, state):
+    def render_state(self, state, reset=True):
         # state is in fact the observation
-        _state = self.state_vector()
+        # reset = False to speed up
+        if reset:
+            _state = self.state_vector()
         state = state['observation']
 
         tmp_qpos = self.agent.get_qpos()
@@ -200,6 +202,7 @@ class ArmReachWithXYZ(ArmReach):
         self.end_ee.set_pose(Pose(state[-3:]))
 
         img = self.render(mode='rgb_array')
-        self.load_state_vector(_state)
+        if reset:
+            self.load_state_vector(_state)
         return img
 
