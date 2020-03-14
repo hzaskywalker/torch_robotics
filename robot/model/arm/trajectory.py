@@ -88,23 +88,16 @@ class RolloutAgent(AgentBase):
     def _rollout(self, s, a, goal=None):
         # s (inp_dim)
         # a (pop, T, acts)
-        reward = 0
-        states = []
-        ees = []
+        states, ees, reward = [], [], 0
         dim = s.shape[-1]//2
-
         # do clamp
         a = a.clamp(-self.max_a, self.max_a)
         for i in range(a.shape[1]):
-            #s = torch.cat((s[...,:dim].clamp(-self.max_q, self.max_q),
-            #               s[...,dim:].clamp(-self.max_dq, self.max_dq)), dim=-1)
-            #s[...,:dim].clamp_(-self.max_q, self.max_q)
-            #s[...,dim:].clamp_(-self.max_dq, self.max_dq)
-            s = s.clamp(-self.max_dq, self.max_dq)
+            s = torch.cat((s[...,:dim].clamp(-self.max_q, self.max_q),
+                           s[...,dim:].clamp(-self.max_dq, self.max_dq)), dim=-1)
+            #s = s.clamp(-self.max_dq, self.max_dq)
 
             t, ee = self.model(s, a[:, i])
-
-            # clip the state prediction
             if goal is not None:
                 reward = self.compute_reward(s, a, t, goal) + reward
             states.append(t)
@@ -145,6 +138,38 @@ class RolloutAgent(AgentBase):
     def update_normalizer(self, batch):
         pass
 
+
+def render_state(env, s, b=None):
+    q = np.zeros((29,))
+    # TODO: remove the hack here
+    q[np.arange(7)+1] = s #only
+    if b is not None:
+        q[-3:] = b
+    return env.unwrapped.render_state({'observation': q}, reset=False)
+
+def render(env, inp, oup):
+    # TODO: how to visualize the velocity?
+    if isinstance(inp[0], torch.Tensor):
+        inp = [i.detach().cpu().numpy() for i in inp]
+
+    state, _, future, ee = inp
+
+    if isinstance(oup, torch.Tensor):
+        oup = oup.detach().cpu().numpy()
+
+    images = []
+    for i in range(2):
+        start = render_state(env, state[i][:7])
+        ground_truth = [start] + [render_state(env, s[:7], ee) for s, ee in zip(future[i], ee[i])]
+        predicted = [start]+ [render_state(env, o[:7], o[-3:]) for o in oup[i]]
+
+        images.append(np.concatenate((
+            np.concatenate(ground_truth, axis=1),
+            np.concatenate(predicted, axis=1),
+        ), axis=0))
+    return np.stack(images)
+
+
 class Tester:
     def __init__(self, env, agent, path, encode_obs, horizon, iter_num, num_mutation, num_elite, device, **kwargs):
         self.env = env
@@ -173,10 +198,42 @@ class Tester:
 
     def add_video(self, agent, to_vis):
         self.agent = agent
-        to_vis['reward_eval'] = eval_policy(self, self.env, eval_episodes=5,
+        to_vis['reward_eval'] = eval_policy(self, self.env, eval_episodes=1,
                                             save_video=1., video_path=os.path.join(self.path, "video{}.avi"))
-        to_vis['rollout'] = gen_video(self.env, self, horizon=24)
+        to_vis['rollout'] = self.gen_video(horizon=24)
         return to_vis
+
+    def gen_video(self, horizon=24):
+        import torch
+        # write the video at the neighborhood of the optimal [random] policy
+        env = self.env
+        start = obs = env.reset()
+        real_trajs = []
+        actions = []
+        # 100 frame
+        for i in range(horizon):
+            action = self(obs)
+            actions.append(action)
+            real_trajs.append(env.unwrapped.render_state(obs))
+            obs = env.step(action)[0]
+
+        fake_trajs = []
+        obs = start
+
+        s = torch.tensor(obs['observation'], dtype=torch.float32, device=self.device)
+        a = torch.tensor(actions, dtype=torch.float32, device=self.device)
+        state, ee = self.agent._rollout(self.encode_obs(s[None,:]), a[None,:])[:2]
+
+        state = state[0].detach().cpu().numpy()
+        ee = ee[0].detach().cpu().numpy()
+
+        fake_trajs.append(env.unwrapped.render_state(obs))
+        for s, e in zip(state, ee):
+            fake_trajs.append(render_state(env, s[:7], e))
+
+        for a, b in zip(real_trajs, fake_trajs):
+            yield np.concatenate((a, b), axis=1)
+
 
 class Trainer:
     # pass
@@ -206,36 +263,6 @@ class Trainer:
 
         return inp, actions, future, ee
 
-    def render_state(self, s, b=None):
-        q = np.zeros((29,))
-        # TODO: remove the hack here
-        q[np.arange(7)+1] = s #only
-        if b is not None:
-            q[-3:] = b
-        return self.env.unwrapped.render_state({'observation': q}, reset=False)
-
-    def render(self, inp, oup):
-        # TODO: how to visualize the velocity?
-        if isinstance(inp[0], torch.Tensor):
-            inp = [i.detach().cpu().numpy() for i in inp]
-
-        state, _, future, ee = inp
-
-        if isinstance(oup, torch.Tensor):
-            oup = oup.detach().cpu().numpy()
-
-        images = []
-        for i in range(2):
-            start = self.render_state(state[i][:7])
-            ground_truth = [start] + [self.render_state(s[:7], ee) for s, ee in zip(future[i], ee[i])]
-            predicted = [start]+ [self.render_state(o[:7], o[-3:]) for o in oup[i]]
-
-            images.append(np.concatenate((
-                np.concatenate(ground_truth, axis=1),
-                np.concatenate(predicted, axis=1),
-            ), axis=0))
-        return np.stack(images)
-
     def epoch(self, num_train, num_valid, use_tqdm=False):
         ran = tqdm.trange if use_tqdm else range
         # train
@@ -248,8 +275,12 @@ class Trainer:
             train_output.append(info)
             if _ % 200 == 0:
                 out = merge_training_output(train_output)
+                #if _ % 5000 == 4999:
                 if _ % 5000 == 4999:
-                    out['image'] = self.render(data, info['predict'])
+                    out['image'] = render(self.env, data, info['predict'])
+
+                #self.agent.eval()
+                #self.tester.add_video(self.agent, out)
                 self.vis(out)
                 train_output = []
 
@@ -267,7 +298,7 @@ class Trainer:
         to_vis['valid_image'] = self.render(data, info['predict'])
 
         if self.tester is not None:
-            self.tester.add_video(self, to_vis)
+            self.tester.add_video(self.agent, to_vis)
 
         self.vis(to_vis, self.vis.tb.step - 1)
 
