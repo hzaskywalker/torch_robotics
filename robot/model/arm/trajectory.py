@@ -64,11 +64,11 @@ class MLP_ARM(nn.Module):
 
         self.q_dim = inp_dim[0]
         self.mlp1 = MLP(inp_dim[0] +inp_dim[1], oup_dims[0], num_layers, mid_channels, batchnorm=batchnorm)
-        self.mlp2 = MLP(inp_dim[0], oup_dims[1], num_layers, mid_channels, batchnorm=batchnorm)
+        self.mlp2 = MLP(inp_dim[0]//2, oup_dims[1], num_layers, mid_channels, batchnorm=batchnorm)
 
     def forward(self, state, action):
         new_state = state + self.mlp1(torch.cat((state, action), dim=-1)) # should we just use add here
-        return new_state, self.mlp2(new_state)
+        return new_state, self.mlp2(new_state[...,:7])
 
 
 class RolloutAgent(AgentBase):
@@ -198,7 +198,7 @@ class Tester:
 
     def add_video(self, agent, to_vis):
         self.agent = agent
-        to_vis['reward_eval'] = eval_policy(self, self.env, eval_episodes=1,
+        to_vis['reward_eval'] = eval_policy(self, self.env, eval_episodes=5,
                                             save_video=1., video_path=os.path.join(self.path, "video{}.avi"))
         to_vis['rollout'] = self.gen_video(horizon=24)
         return to_vis
@@ -267,17 +267,19 @@ class Trainer:
         ran = tqdm.trange if use_tqdm else range
         # train
         train_output = []
-        for _ in ran(num_train):
+        cc = 0
+        for idx in ran(num_train):
             data = self.sample_data('train')
 
             self.agent.update_normalizer(data)
             info = self.agent.update(*data)
             train_output.append(info)
-            if _ % 200 == 0:
+            if idx % 200 == 199:
                 out = merge_training_output(train_output)
-                #if _ % 5000 == 4999:
-                if _ % 5000 == 4999:
+                cc += 1
+                if cc % 25 == 0:
                     out['image'] = render(self.env, data, info['predict'])
+                    print(out['image'].shape)
 
                 #self.agent.eval()
                 #self.tester.add_video(self.agent, out)
@@ -295,7 +297,7 @@ class Trainer:
 
         to_vis = merge_training_output(valid_output)
         to_vis = {'valid_'+i:v for i, v in to_vis.items()}
-        to_vis['valid_image'] = self.render(data, info['predict'])
+        to_vis['valid_image'] = render(self.env, data, info['predict'])
 
         if self.tester is not None:
             self.tester.add_video(self.agent, to_vis)
@@ -332,7 +334,7 @@ def main():
     dataset = Dataset('/dataset/arm')
 
     tester = Tester(env, agent, args.path, encode_obs=info.encode_obs,
-                    horizon=15, iter_num=10, num_mutation=500, num_elite=50, device='cuda:0')
+                    horizon=args.timestep-1, iter_num=10, num_mutation=500, num_elite=50, device='cuda:0')
     trainer = Trainer(env, agent, dataset, encode_obs=info.encode_obs,
                       batch_size=args.batch_size, path=args.path, timestep=args.timestep, tester=tester)
 
