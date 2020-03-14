@@ -23,7 +23,9 @@ def gen_video(env, agent, horizon=24):
         fake_trajs.append(env.unwrapped.render_state(obs))
         s = torch.tensor(obs['observation'], dtype=torch.float32, device=agent.model.device)
         a = torch.tensor(actions[i], dtype=torch.float32, device=agent.model.device)
-        obs['observation'] = agent.model.predict(s[None, None, :], a[None, None, :])[0][0, 0].detach().cpu().numpy()
+        out = agent.model.predict(s[None, :], a[None, :])
+        if isinstance(out, tuple): out = out[0]
+        obs['observation'] = out[0].detach().cpu().numpy()
 
     for a, b in zip(real_trajs, fake_trajs):
         yield np.concatenate((a, b), axis=1)

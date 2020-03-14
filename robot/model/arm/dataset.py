@@ -4,6 +4,7 @@ import os
 import glob
 import pickle
 import tqdm
+import torch
 import numpy as np
 
 # easier for parallel
@@ -45,6 +46,9 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
 
 
 def make_dataset(path, env=None):
+    if path == '/dataset/arm':
+        # TODO: I didn't write the code for generating this dataset.
+        raise NotImplementedError
     if path == '/dataset/arm' or path == '/dataset/arm_with_geom':
         from robot.model.arm.controller import RandomController, Controller
         from robot.envs.hyrule.rl_env import ArmReachWithXYZ
@@ -85,21 +89,28 @@ class Dataset:
         geoms = []
         for i in files:
             with open(os.path.join(path, i), 'rb') as f:
-                obs, action, geom = pickle.load(f)
-                observations.append(obs)
-                actions.append(action)
-                geoms.append(geom)
+                data = pickle.load(f)
+                observations.append(data[0])
+                actions.append(data[1])
+                if len(data) > 2:
+                    geoms.append(data[2])
 
         self.obs = np.concatenate(observations)
         self.action = np.concatenate(actions)
-        self.geoms = np.concatenate(geoms)
+
+        if len(geoms)>0:
+            self.geoms = np.concatenate(geoms)
+        else:
+            self.geoms = None
+
         idx = np.arange(len(self.obs))
 
         np.random.seed(0)
         idx = np.random.permutation(idx)
         self.obs = self.obs[idx]
         self.action = self.action[idx]
-        self.geoms = self.geoms[idx]
+        if self.geoms is not None:
+            self.geoms = self.geoms[idx]
 
         self.num_train = int(len(self.obs) * (1-valid_ratio))
         print("num train", self.num_train)
@@ -119,9 +130,11 @@ class Dataset:
 
         if use_geom:
             geom = np.take_along_axis(self.geoms[idx], idx2[:,:, None], axis=1)
-            return s, a, geom
+            output = s, a, geom
         else:
-            return s, a
+            output = s, a
+
+        return [torch.tensor(i, dtype=torch.float, device='cuda:0') for i in output]
 
 
 if __name__ == '__main__':

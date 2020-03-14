@@ -76,7 +76,7 @@ def main():
 
     env = make(env_name)
     action_optimizer = ActionOptimizer(model, constraint, std=None,
-                                       iter_num=5,
+                                       iter_num=10,
                                        num_mutation=200, num_elite=10,
                                        alpha=0.1, trunc_norm=True,
                                        )

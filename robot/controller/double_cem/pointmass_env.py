@@ -3,6 +3,8 @@ import numpy as np
 import tqdm
 from gym.wrappers import TimeLimit
 import cv2
+from multiworld import register_all_envs
+register_all_envs()
 
 class EnvWrapper(gym.Wrapper):
     def __init__(self, env, mode=0):

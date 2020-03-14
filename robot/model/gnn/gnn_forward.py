@@ -120,7 +120,7 @@ class GNBlock(nn.Module):
             global_inp = [scatter_('add', node, batch, dim=0, dim_size=batch_size),
                           scatter_('add', edge, batch[rol], dim=0, dim_size=batch_size)]
             if g is not None:
-                global_inp.append(global_inp)
+                global_inp.append(g)
             g = self.global_mlp(torch.cat(global_inp, dim=1))
 
         edge = self.output_edge_mlp(edge)
@@ -132,17 +132,23 @@ class GNResidule(nn.Module):
     Forward model for fixed model.
     The graph is always predefined.
     """
-    def __init__(self, in_channels, oup_channels, layers=3, mid_channels=256, use_global=False):
+    def __init__(self, in_channels, oup_channels, layers=3, mid_channels=256, use_global=True):
         super(GNResidule, self).__init__()
         # repeat all edge index
         global_channels = mid_channels if use_global else None
-        self.gn1 = GNBlock(in_channels+(None,), (mid_channels, mid_channels, global_channels), layers, mid_channels)
-        self.gn2 = GNBlock((in_channels[0] + mid_channels, in_channels[1]+mid_channels, None), oup_channels+(None,), layers, mid_channels)
+        gns = [GNBlock(in_channels+(None,), (mid_channels, mid_channels, global_channels), layers, mid_channels)]
+        for i in range(6):
+            gns.append(GNBlock((in_channels[0] + mid_channels, in_channels[1]+mid_channels, global_channels),
+                               (mid_channels, mid_channels, global_channels), layers, mid_channels))
+        gns.append(GNBlock((in_channels[0] + mid_channels, in_channels[1]+mid_channels, global_channels),
+                               oup_channels + (None,), layers, mid_channels))
+        self.gns = nn.ModuleList(gns)
 
     def forward(self, graph):
-        graph_mid = self.gn1(graph)
-        output = self.gn2(graph.cat(graph_mid))
-        return output
+        inp = self.gns[0](graph)
+        for module in self.gns[1:]:
+            inp = module(graph.cat(inp))
+        return inp
 
 class GraphNormalizer:
     """
@@ -158,6 +164,7 @@ class GraphNormalizer:
 
     def __call__(self, G):
         g = self.g(G.g) if self.g is not None else G.g
+        #print(self.edge(G.edge), self.edge.mean, self.edge.std)
         return Graph(self.node(G.node), self.edge(G.edge), G.graph, G.batch, g)
 
     def cuda(self):
@@ -193,7 +200,7 @@ class GNNForwardAgent(AgentBase):
         self.graph = graph
         self.compute_reward = compute_reward
         self.inp_norm = GraphNormalizer(inp_dim) # normalize graph
-
+        self.oup_norm = None
         self.forward_model = GNResidule(inp_dim, oup_dim, layers=layers, mid_channels=mid_channels)
 
         self.loss = nn.MSELoss()
@@ -207,13 +214,19 @@ class GNNForwardAgent(AgentBase):
         # support that s is encoded by state_format
         s = obs[:, 0]
         t = obs[:, 1]
+        if self.oup_norm is None:
+            self.oup_norm = Normalizer((t.shape[-1],)).cuda()
         a = a[:, 0]
 
         if self.training:
             self.optim.zero_grad()
+            self.oup_norm.update(t)
 
-        output = self.get_predict(s, a)
+        output = self.predict(s, a)
         assert output.shape == t.shape
+
+        t = self.oup_norm(t)
+        output = self.oup_norm(output)
         loss = self.loss(output, t.detach())
 
         if self.training:
@@ -234,10 +247,11 @@ class GNNForwardAgent(AgentBase):
         assert mode == 'batch'
         node, edge = self.encode_obs(batch[0][:, 0], batch[1][:, 0])
         self.inp_norm.update_normalizer(Graph(node, edge, None))
+        #print('mean', 'std', self.inp_norm.edge.mean, self.inp_norm.edge.std)
         #self.inp_norm.node.update(batch[0][:, 0]) # s
         #self.inp_norm.edge.update(batch[1][:, 0]) # a
 
-    def get_predict(self, s, a):
+    def predict(self, s, a):
         node, edge = self.encode_obs(s, a)
         graph = build_graph(node, edge, self.graph)
         graph = self.inp_norm(graph)
@@ -252,18 +266,16 @@ class GNNForwardAgent(AgentBase):
         with torch.no_grad():
             reward = 0
             for i in range(a.shape[1]):
-                t = self.get_predict(s, a[:, i])
+                t = self.predict(s, a[:, i])
                 reward = self.compute_reward(s, a, t, goal) + reward
                 s = t
         return reward
-
-
-    def __call__(self, s, a):
-        with torch.no_grad():
-            return self.get_predict(s, a)
 
     def cuda(self):
         self.device = 'cuda:0'
         self.graph = self.graph.cuda()
         self.inp_norm.cuda()
+        if self.oup_norm is not None:
+            self.oup_norm = self.oup_norm.cuda()
+
         return super(GNNForwardAgent, self).cuda()
