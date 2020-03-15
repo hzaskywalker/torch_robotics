@@ -72,9 +72,9 @@ class AgentBase:
     def load(cls, path):
         return torch.load(os.path.join(path, 'agent'))
 
-    def cuda(self):
+    def cuda(self, device='cuda:0'):
         if torch.cuda.is_available():
-            self.models.cuda()
+            self.models.cuda(device)
         return self
 
     def get_predict(self, points, pose):

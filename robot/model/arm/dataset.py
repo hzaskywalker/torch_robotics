@@ -79,7 +79,7 @@ def make_dataset(path, env=None):
 
 
 class Dataset:
-    def __init__(self, path, make_dataset=make_dataset, valid_ratio=0.2, env=None):
+    def __init__(self, path, make_dataset=make_dataset, valid_ratio=0.2, device='cuda:0', env=None):
         files = glob.glob(os.path.join(path, '*.pkl'))
         if len(files) == 0:
             make_dataset(path, env)
@@ -97,6 +97,7 @@ class Dataset:
 
         self.obs = np.concatenate(observations)
         self.action = np.concatenate(actions).clip(-1, 1)
+        self.device = device
         print('MAX ACTION', np.abs(self.action).max(axis=(0,1)))
         print('MAX Q', np.abs(self.obs[...,:,1:8]).max(axis=(0,1)))
         print('MAX DQ', np.abs(self.obs[...,:, 13+1:8+13]).max(axis=(0,1)))
@@ -137,7 +138,7 @@ class Dataset:
         else:
             output = s, a
 
-        return [torch.tensor(i, dtype=torch.float, device='cuda:0') for i in output]
+        return [torch.tensor(i, dtype=torch.float, device=self.device) for i in output]
 
 
 if __name__ == '__main__':

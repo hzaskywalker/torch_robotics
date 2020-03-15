@@ -34,9 +34,12 @@ def make_info(env):
         def encode_obs(cls, s):
             s = s[..., cls.dof_id]
             assert len(cls.dof_id) == 14
-            s[..., 7:] *= 0.01  # times dt to make it consistent with state
+            s[..., 7:] *= 0.1  # times dt to make it consistent with state
             return s
 
+    # TO pickle...
+    INFO.__qualname__ = 'ARMINFO'
+    globals()['ARMINFO'] = INFO
     return INFO
 
 
@@ -82,20 +85,19 @@ class RolloutAgent(AgentBase):
         # the maximum angle can only be 10
         self.max_q = 7
         # maximum velocity is limited to 2000, but note we change the meaning of dq by timing it with 0.01
-        self.max_dq = 2000 * 0.01
+        self.max_dq = 2000 * 0.1
         self.max_a = 1
 
     def _rollout(self, s, a, goal=None):
         # s (inp_dim)
         # a (pop, T, acts)
         states, ees, reward = [], [], 0
-        dim = s.shape[-1]//2
+        dim_q = s.shape[-1]//2
         # do clamp
         a = a.clamp(-self.max_a, self.max_a)
         for i in range(a.shape[1]):
-            s = torch.cat((s[...,:dim].clamp(-self.max_q, self.max_q),
-                           s[...,dim:].clamp(-self.max_dq, self.max_dq)), dim=-1)
-            #s = s.clamp(-self.max_dq, self.max_dq)
+            s = torch.cat((s[...,:dim_q].clamp(-self.max_q, self.max_q),
+                           s[...,dim_q:].clamp(-self.max_dq, self.max_dq)), dim=-1)
 
             t, ee = self.model(s, a[:, i])
             if goal is not None:
@@ -125,7 +127,7 @@ class RolloutAgent(AgentBase):
         ee_loss = self.loss(ee_position, ee)
 
         if self.training:
-            (q_loss + dq_loss + ee_loss).backward()
+            (q_loss * 0.1 + dq_loss * 0.05 + ee_loss).backward()
             self.optim.step()
 
         return {
@@ -279,10 +281,6 @@ class Trainer:
                 cc += 1
                 if cc % 25 == 0:
                     out['image'] = render(self.env, data, info['predict'])
-                    print(out['image'].shape)
-
-                #self.agent.eval()
-                #self.tester.add_video(self.agent, out)
                 self.vis(out)
                 train_output = []
 
@@ -304,6 +302,8 @@ class Trainer:
 
         self.vis(to_vis, self.vis.tb.step - 1)
 
+        torch.save(self.agent, os.path.join(self.path, 'agent'))
+
         self.agent.train()
 
 
@@ -319,6 +319,7 @@ def main():
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--path", type=str, default='rollout')
     parser.add_argument("--timestep", type=int, default=10)
+    parser.add_argument("--device", type=str, default='cuda:0')
     args = parser.parse_args()
 
     env, env_params = make('armreach')
@@ -329,12 +330,12 @@ def main():
     else:
         raise NotImplementedError
 
-    agent = RolloutAgent(model, lr=args.lr, compute_reward=info.compute_reward).cuda()
+    agent = RolloutAgent(model, lr=args.lr, compute_reward=info.compute_reward).cuda(args.device)
 
-    dataset = Dataset('/dataset/arm')
+    dataset = Dataset('/dataset/arm', device=args.device)
 
     tester = Tester(env, agent, args.path, encode_obs=info.encode_obs,
-                    horizon=args.timestep-1, iter_num=10, num_mutation=500, num_elite=50, device='cuda:0')
+                    horizon=args.timestep-1, iter_num=20, num_mutation=500, num_elite=10, device=args.device)
     trainer = Trainer(env, agent, dataset, encode_obs=info.encode_obs,
                       batch_size=args.batch_size, path=args.path, timestep=args.timestep, tester=tester)
 
