@@ -45,7 +45,6 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
         #while not done:
         cc = 0
         for i in ran(timestep):
-            print(i)
             if episode_id < save_video:
                 if video_path[-3:] == 'avi':
                     img = eval_env.render(mode='rgb_array')
@@ -57,7 +56,6 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
                     eval_env.render()
 
 
-            print('xxxxxxxxx')
             if use_hidden_state:
                 state = get_state(eval_env)
                 if print_state:
@@ -67,13 +65,10 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
             #print()
             if isinstance(state, dict): pass
             else: state = np.array(state)
-            print('not ok')
             action = policy(state)
-            print('ok', action)
             state, reward, done, info = eval_env.step(action)
             avg_reward += reward
             cc += reward
-            print('xxxxx', done)
             if done:
                 break
         if 'is_success' in info:
