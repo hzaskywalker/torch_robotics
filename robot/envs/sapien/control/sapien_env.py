@@ -46,7 +46,7 @@ class SapienEnv(gym.Env):
             'video.frames_per_second': int(np.round(1.0 / self.dt))
         }
 
-        self._sim = sapien_core.Simulation()
+        self._sim = sapien_core.Engine()
         self._renderer2 = sapien_core.OptifuserRenderer()
         self._sim.set_renderer(self._renderer2)
         self.sim = self._sim.create_scene(gravity=np.array(gravity))
@@ -184,10 +184,17 @@ class SapienEnv(gym.Env):
 
     def do_simulation(self, a, n_frames):
         qf = np.zeros((self._dof), np.float32)
+        print(qf, self.actor_idx)
         qf[self.actor_idx] = a
+        print('qf', qf, self.actor_idx, self.model.get_qf())
         for _ in range(n_frames):
+            print('set qf')
             self.model.set_qf(qf)
+            print(self.model.get_qpos())
+            print(self.model.get_qvel())
+            print('step')
             self.sim.step()
+            print('step failed')
 
 
     def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE):
