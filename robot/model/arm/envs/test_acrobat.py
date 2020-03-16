@@ -1,12 +1,14 @@
 from robot.model.arm.envs.acrobat import GoalAcrobat
 import numpy as np
 import time
+from sklearn.linear_model import Ridge
 
 
 class AcrobatController:
     def __init__(self, env: GoalAcrobat, p=0):
         self.env = env.unwrapped
         self.p = p
+        self.clf = Ridge(alpha=0.01)
 
     def __call__(self, state):
         # pass
@@ -31,7 +33,10 @@ class AcrobatController:
 
         jac = self.env.get_jacobian()[0]
 
-        delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] # desired_velocity
+        #delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] # desired_velocity
+        self.clf.fit(jac[:3], goal-achieved)
+        delta = self.clf.coef_ * 10
+
         q_delta = qvel.copy() * 0
         q_delta[:] = delta
 
@@ -43,7 +48,6 @@ class AcrobatController:
         qf = self.env.agent.compute_inverse_dynamics(qacc)[dofs]
         #print('QF', qf)
         self.env.load_state_vector(state_vector)
-
         qf += self.env.agent.compute_passive_force()
         action = qf/self.env._actuator_range['agent'][:, 1]
         #print('ACTION', action)
@@ -51,9 +55,12 @@ class AcrobatController:
 
 
 def main():
-    env = GoalAcrobat()
+    env = GoalAcrobat(length=[0.3, 0.3, 0.3])
     policy = AcrobatController(env, p=0.0)
+
     from robot.utils.rl_utils import eval_policy
+    eval_policy(policy, env, save_video=1, eval_episodes=100, progress_episode=True, timestep=50)
+    exit(0)
 
     obs = env.reset()
     for i in range(1000):

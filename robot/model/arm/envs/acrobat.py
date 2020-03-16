@@ -63,7 +63,7 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         self._timestep = 0
         #self._goal = self.observation_space['desired_goal'].sample()
 
-        r = (np.random.random() * 0.7+0.2) * self.total_length
+        r = (np.random.random() * 0.6+0.4) * self.total_length
         theta = np.random.random() * np.pi * 2 - np.pi
         self._goal = np.array((np.sin(theta) * r, np.cos(theta) * r))
         return self._get_obs()
@@ -115,8 +115,8 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         tmp = base
         for idx, l in enumerate(self._length):
             tmp = self.my_add_link(tmp, ((0, 0, 0), x2y), ((0, 0, l), x2y),
-                                   f'link{idx}', f'joint{idx}', range=[-np.pi, np.pi],
-                                   damping=0.1, father_pose_type='sapien')
+                                   f'link{idx}', f'joint{idx}', range=[-np.pi * 2, np.pi * 2],
+                                   damping=0.5, father_pose_type='sapien')
             self.fromto(tmp, f"0 0 0 0 0 {l}", size=0.03, rgb=np.array([0., 0.7, 0.7]), name='cpole')
 
         wrapper = builder.build(True)
@@ -144,11 +144,11 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
 
     def load_state_vector(self, vec):
         self._timestep = int(vec[0])
-        self.model.set_qpos(vec[1:3])
-        self.model.set_qvel(vec[3:5])
+        d = (vec.shape[0] - 3)//2
+        self.model.set_qpos(vec[1:1+d])
+        self.model.set_qvel(vec[d+1:1+2*d])
         self._goal = vec[-2:].copy()
 
     def get_jacobian(self):
         jac = self.model.compute_jacobian()[-6:] # in joint space
-        assert jac.shape == (6, 2)
         return jac, None

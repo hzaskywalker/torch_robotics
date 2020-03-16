@@ -1,12 +1,14 @@
 from robot.model.arm.envs.cartpole import GoalCartpole
 import numpy as np
 import time
+from sklearn.linear_model import Ridge
 
 
 class CartpoleController:
     def __init__(self, env: GoalCartpole, p=0):
         self.env = env.unwrapped
         self.p = p
+        self.clf = Ridge(alpha=1.)
 
     def __call__(self, state):
         # pass
@@ -45,8 +47,9 @@ class CartpoleController:
         jac = jac.astype(np.float64)
         diff = diff.astype(np.float64)
 
-        delta = np.linalg.lstsq(jac, diff)[0] * 100# desired_velocity
-        delta.astype(np.float32)
+        self.clf.fit(jac[:3], goal-achieved)
+        delta = self.clf.coef_ * 100
+
         q_delta = qvel.copy()
         q_delta[:] = delta * 10
         q_delta[0] *= 1e-2
