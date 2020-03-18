@@ -80,7 +80,8 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
         if out is not None:
             out.release()
 
-    avg_reward /= eval_episodes
+    if eval_episodes > 0:
+        avg_reward /= eval_episodes
 
     print("---------------------------------------")
     print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")

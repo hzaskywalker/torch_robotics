@@ -53,53 +53,53 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
         pickle.dump([observations, actions, geoms], f)
 
 
-def make_dataset(path, env=None):
-    if path == '/dataset/arm' or path == '/dataset/arm_with_geom' or path == '/dataset/acrobat2':
-        from robot.model.arm.envs.arm_controller import RandomController, Controller as ArmController
-        from robot.model.arm.envs.acrobat import GoalAcrobat
-        from robot.model.arm.envs.test_acrobat import AcrobatController
-        from robot.envs.hyrule.rl_env import ArmReachWithXYZ
+def make_dataset(env_name):
+    from robot.model.arm.envs import make
+    from robot.model.arm.envs.arm_controller import RandomController, Controller as ArmController
+    from robot.model.arm.envs.test_acrobat import AcrobatController
 
-        from multiprocessing import Process
-        workers = []
+    path = os.path.join('/dataset/', env_name)
+    Controller = {
+        'arm': ArmController,
+        'acrobat2': AcrobatController,
+        'plane': RandomController
+    }[env_name]
 
-        if path == '/dataset/arm' or path == '/dataset/arm_with_geom':
-            make = lambda x: ArmReachWithXYZ(geom=True)
-            Controller = ArmController
-        elif path == '/dataset/acrobat2':
-            make = lambda x: GoalAcrobat(length=[0.5, 0.5])
-            Controller = AcrobatController
-        else:
-            raise NotImplementedError
+    from multiprocessing import Process
+    workers = []
 
-        if not os.path.exists(path):
-            os.makedirs(path)
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-        for i in range(20):
+    for i in range(20):
+        if env_name in ['arm', 'acrobat2']:
             if i >= 10 and i<15:
                 policy = lambda x: RandomController(x)
             elif i >= 15:
                 policy = lambda x: Controller(x, 0)
             else:
                 policy = lambda x, i=i: Controller(x, float(i+1)/11)
-            workers.append(Process(
-                target=data_collector,
-                args=("not a env", policy, 5000, 50, os.path.join(path, f"{i}.pkl"), make, i==19, i)
-            ))
+        else:
+            policy = Controller
 
-        for i in workers:
-            i.start()
-        for i in workers:
-            i.join()
-    else:
-        raise NotImplementedError
+        workers.append(Process(
+            target=data_collector,
+            args=(env_name, policy, 5000, 50, os.path.join(path, f"{i}.pkl"), make, i==19, i)
+        ))
+
+    for i in workers:
+        i.start()
+    for i in workers:
+        i.join()
 
 
 class Dataset:
     def __init__(self, path, make_dataset=make_dataset, valid_ratio=0.2, device='cuda:0', env=None):
         files = glob.glob(os.path.join(path, '*.pkl'))
         if len(files) == 0:
-            make_dataset(path, env)
+            env_name = path.split('/')[-1]
+            make_dataset(env_name)
+
         files = glob.glob(os.path.join(path, '*.pkl'))
         observations = []
         actions = []
@@ -164,12 +164,13 @@ class Dataset:
 
 def test():
     from robot.model.arm.envs import make
-    dataset = Dataset('/dataset/acrobat2')
+    dataset = Dataset('/dataset/plane')
     # test acrobat
     s = dataset.sample(batch_size=1, timestep=25)[0][0].detach().cpu().numpy()
     from robot.utils import write_video
 
-    env = make('acrobat2')
+    env = make('plane')
+    env.reset()
     def make():
         for i in s:
             img = env.render_obs({'observation':i})

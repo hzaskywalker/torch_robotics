@@ -27,6 +27,10 @@ class Renderer:
             q = np.concatenate(t)
             return self.env.unwrapped.render_obs(
                 {'observation': q},reset=False)
+        elif self.env_name == 'plane':
+            return self.env.unwrapped.render_obs(
+                {'observation': s}
+            )
         else:
             raise NotImplementedError
 
@@ -60,6 +64,8 @@ class Renderer:
         actions = []
         # 100 frame
 
+        if 'reset' in policy.__dict__:
+            policy.reset()
         for i in range(horizon):
             action = policy(obs)
             actions.append(action)
@@ -70,9 +76,10 @@ class Renderer:
         obs = start
 
         # rollout_functiont take obs, actions as input
-        start_state = torch.tensor(obs['observation'], dtype=torch.float, device=policy.device)[None,:]
-        actions = torch.tensor(np.array(actions), dtype=torch.float, device=policy.device)[None,:]
-        state, ee = agent.rollout(start_state, actions, return_traj=True)
+        device = agent.device
+        start_obs = torch.tensor(obs['observation'], dtype=torch.float, device=device)[None,:]
+        actions = torch.tensor(np.array(actions), dtype=torch.float, device=device)[None,:]
+        state, ee = agent.rollout(start_obs, actions, return_traj=True)
 
         state = state[0].detach().cpu().numpy()
         ee = ee[0].detach().cpu().numpy()
@@ -82,4 +89,5 @@ class Renderer:
             fake_trajs.append(self.render_state(s, e))
 
         for a, b in zip(real_trajs, fake_trajs):
-            yield np.concatenate((a, b), axis=1)
+            out = np.concatenate((a, b), axis=1)
+            yield out

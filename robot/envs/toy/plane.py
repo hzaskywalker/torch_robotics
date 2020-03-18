@@ -190,6 +190,7 @@ class GoalPlane(gym.Env):
             'achieved_goal': goal_space,
         }))
         self.goal = None
+        self.reset()
 
     def compute_reward(self, achieved_goal, desired_goal, info):
         reward = -np.linalg.norm(achieved_goal - desired_goal, axis=-1)
@@ -249,7 +250,7 @@ class GoalPlane(gym.Env):
         else:
             return image
 
-    def render_state(self, state):
+    def render_obs(self, state):
         tmp = np.array(self.env.state).copy()
         self.env.state = state['observation']/self.maze_size
 

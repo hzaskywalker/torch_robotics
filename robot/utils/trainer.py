@@ -51,6 +51,7 @@ class AgentBase:
         self.models = models
         self.optim = torch.optim.Adam(models.parameters(), lr=lr)
         self.training = True
+        self.device = 'cpu'
 
     def train(self):
         self.training = True
@@ -75,6 +76,7 @@ class AgentBase:
     def cuda(self, device='cuda:0'):
         if torch.cuda.is_available():
             self.models.cuda(device)
+            self.device = device
         return self
 
     def get_predict(self, points, pose):
