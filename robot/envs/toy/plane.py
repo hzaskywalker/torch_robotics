@@ -165,7 +165,7 @@ class PlaneBase(gym.Env):
 
 
 class GoalPlane(gym.Env):
-    def __init__(self, rects=[], maze_size=16., action_size=1., distance=0.1, start=None, goals=None):
+    def __init__(self, rects=[], maze_size=16., action_size=1., distance=1, start=None, goals=None):
         super(GoalPlane, self).__init__()
         self.env = PlaneBase(rects= rects, R=1, size=512)
 
