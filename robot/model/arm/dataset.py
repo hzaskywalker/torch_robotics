@@ -7,13 +7,16 @@ import tqdm
 import torch
 import numpy as np
 
+
 # easier for parallel
 def data_collector(env, make_policy, num_episode, timestep, path, make=None, use_tqdm=False, seed=None):
-    if seed is not None:
-        np.random.seed(seed)
 
     if isinstance(env, str):
         env = make(env)
+
+    if seed is not None:
+        np.random.seed(seed)
+
     policy = make_policy(env)
     ran = tqdm.trange if use_tqdm else range
 
@@ -23,18 +26,23 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
         obs = env.reset()
         for j in range(timestep):
             action = policy(obs)
+            geom = None
             if isinstance(obs, dict):
-                geom = obs['geom']
+                if 'geom' in obs:
+                    geom = obs['geom']
                 obs = obs['observation']
 
             if observations is None:
                 observations = np.empty([num_episode, timestep + 1, obs.shape[-1]])
                 actions = np.empty([num_episode, timestep, action.shape[-1]])
-                geoms = np.empty([num_episode, timestep, geom.shape[-1]])
+                if geom is not None:
+                    geoms = np.empty([num_episode, timestep, geom.shape[-1]])
 
             observations[i, j] = obs
             actions[i, j] = action
-            geoms[i, j] = geom
+
+            if geom is not None:
+                geoms[i, j] = geom
 
             obs, reward, done, _ = env.step(action)
             if done:
@@ -46,30 +54,39 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
 
 
 def make_dataset(path, env=None):
-    if path == '/dataset/arm':
-        # TODO: I didn't write the code for generating this dataset.
-        raise NotImplementedError
-    if path == '/dataset/arm' or path == '/dataset/arm_with_geom':
-        from robot.model.arm.controller import RandomController, Controller
+    if path == '/dataset/arm' or path == '/dataset/arm_with_geom' or path == '/dataset/acrobat2':
+        from robot.model.arm.envs.arm_controller import RandomController, Controller as ArmController
+        from robot.model.arm.envs.acrobat import GoalAcrobat
+        from robot.model.arm.envs.test_acrobat import AcrobatController
         from robot.envs.hyrule.rl_env import ArmReachWithXYZ
-        #if env is None:
-        #    env = ArmReachWithXYZ()
-        #data_collector(env, lambda x: RandomController(x),
-        #               num_episode=1000, timestep=50, path=os.path.join(path, '1.pkl'), use_tqdm=True)
+
         from multiprocessing import Process
         workers = []
+
+        if path == '/dataset/arm' or path == '/dataset/arm_with_geom':
+            make = lambda x: ArmReachWithXYZ(geom=True)
+            Controller = ArmController
+        elif path == '/dataset/acrobat2':
+            make = lambda x: GoalAcrobat(length=[0.5, 0.5])
+            Controller = AcrobatController
+        else:
+            raise NotImplementedError
+
+        if not os.path.exists(path):
+            os.makedirs(path)
+
         for i in range(20):
-            if i >= 10:
+            if i >= 10 and i<15:
                 policy = lambda x: RandomController(x)
             elif i >= 15:
                 policy = lambda x: Controller(x, 0)
             else:
                 policy = lambda x, i=i: Controller(x, float(i+1)/11)
-            make = lambda x: ArmReachWithXYZ(geom=True)
             workers.append(Process(
                 target=data_collector,
                 args=("not a env", policy, 5000, 50, os.path.join(path, f"{i}.pkl"), make, i==19, i)
             ))
+
         for i in workers:
             i.start()
         for i in workers:
@@ -88,12 +105,16 @@ class Dataset:
         actions = []
         geoms = []
         for i in files:
+            b = int(i.split('/')[-1].split('.')[0])
+            #if b != 0:
+            #    continue
             with open(os.path.join(path, i), 'rb') as f:
                 data = pickle.load(f)
                 observations.append(data[0])
                 actions.append(data[1])
                 if len(data) > 2:
-                    geoms.append(data[2])
+                    if data[2] is not None:
+                        geoms.append(data[2])
 
         self.obs = np.concatenate(observations)
         self.action = np.concatenate(actions).clip(-1, 1)
@@ -128,7 +149,7 @@ class Dataset:
         else:
             raise NotImplementedError
 
-        idx2 = np.random.randint(self.obs.shape[-1]-timestep, size=batch_size)[:, None] + np.arange(timestep)[None,:]
+        idx2 = np.random.randint(self.obs.shape[-2]-timestep, size=batch_size)[:, None] + np.arange(timestep)[None,:]
         s = np.take_along_axis(self.obs[idx], idx2[:,:, None], axis=1)
         a = np.take_along_axis(self.action[idx], idx2[:,:-1, None], axis=1)
 
@@ -141,7 +162,20 @@ class Dataset:
         return [torch.tensor(i, dtype=torch.float, device=self.device) for i in output]
 
 
+def test():
+    from robot.model.arm.envs import make
+    dataset = Dataset('/dataset/acrobat2')
+    # test acrobat
+    s = dataset.sample(batch_size=1, timestep=25)[0][0].detach().cpu().numpy()
+    from robot.utils import write_video
+
+    env = make('acrobat2')
+    def make():
+        for i in s:
+            img = env.render_obs({'observation':i})
+            yield img
+    write_video(make(), 'xxx.avi')
+
+
 if __name__ == '__main__':
-    dataset = Dataset('/dataset/arm_with_geom')
-    for i in tqdm.trange(10000):
-        x = dataset.sample(batch_size=256)
+    test()

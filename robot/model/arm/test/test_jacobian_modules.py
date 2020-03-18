@@ -1,6 +1,5 @@
-import argparse
 import torch
-from robot.model.arm.lagrangian import grad_fc, grad_relu, grad_sequential, grad_softplus
+from robot.model.arm.extra.lagrangian import grad_fc, grad_relu, grad_sequential, grad_softplus
 
 def main():
     model = grad_sequential(

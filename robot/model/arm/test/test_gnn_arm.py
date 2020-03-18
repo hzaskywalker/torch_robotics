@@ -6,9 +6,9 @@ from robot.controller.pets.envs import make
 from robot.envs.hyrule.rl_env import ArmReachWithXYZ
 from robot.model.gnn.gnn_forward import GNNForwardAgent
 
-from robot.model.arm.forward import Worker
+from robot.model.arm.extra.forward import Worker
 from robot.model.arm.dataset import Dataset
-from robot.model.arm.recorder import ModelRecorder
+from robot.model.arm.extra.recorder import ModelRecorder
 
 
 def make_robot_info(env: ArmReachWithXYZ, info):

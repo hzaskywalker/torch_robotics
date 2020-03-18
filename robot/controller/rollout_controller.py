@@ -28,10 +28,14 @@ class RolloutCEM:
 
     def cost(self, x, a):
         x = x[None, :].expand(a.shape[0], -1)
-        out = self.model.rollout(x, a)[1]
-        # ignore the cost and only use the reward
+        if self.goal is None:
+            # not goal conditioned
+            out = self.model.rollout(x, a)[1]
+        else:
+            out = self.model.rollout(x, a, self.goal)[1]
+
         if not isinstance(out, torch.Tensor):
-            out = torch.Tensor(out).to(self.device)
+            out = torch.tensor(out, dtype=torch.float, device=self.device)
         return out
 
 
@@ -52,7 +56,14 @@ class RolloutCEM:
             if self.ac_buf.shape[0] > 0:
                 act, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
                 return act
-        obs = torch.tensor(obs, device=self.init_std.device, dtype=torch.float)
+
+        if isinstance(obs, dict):
+            obs, goal = obs['observation'], obs['desired_goal']
+            obs = torch.tensor(obs, device=self.init_std.device, dtype=torch.float)
+            self.goal = torch.tensor(goal, device=self.init_std.device, dtype=torch.float)
+        else:
+            obs = torch.tensor(obs, device=self.init_std.device, dtype=torch.float)
+            self.goal = None
         self.prev_actions = self.optimizer(obs, self.prev_actions, self.init_std)
         self.optimizer.iter_num = self._iter
 

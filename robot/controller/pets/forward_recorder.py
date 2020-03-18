@@ -17,14 +17,14 @@ class Recoder(RLRecorder):
             for i in range(horizon):
                 action = agent(obs)
                 actions.append(action)
-                real_trajs.append(env.unwrapped.render_state(obs))
+                real_trajs.append(env.unwrapped.render_obs(obs))
                 obs = env.step(action)[0]
 
 
             fake_trajs = []
             obs = start
             for i in range(horizon):
-                fake_trajs.append(env.unwrapped.render_state(obs))
+                fake_trajs.append(env.unwrapped.render_obs(obs))
                 s = torch.tensor(obs['observation'], dtype=torch.float32, device=agent.model.device)
                 a = torch.tensor(actions[i], dtype=torch.float32, device=agent.model.device)
                 obs['observation'] = agent.model.predict(s[None,None,:],a[None,None,:])[0][0,0].detach().cpu().numpy()

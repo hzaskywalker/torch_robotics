@@ -190,7 +190,7 @@ class ArmReachWithXYZ(ArmReach):
         obs['observation'] = np.concatenate((obs['observation'], obs['achieved_goal']))
         return obs
 
-    def render_state(self, state, reset=True):
+    def render_obs(self, state, reset=True):
         # state is in fact the observation
         # reset = False to speed up
         if reset:

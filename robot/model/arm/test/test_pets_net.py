@@ -1,8 +1,8 @@
 from robot.controller.pets.envs import make
 from robot.controller.pets.model import EnBNNAgent
-from robot.model.arm.forward import Worker
+from robot.model.arm.extra.forward import Worker
 from robot.model.arm.dataset import Dataset
-from robot.model.arm.recorder import ModelRecorder
+from robot.model.arm.extra.recorder import ModelRecorder
 
 def main():
     dataset = Dataset('/dataset/arm_with_geom')

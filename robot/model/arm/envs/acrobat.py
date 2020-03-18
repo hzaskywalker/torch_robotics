@@ -115,7 +115,7 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         tmp = base
         for idx, l in enumerate(self._length):
             tmp = self.my_add_link(tmp, ((0, 0, 0), x2y), ((0, 0, l), x2y),
-                                   f'link{idx}', f'joint{idx}', range=[-np.pi * 2, np.pi * 2],
+                                   f'link{idx}', f'joint{idx}', range=[-np.inf, np.inf],
                                    damping=0.5, father_pose_type='sapien')
             self.fromto(tmp, f"0 0 0 0 0 {l}", size=0.03, rgb=np.array([0., 0.7, 0.7]), name='cpole')
 
@@ -152,3 +152,21 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
     def get_jacobian(self):
         jac = self.model.compute_jacobian()[-6:] # in joint space
         return jac, None
+
+
+    def render_obs(self, state, reset=True):
+        # state is in fact the observation
+        # reset = False to speed up
+        if reset:
+            _state = self.state_vector()
+        state = state['observation']
+
+        tmp_qpos = self.agent.get_qpos()
+        self.agent.set_qpos(state[:len(tmp_qpos)])
+        self.ee_sphere.set_pose(Pose(state[-3:]))
+
+        img = self.render(mode='rgb_array')
+        if reset:
+            self.load_state_vector(_state)
+        return img
+

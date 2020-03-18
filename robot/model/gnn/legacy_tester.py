@@ -14,7 +14,7 @@ class ForwardModelTester:
     def __init__(self, env, path=None, num_traj=100, timestep=1000):
         self.path = path
         self.extension = env.extension
-        self.render_state = env.render_state
+        self.render_state = env.render_obs
 
         @cache(self.path)
         def collect_data(env, num_traj, timestep):
