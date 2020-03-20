@@ -39,10 +39,6 @@ def NearZero(z):
     """Determines whether a scalar is small enough to be treated as zero
     :param z: A scalar input to check
     :return: True if z is close to zero, false otherwise
-    Example Input:
-        z = -1e-7
-    Output:
-        True
     """
     return z.abs() < 1e-6
 
@@ -54,12 +50,6 @@ def vec_to_so3(omg):
     """Converts a 3-vector to an so(3) representation
     :param omg: A 3-vector
     :return: The skew symmetric representation of omg
-    Example Input:
-        omg = np.array([1, 2, 3])
-    Output:
-        np.array([[ 0, -3,  2],
-                  [ 3,  0, -1],
-                  [-2,  1,  0]])
     """
     omg0, omg1, omg2 = omg[...,0], omg[..., 1], omg[..., 2]
     ans = torch.zeros(omg.shape[:-1]+(3,3), device=omg.device, dtype=omg.dtype)
@@ -168,12 +158,6 @@ def inv_trans(T):
     :return: The inverse of T
     Uses the structure of transformation matrices to avoid taking a matrix
     inverse, for efficiency.
-    Example input:
-    Output:
-        np.array([[1,  0, 0,  0],
-                  [0,  0, 1, -3],
-                  [0, -1, 0,  0],
-                  [0,  0, 0,  1]])
     """
     R, p = trans_to_Rp(T)
     Rt = transpose(R)
@@ -198,15 +182,6 @@ def ad(V):
     :param V: A 6-vector spatial velocity
     :return: The corresponding 6x6 matrix [adV]
     Used to calculate the Lie bracket [V1, V2] = [adV1]V2
-    Example Input:
-        V = np.array([1, 2, 3, 4, 5, 6])
-    Output:
-        np.array([[ 0, -3,  2,  0,  0,  0],
-                  [ 3,  0, -1,  0,  0,  0],
-                  [-2,  1,  0,  0,  0,  0],
-                  [ 0, -6,  5,  0, -3,  2],
-                  [ 6,  0, -4,  3,  0, -1],
-                  [-5,  4,  0, -2,  1,  0]])
     """
     #omgmat = VecToso3([V[0], V[1], V[2]])
     assert V.shape[-1] == 6
@@ -259,8 +234,8 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
         # T_{i, i-1} = e^{-[A_i]\theta_i}M_{i-1,i}^-1
         Ti = dot(expse3(vec_to_se3(Ai * -theta[:, i, None])), inv_trans(M[:, i]))
         AdTi = Adjoint(Ti)
-        Vi = Ai * dtheta[:, i] +dot(AdTi, V[i]) # new Vi
-        dVi= dot(AdTi, dV[i]) + Ai * ddtheta[:, i] + dot(ad(Vi), Ai) * dtheta[:, i]
+        Vi = Ai * dtheta[:, i, None] +dot(AdTi, V[i]) # new Vi
+        dVi= dot(AdTi, dV[i]) + Ai * ddtheta[:, i, None] + dot(ad(Vi), Ai) * dtheta[:, i, None]
 
         AdT.append(AdTi); A.append(Ai); V.append(Vi); dV.append(dVi)
 
@@ -275,3 +250,54 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
         tau.append((Fi * A[i]).sum(dim=-1))
 
     return torch.stack(tau[::-1], dim=-1)
+
+
+def compute_mass_matrix(theta, M, G, S):
+    """Computes the mass matrix of an open chain robot based on the given
+    configuration"""
+    def expand_n(array, n):
+        return array[None, :].expand(n, *((-1,) * array.dim())).reshape(-1, *array.shape[1:])
+
+    assert theta.dim() == 2
+
+    n = theta.shape[-1]
+    ddtheta = eyes_like(M[..., 0, :, :], n=n).permute(1, 0, 2).reshape(-1, n)
+
+    theta = expand_n(theta, n)
+    M = expand_n(M, n)
+    G = expand_n(G, n)
+    S = expand_n(S, n)
+    gravity = theta.new_zeros((theta.shape[0], 3))
+    ftip = theta.new_zeros((theta.shape[0], 6))
+
+    M = inverse_dynamics(theta, theta * 0, ddtheta, gravity, ftip, M, G, S)
+    M = M.reshape(n, -1, n).permute(1, 0, 2).contiguous()
+    return M
+
+
+def compute_coriolis_centripetal(theta, dtheta, M, G, S):
+    """
+    compute the force, but not the matrix... of course I can do something to retrive the matrix just like the mass matrix.
+    """
+    gravity = theta.new_zeros((theta.shape[0], 3))
+    ftip = theta.new_zeros((theta.shape[0], 6))
+    return inverse_dynamics(theta, dtheta, dtheta * 0, gravity, ftip, M, G, S)
+
+
+def compute_passive_force(theta, M, G, S, gravity=None, ftip=None):
+    zero_gravity = theta.new_zeros((theta.shape[0], 3))
+    zero_ftip = theta.new_zeros((theta.shape[0], 6))
+
+    g, f = None, None
+    if gravity is not None:
+        g = inverse_dynamics(theta, theta * 0, theta * 0, gravity, zero_ftip, M, G, S)
+    if ftip is not None:
+        f = inverse_dynamics(theta, theta * 0, theta * 0, zero_gravity, ftip, M, G, S)
+    return g, f
+
+
+def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, S):
+    mass = compute_mass_matrix(theta, M, G, S)
+    c = compute_coriolis_centripetal(theta, dtheta, M, G, S)
+    g, f = compute_passive_force(theta, M, G, S, gravity, Ftip)
+    return dot(torch.inverse(mass), tau-c-g-f)
