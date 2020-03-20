@@ -24,6 +24,8 @@ class Renderer:
             t = (s,)
             if ee is not None:
                 t = t + (ee,)
+            else:
+                t = t+ (np.array((0, 0, 0)),)
             q = np.concatenate(t)
             return self.env.unwrapped.render_obs(
                 {'observation': q},reset=False)

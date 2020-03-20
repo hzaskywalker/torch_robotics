@@ -40,6 +40,10 @@ class ACROBATINFO:
         self.dof_id = np.concatenate((dofs, dofs + d))
         self.DIM = d
 
+    max_q = 14
+    max_dq = 14
+    max_a = 1
+
 
     @classmethod
     def compute_reward(cls, s, a, t, ee, g):
