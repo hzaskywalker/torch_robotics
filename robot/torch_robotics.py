@@ -249,30 +249,28 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
 
     Vi = theta.new_zeros(batch_shape + (6,)) # initial Vi
 
-    Vdi = theta.new_zeros(batch_shape + (6,)) # initial Vi
-    Vdi[..., -3:] = gravity # g is the gravity acceleration
+    dVi = theta.new_zeros(batch_shape + (6,)) # initial Vi
+    dVi[..., -3:] = -gravity # we need the anti velocity to overcome gravity
 
-    AdT = []
-    A = []
-    V = []
-    dV = []
+    AdT, A, V, dV = [], [], [Vi], [dVi]
     for i in range(n):
         Mi = dot(Mi, M[:, i])
         Ai = dot(Adjoint(inv_trans(Mi)), S[:, i])
         # T_{i, i-1} = e^{-[A_i]\theta_i}M_{i-1,i}^-1
         Ti = dot(expse3(vec_to_se3(Ai * -theta[:, i, None])), inv_trans(M[:, i]))
         AdTi = Adjoint(Ti)
-        Vi = Ai * dtheta[:, i] +dot(AdTi, Vi) # new Vi
-        dVi= dot(AdTi, Vdi) + Ai * ddtheta[:, i] + dot(ad(Vi), Ai) * ddtheta[:, i]
+        Vi = Ai * dtheta[:, i] +dot(AdTi, V[i]) # new Vi
+        dVi= dot(AdTi, dV[i]) + Ai * ddtheta[:, i] + dot(ad(Vi), Ai) * dtheta[:, i]
 
-        AdT.append(AdTi); dV.append(dVi); V.append(Vi); A.append(Ai)
+        AdT.append(AdTi); A.append(Ai); V.append(Vi); dV.append(dVi)
 
     AdT.append(Adjoint(inv_trans(M[:, n]))) # the
+
     Fi = Ftip
     tau = []
     for i in range(n-1, -1, -1):
         #F = dot(transpose(AdT[i+1]), Fi)
-        Fi = newton_law(G[:, i], V[i], dV[i]) + dot(transpose(AdT[i + 1]), Fi)
+        Fi = newton_law(G[:, i], V[i+1], dV[i+1]) + dot(transpose(AdT[i + 1]), Fi)
         # Fi^TA
         tau.append((Fi * A[i]).sum(dim=-1))
 

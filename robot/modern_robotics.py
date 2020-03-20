@@ -860,6 +860,8 @@ def InverseDynamics(thetalist, dthetalist, ddthetalist, g, Ftip, Mlist, \
         Vdi[:, i + 1] = np.dot(AdTi[i], Vdi[:, i]) \
                        + Ai[:, i] * ddthetalist[i] \
                        + np.dot(ad(Vi[:, i + 1]), Ai[:, i]) * dthetalist[i]
+        #return np.dot(AdTi[i], Vdi[:, i])
+
     for i in range (n - 1, -1, -1):
         Fi = np.dot(np.array(AdTi[i + 1]).T, Fi) \
              + np.dot(np.array(Glist[i]), Vdi[:, i + 1]) \
