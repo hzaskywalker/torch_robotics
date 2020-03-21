@@ -5,6 +5,7 @@
 import torch
 import numpy as np
 
+
 def trans_to_Rp(T):
     """Converts a homogeneous transformation matrix into a rotation matrix
     and position vector
@@ -14,10 +15,12 @@ def trans_to_Rp(T):
     """
     return T[..., 0: 3, 0: 3], T[..., 0: 3, 3]
 
+
 def transpose(R):
     dim = len(R.shape)
     Rt = R.permute(*range(dim-2), dim-1, dim-2) # (b, 3, 3)
     return Rt
+
 
 def dot(A, B):
     if A.dim() == 3 and B.dim() == 3:
@@ -26,6 +29,7 @@ def dot(A, B):
         return (A @ B[..., None])[..., 0]
     else:
         raise NotImplementedError
+
 
 def normalize(V):
     """Normalizes a vector
@@ -42,9 +46,11 @@ def NearZero(z):
     """
     return z.abs() < 1e-6
 
+
 def make_matrix(arrays):
     # all elements of arrays has the same shape
     return torch.cat([torch.cat(i, dim=-1) for i in arrays], dim=-2)
+
 
 def vec_to_so3(omg):
     """Converts a 3-vector to an so(3) representation
@@ -60,6 +66,7 @@ def vec_to_so3(omg):
     ans[..., 2, 0] = -omg1
     ans[..., 2, 1] = omg0
     return ans
+
 
 def so3_to_vec(so3mat):
     """Converts an so(3) representation to a 3-vector
@@ -116,6 +123,7 @@ def expso3(so3mat):
     mask = mask[..., None, None].float()
     return mask * eye + (1-mask) * Rodrigue # if near zero, just return identity...
 
+
 def Rp_to_trans(R, p):
     return make_matrix((
         (R, p[..., None]),
@@ -164,6 +172,7 @@ def inv_trans(T):
     p2 = -dot(Rt, p)
     return Rp_to_trans(Rt, p2)
 
+
 def Adjoint(T):
     """Computes the adjoint representation of a homogeneous transformation
     matrix
@@ -176,6 +185,28 @@ def Adjoint(T):
         (R, zero),
         (dot(vec_to_so3(p), R), R)
     ))
+
+
+def fk_in_space(theta, M, S):
+    """
+    :param theta: qpos
+    :param M: home transformation
+    :param S: screw axis in space frame and the home configuration
+    :return:
+    """
+    n = theta.shape[1]
+    Mi = eyes_like(M[..., 0, :, :], 4)
+    T = eyes_like(M[..., 0, :, :], 4)
+    outputs = []
+    for i in range(n):
+        Mi = dot(Mi, M[:, i])
+        Ai = dot(Adjoint(inv_trans(Mi)), S[:, i])
+        Ti = dot(M[:, i], expse3(vec_to_se3(Ai * theta[:, i, None])))
+        T = dot(T, Ti)
+        outputs.append(T)
+    outputs.append(dot(T, M[:, n]))
+    return torch.stack(outputs, dim=1)
+
 
 def ad(V):
     """Calculate the 6x6 matrix [adV] of the given 6-vector
@@ -207,10 +238,9 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
     :param Ftip: Spatial force applied by the end-effector expressed in frame
                  {n+1}
     :param Mlist: List of link frames {i} relative to {i-1} at the home
-                  position
-    :param Glist: Spatial inertia matrices Gi of the links
-    :param Slist: Screw axes Si of the joints in a space frame, in the format
-                  of a matrix with axes as the columns
+                  position, matrix of (b, n+1, 4, 4)
+    :param Glist: Spatial inertia matrices Gi of the links, matrix of (b, n, 6, 6)
+    :param Slist: Screw axes Si of the joints in a space frame, matrix of (b, n, 6)
     :return: The n-vector of required joint forces/torques
     This function uses forward-backward Newton-Euler iterations to solve the
     equation:
@@ -301,3 +331,61 @@ def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, S):
     c = compute_coriolis_centripetal(theta, dtheta, M, G, S)
     g, f = compute_passive_force(theta, M, G, S, gravity, Ftip)
     return dot(torch.inverse(mass), tau-c-g-f)
+
+
+
+def rk4(derivs, y0, t, *args, **kwargs):
+    """
+    Integrate 1D or ND system of ODEs using 4-th order Runge-Kutta.
+    This is a toy implementation which may be useful if you find
+    yourself stranded on a system w/o scipy.  Otherwise use
+    :func:`scipy.integrate`.
+    *y0*
+        initial state vector
+    *t*
+        sample times
+    *derivs*
+        returns the derivative of the system and has the
+        signature ``dy = derivs(yi, ti)``
+    *args*
+        additional arguments passed to the derivative function
+    *kwargs*
+        additional keyword arguments passed to the derivative function
+    Example 1 ::
+        ## 2D system
+        def derivs6(x,t):
+            d1 =  x[0] + 2*x[1]
+            d2 =  -3*x[0] + 4*x[1]
+            return (d1, d2)
+        dt = 0.0005
+        t = arange(0.0, 2.0, dt)
+        y0 = (1,2)
+        yout = rk4(derivs6, y0, t)
+    Example 2::
+        ## 1D system
+        alpha = 2
+        def derivs(x,t):
+            return -alpha*x + exp(-t)
+        y0 = 1
+        yout = rk4(derivs, y0, t)
+    If you have access to scipy, you should probably be using the
+    scipy.integrate tools rather than this function.
+    """
+    yout = y0.new_zeros((len(t), *y0.shape))
+
+    yout[0] = y0
+
+
+    for i in np.arange(len(t) - 1):
+
+        thist = t[i]
+        dt = t[i + 1] - thist
+        dt2 = dt / 2.0
+        y0 = yout[i]
+
+        k1 = derivs(y0, thist, *args, **kwargs)
+        k2 = derivs(y0 + dt2 * k1, thist + dt2, *args, **kwargs)
+        k3 = derivs(y0 + dt2 * k2, thist + dt2, *args, **kwargs)
+        k4 = derivs(y0 + dt * k3, thist + dt, *args, **kwargs)
+        yout[i + 1] = y0 + dt / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
+    return yout
