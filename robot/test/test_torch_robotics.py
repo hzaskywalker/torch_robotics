@@ -1,4 +1,5 @@
 import torch
+import time
 import numpy as np
 import robot.torch_robotics as tr
 import robot.modern_robotics as mr
@@ -69,9 +70,10 @@ def test_inverse_dynamics():
 
     gravity = togpu(g)[None, :]
     ftip = togpu(Ftip)[None,:]
+    begin = time.time()
     output = tr.inverse_dynamics(theta, dtheta, ddtheta, gravity, ftip, M, G, S)
     check(output[0], gt)
-    print('passed')
+    print('passed', time.time() - begin)
 
     print('test mass matrix')
     mass2 = tr.compute_mass_matrix(theta, M, G, S)

@@ -114,7 +114,7 @@ def expso3(so3mat):
 
     eye = eyes_like(so3mat, 3)
     theta = torch.norm(omgtheta, dim=-1) #(b,)
-    omgmat = safe_div(so3mat, theta)
+    omgmat = safe_div(so3mat, theta[..., None, None])
 
     theta = theta[..., None, None]
     Rodrigue =  eye + torch.sin(theta) * omgmat \
@@ -145,8 +145,8 @@ def expse3(se3mat):
     eye = eyes_like(se3mat, 3)
     theta = torch.norm(omgtheta, dim=-1) #(b,)
 
-    omgmat = safe_div(se3mat[...,:3,:3], theta)
-    v = safe_div(se3mat[..., :3, 3], theta)
+    omgmat = safe_div(se3mat[...,:3,:3], theta[..., None, None])
+    v = safe_div(se3mat[..., :3, 3], theta[..., None])
 
     R2 = expso3(se3mat[..., :3, :3])
 
@@ -327,9 +327,11 @@ def compute_passive_force(theta, M, G, S, gravity=None, ftip=None):
 
 
 def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, S):
-    mass = compute_mass_matrix(theta, M, G, S)
+    import time
+    begin = time.time()
     c = compute_coriolis_centripetal(theta, dtheta, M, G, S)
     g, f = compute_passive_force(theta, M, G, S, gravity, Ftip)
+    mass = compute_mass_matrix(theta, M, G, S)
     return dot(torch.inverse(mass), tau-c-g-f)
 
 

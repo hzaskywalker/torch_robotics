@@ -72,10 +72,10 @@ class Articulation2D:
         self.S = None
         self.device = device
         self.timestep = timestep
-        self.gravity = torch.tensor(gravity, dtype=torch.float64, device=device)
+        self.gravity = torch.tensor(gravity, dtype=torch.float32, device=device)
         if ftip is None:
-            ftip = gravity * 0
-        self.ftip = torch.tensor(ftip, dtype=torch.float64, device=device)
+            ftip = np.zeros(6)
+        self.ftip = torch.tensor(ftip, dtype=torch.float32, device=device)
 
         self.qpos = None
         self.qvel = None
@@ -92,15 +92,15 @@ class Articulation2D:
 
     def set_qpos(self, qpos):
         assert len(qpos) == self.dof
-        self.qpos = togpu(qpos)
+        self.qpos = togpu(qpos, torch.float32)
 
     def set_qvel(self, qvel):
         assert len(qvel) == self.dof
-        self.qvel = togpu(qvel)
+        self.qvel = togpu(qvel, torch.float32)
 
     def set_qf(self, qf):
         assert len(qf) == self.dof
-        self.qvel = togpu(qf)
+        self.qvel = togpu(qf, torch.float32)
 
     def get_parameters(self, qpos):
         b = qpos.shape[0]
@@ -130,9 +130,6 @@ class Articulation2D:
     def compute_jacobian(self):
         raise NotImplementedError
 
-    def forward_dynamics(self):
-        raise NotImplementedError
-
     def inverse_dynamics(self):
         raise NotImplementedError
 
@@ -142,6 +139,8 @@ class Articulation2D:
             qpos = qpos[None,:]
             qvel = qvel[None,:]
             qf = qf[None,:]
+        #print(qpos.shape, qvel.shape, qf.shape)
+        #print([i.shape for i in self.get_parameters(qpos)])
         qacc = tr.forward_dynamics(qpos, qvel, qf, *self.get_parameters(qpos))
         if is_single:
             qacc = qacc[0]
@@ -149,12 +148,13 @@ class Articulation2D:
 
     def step(self):
         # forward ...
-        def derivs(state):
+        def derivs(state, t):
             # only one batch
             qpos = state[:self.dof]
             qvel = state[self.dof:self.dof*2]
             qf = state[self.dof*2:self.dof*3]
             return torch.cat((qvel, self.qacc(qpos, qvel, qf), qf*0))
+
         state = torch.cat((self.qpos, self.qvel, self.qf))
         output = tr.rk4(derivs, state, [0, self.timestep])[1]
         self.qpos = output[:self.dof]
@@ -179,10 +179,10 @@ class Articulation2D:
 
     def build(self):
         Mlist = np.array([i.T for i in self._links] + [self.ee_M])
-        self.M = torch.tensor(Mlist, dtype=torch.float64, device=self.device)
+        self.M = torch.tensor(Mlist, dtype=torch.float32, device=self.device)
 
         # A is the screw in link {i}'s framework
-        A = torch.tensor(np.array([i.screw for i in self._links]), dtype=torch.float64, device=self.device)
+        A = torch.tensor(np.array([i.screw for i in self._links]), dtype=torch.float32, device=self.device)
         S = []
 
         _M = tr.eyes_like(self.M[:1])
@@ -193,7 +193,7 @@ class Articulation2D:
 
         self.S = torch.stack(S)
         Glist = np.array([i._inertial for i in self._links])
-        self.G = torch.tensor(Glist, dtype=torch.float64, device=self.device)
+        self.G = torch.tensor(Glist, dtype=torch.float32, device=self.device)
 
         self.dof = len(self._links)
         self.qpos = self.S.new_zeros((self.dof,)) # theta

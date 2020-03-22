@@ -23,11 +23,20 @@ def test_acrobat():
 
 def test_articulation():
     env = GoalAcrobat()
-    articulator = env.articulator
-
     #print(articulator.forward_kinematics(torch.tensor([np.pi/2, np.pi/2], dtype=torch.float64, device='cuda:0')))
-    img = env.render(mode='rgb_array')
-    cv2.imwrite('x.jpg', img)
+    #qpos = torch.tensor([-np.pi/2, np.pi/2], dtype=torch.float64, device='cuda:0')
+    #env.articulator.set_qpos(qpos)
+    #img = env.render(mode='rgb_array')
+    #cv2.imwrite('x.jpg', img)
+
+    print(env.observation_space)
+    print(env.action_space)
+
+    obs = env.reset()
+
+    for i in tqdm.trange(10000):
+        a = env.action_space.sample()
+        env.step(a)
 
 
 

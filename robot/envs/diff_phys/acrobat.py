@@ -1,4 +1,5 @@
 # make
+import torch
 import gym
 from gym import utils
 from gym.spaces import Dict, Box
@@ -8,15 +9,32 @@ from .cv2_rendering import cv2Viewer
 import numpy as np
 
 class GoalAcrobat(gym.Env, utils.EzPickle):
-    def __init__(self):
+    def __init__(self, reward_type='dense', eps=0.1):
         gym.Env.__init__(self)
         utils.EzPickle.__init__(self)
 
+        self.eps = eps
+        self.total_length = 2
+        self.reward_type = reward_type
+
+        goal_space = Box(low=np.array([-self.total_length, -self.total_length]),
+                         high=np.array([self.total_length, self.total_length]))
+
+        self.observation_space = Dict({
+            'observation': Box(low=-np.inf, high=np.inf, shape=(6,)),
+            'desired_goal': goal_space,
+            'achieved_goal': goal_space
+        })
+        self.action_space = Box(low=-1, high=1, shape=(2,))
+        self.action_range = 10
+
+
         self.build_model()
+        self.init_qpos = self.articulator.get_qpos().detach().cpu().numpy()
+        self.init_qvel = self.articulator.get_qvel().detach().cpu().numpy()
 
         self.viewer = None
         self._viewers = {}
-
 
     def _get_viewer(self, mode):
         self.viewer = self._viewers.get(mode)
@@ -94,3 +112,59 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         articulator.build()
 
         self.articulator = articulator
+
+
+    def set_state(self, qpos, qvel):
+        self.articulator.set_qpos(qpos)
+        self.articulator.set_qvel(qvel)
+
+
+    def reset(self):
+        qpos = self.init_qpos + np.random.uniform(low=-0.01, high=0.01, size=np.shape(self.init_qpos))
+        qvel = self.init_qvel + np.random.uniform(low=-0.01, high=0.01, size=np.shape(self.init_qvel))
+        self.set_state(qpos, qvel)
+
+        self._timestep = 0
+        #self._goal = self.observation_space['desired_goal'].sample()
+
+        r = (np.random.random() * 0.6+0.4) * self.total_length
+        theta = np.random.random() * np.pi * 2 - np.pi
+        self._goal = np.array((np.sin(theta) * r, np.cos(theta) * r))
+        return self._get_obs()
+
+    def _get_obs(self):
+        q = self.articulator.get_qpos().detach().cpu().numpy()
+        qvel = self.articulator.get_qvel().detach().cpu().numpy()
+        achieved_goal = self.articulator.forward_kinematics()[-1][:2, 3].detach().cpu().numpy()
+
+        return {
+            'observation': np.concatenate([q, qvel, achieved_goal]),
+            'desired_goal': np.array(self._goal).copy(),
+            'achieved_goal': achieved_goal.copy(),
+        }
+
+    def step(self, action):
+        action = action.clip(-1, 1)
+        self.articulator.set_qf(action * self.action_range)
+        with torch.no_grad():
+            self.articulator.step()
+
+        ob = self._get_obs()
+        reward = self.compute_reward(ob['achieved_goal'], ob['desired_goal'])
+        if self.reward_type == 'dense':
+            is_success = (-reward < self.eps)
+        else:
+            is_success = reward > -0.5
+
+        done = False
+        #print('finish')
+        return ob, reward, done, {'is_success': is_success}
+
+
+    def compute_reward(self, achieved_goal, desired_goal, info=None):
+        # TODO: hack now, I don't want to implement a pickable reward system...
+        d = np.linalg.norm(achieved_goal - desired_goal, axis=-1)
+        if self.reward_type == 'dense':
+            return -d
+        else:
+            return -(d > self.eps).astype(np.float32)

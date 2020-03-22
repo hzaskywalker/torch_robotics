@@ -21,10 +21,12 @@ from .decorators import *
 
 import torch
 import numpy as np
-def togpu(x):
-    x = torch.Tensor(x)
-    if torch.cuda.is_available():
-        x = x.cuda()
+def togpu(x, dtype=torch.float32):
+    if not isinstance(x, torch.Tensor):
+        x = torch.tensor(x, device='cuda:0', dtype=dtype)
+    else:
+        if torch.cuda.is_available():
+            x = x.cuda()
     return x
 
 def tocpu(x):
