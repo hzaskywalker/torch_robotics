@@ -356,12 +356,43 @@ def compute_passive_force(theta, M, G, A, gravity=None, ftip=None):
         f = inverse_dynamics(theta, theta * 0, theta * 0, zero_gravity, ftip, M, G, A)
     return g, f
 
+def compute_all(theta, dtheta, gravity, Ftip, M, G, A):
+    def expand_n(array, n):
+        return array[:, None].expand(-1, n, *((-1,)*(array.dim()-1))).reshape(-1, *array.shape[1:])
+
+    assert theta.dim() == 2
+
+    b = theta.shape[0]
+    n = theta.shape[-1]
+    #ddtheta = eyes_like(M[..., 0, :, :], n=n).permute(1, 0, 2).reshape(-1, n) # n,
+    #ddtheta = torch.eye(n, device=theta.device, dtype=theta.dtype)[None,:].expand(theta.shape[0], -1, -1)
+    #ddtheta = ddtheta.permute(1, 0, 2).reshape(-1, n)
+    ddtheta = theta.new_zeros((b, n+3, n))
+    ddtheta[:,:n,:n] = torch.eye(n)[None,:].expand(b, -1, -1)
+    ddtheta = ddtheta.reshape(-1, n)
+
+    _dtheta = theta.new_zeros((b, n+3, n))
+    _dtheta[:, -3] = dtheta
+    _dtheta = _dtheta.reshape(-1, n)
+
+    _gravity = theta.new_zeros((b, n+3, 3))
+    _gravity[:,-2] = gravity
+    _gravity = _gravity.reshape(-1, 3)
+
+    _ftip = theta.new_zeros((b, n+3, 6))
+    _ftip[:, -1] = Ftip
+    _ftip = _ftip.reshape(-1, 6)
+
+    theta = expand_n(theta, n+3)
+    M = expand_n(M, n+3)
+    G = expand_n(G, n+3)
+    A = expand_n(A, n+3)
+
+    all = inverse_dynamics(theta, _dtheta, ddtheta, _gravity, _ftip, M, G, A).reshape(-1, n+3, n)
+    return all[:,:n], all[:, n], all[:, n+1], all[:, n+2]
 
 def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, A):
-    mass = compute_mass_matrix(theta, M, G, A)
-    c = compute_coriolis_centripetal(theta, dtheta, M, G, A)
-    g, f = compute_passive_force(theta, M, G, A, gravity, Ftip)
-    #TODO: delete this
+    mass, c, g, f = compute_all(theta, dtheta, gravity, Ftip, M, G, A)
     return dot(torch.inverse(mass), tau-c-g-f)
 
 

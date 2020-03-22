@@ -184,16 +184,7 @@ class Articulation2D:
 
         # A is the screw in link {i}'s framework
         A = torch.tensor(np.array([i.screw for i in self._links]), dtype=torch.float32, device=self.device)
-        """
-        S = []
 
-        _M = tr.eyes_like(self.M[:1])
-        for Ai, Mi in zip(A, self.M):
-            _M = tr.dot(_M, Mi[None,:])
-            Si = tr.dot(tr.Adjoint(_M), Ai[None,:])[0]
-            S.append(Si)
-        self.S = torch.stack(S)
-        """
         self.A = A
         Glist = np.array([i._inertial for i in self._links])
         self.G = torch.tensor(Glist, dtype=torch.float32, device=self.device)
