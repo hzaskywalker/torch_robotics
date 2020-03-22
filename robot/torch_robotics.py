@@ -274,27 +274,39 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, A):
     n = theta.shape[-1]
     #Mi = torch.eye(4)
 
-    Vi = theta.new_zeros(batch_shape + (6,)) # initial Vi
-
-    dVi = theta.new_zeros(batch_shape + (6,)) # initial Vi
-    dVi[:, -3:] = -gravity # we need the anti velocity to overcome gravity
-
-    A2 = A.reshape(-1, *A.shape[2:]) # on batch version
-    T = dot(expse3(vec_to_se3(A2 * -theta.reshape(-1)[:, None])), inv_trans(M[:, :n].reshape(-1, 4, 4)))
+    A_flat = A.reshape(-1, *A.shape[2:]) # on batch version
+    theta_flat = theta.reshape(-1)[:, None]
+    T = dot(expse3(vec_to_se3(A_flat * -theta_flat)), inv_trans(M[:, :n].reshape(-1, 4, 4)))
     AdT = Adjoint(T).view(-1, n, 6, 6)
 
-    V, dV =  [Vi], [dVi]
+    Vi = theta.new_zeros(batch_shape + (6,)) # initial Vi
+    V = []
     for i in range(n):
-        Ai, AdTi = A[:, i], AdT[:, i]
-        Vi = Ai * dtheta[:, i, None] + dot(AdTi, V[i]) # new Vi
-        dVi= dot(AdTi, dV[i]) + Ai * ddtheta[:, i, None] + dot(ad(Vi), Ai) * dtheta[:, i, None]
-        V.append(Vi); dV.append(dVi)
+        Vi = A[:, i] * dtheta[:, i, None] + dot(AdT[:, i], Vi)
+        V.append(Vi) # new Vi
+    V = torch.stack(V, dim=1)
+    V_flat = V.view(-1, 6)
+
+    dV_flat = dot(ad(V_flat), A_flat) * dtheta.reshape(-1)[:, None] + A_flat * ddtheta.reshape(-1)[:, None]
+    dV_flat = dV_flat.view(-1, n, 6)
+
+    dV = []
+    dVi = theta.new_zeros(batch_shape + (6,)) # initial Vi
+    dVi[:, -3:] = -gravity # we need the anti velocity to overcome gravity
+    for i in range(n):
+        dVi= dot(AdT[:, i], dVi) + dV_flat[:, i]
+        dV.append(dVi)
+    dV = torch.stack(dV, dim=1)
+
+    dV_flat = dV.view(-1, 6)
+    G_flat = G.reshape(-1, 6, 6)
+    total_F = newton_law(G_flat, V_flat, dV_flat).view(-1, n, 6)
 
     Fi = Ftip
     last_AdT = Adjoint(inv_trans(M[:, n]))
     tau = []
     for i in range(n-1, -1, -1):
-        Fi = newton_law(G[:, i], V[i+1], dV[i+1]) + dot(transpose(last_AdT), Fi)
+        Fi = total_F[:, i] + dot(transpose(last_AdT), Fi)
         tau.append((Fi * A[:, i]).sum(dim=-1))
         last_AdT = AdT[:, i]
 

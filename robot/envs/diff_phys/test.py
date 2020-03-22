@@ -34,6 +34,10 @@ def test_articulation():
     print(env.action_space)
 
     obs = env.reset()
+    for i in tqdm.trange(10000):
+        a = env.action_space.sample()
+        env.step(a)
+
 
     def write():
         for i in tqdm.trange(60):
