@@ -37,6 +37,26 @@ class Link:
     def add_circle_visual(self, center, radius, color):
         self._visual.append(('circle', [center[0], center[1], radius], color))
 
+    def draw(self, viewer, T):
+        for param in self._visual:
+            T_shape = T
+            if param[0] == 'box':
+                (l, r, t, b), color = param[1], param[2]
+                shape = viewer.draw_polygon([(l, b), (l, t), (r, t), (r, b)])
+                shape.set_color(*color)
+            elif param[0] == 'circle':
+                (x, y, radius), color = param[1], param[2]
+                shape = viewer.draw_circle(radius)
+                shape.set_color(*color)
+                T_shape = np.dot(T, np.array([[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, 0], [0, 0, 0, 1]]))
+            else:
+                raise NotImplementedError
+
+            theta = np.arctan2(T_shape[1,0], T_shape[0, 0])
+
+            jtrans = viewer.Transform(rotation=theta, translation=(float(T_shape[0,3]), float(T_shape[1, 3])))
+            shape.add_attr(jtrans)
+
 
 class Articulation2D:
     def __init__(self, fixed_base=True,
@@ -179,3 +199,11 @@ class Articulation2D:
         self.qpos = self.S.new_zeros((self.dof,)) # theta
         self.qvel = self.S.new_zeros((self.dof,)) # dtheta
         self.qf = self.S.new_zeros((self.dof,))
+
+    def draw_objects(self, viewer):
+        Ts = self.forward_kinematics(self.qpos)
+        for T, link in zip(Ts, self._links):
+            # we don't draw the end-effector?
+            T = T.detach().cpu().numpy()
+            link.draw(viewer, T)
+
