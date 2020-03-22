@@ -274,9 +274,7 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
     Fi = Ftip
     tau = []
     for i in range(n-1, -1, -1):
-        #F = dot(transpose(AdT[i+1]), Fi)
         Fi = newton_law(G[:, i], V[i+1], dV[i+1]) + dot(transpose(AdT[i + 1]), Fi)
-        # Fi^TA
         tau.append((Fi * A[i]).sum(dim=-1))
 
     return torch.stack(tau[::-1], dim=-1)
@@ -327,11 +325,9 @@ def compute_passive_force(theta, M, G, S, gravity=None, ftip=None):
 
 
 def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, S):
-    import time
-    begin = time.time()
+    mass = compute_mass_matrix(theta, M, G, S)
     c = compute_coriolis_centripetal(theta, dtheta, M, G, S)
     g, f = compute_passive_force(theta, M, G, S, gravity, Ftip)
-    mass = compute_mass_matrix(theta, M, G, S)
     return dot(torch.inverse(mass), tau-c-g-f)
 
 

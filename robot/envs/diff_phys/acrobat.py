@@ -157,7 +157,6 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             is_success = reward > -0.5
 
         done = False
-        #print('finish')
         return ob, reward, done, {'is_success': is_success}
 
 

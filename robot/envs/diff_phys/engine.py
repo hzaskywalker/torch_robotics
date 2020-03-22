@@ -139,6 +139,7 @@ class Articulation2D:
             qpos = qpos[None,:]
             qvel = qvel[None,:]
             qf = qf[None,:]
+
         #print(qpos.shape, qvel.shape, qf.shape)
         #print([i.shape for i in self.get_parameters(qpos)])
         qacc = tr.forward_dynamics(qpos, qvel, qf, *self.get_parameters(qpos))
