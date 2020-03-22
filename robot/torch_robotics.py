@@ -125,10 +125,11 @@ def expso3(so3mat):
 
 
 def Rp_to_trans(R, p):
-    return make_matrix((
-        (R, p[..., None]),
-        (torch.zeros_like(R[..., -1:, :]), torch.ones_like(p[..., -1:, None]))
-    ))
+    a = R.new_zeros((*R.shape[:-2], 4, 4))
+    a[..., :3,:3] = R
+    a[..., :3,3] = p
+    a[..., -1, -1] = 1
+    return a
 
 
 def expse3(se3mat):
@@ -139,25 +140,30 @@ def expse3(se3mat):
 
     page 105 on the book
     """
-    omgtheta = so3_to_vec(se3mat[..., 0: 3, 0: 3])
-    is_translation = NearZero(torch.norm(omgtheta, dim=-1))
+    a, b, c = se3mat[..., 2, 1], se3mat[..., 0, 2], se3mat[..., 1, 0]
+    theta = (a**2+b**2+c**2)**0.5
+    is_translation = NearZero(theta).float()
 
     eye = eyes_like(se3mat, 3)
-    theta = torch.norm(omgtheta, dim=-1) #(b,)
 
-    omgmat = safe_div(se3mat[...,:3,:3], theta[..., None, None])
-    v = safe_div(se3mat[..., :3, 3], theta[..., None])
+    safe_theta = theta + is_translation * 1e-14 # make sure it's not zero
 
-    R2 = expso3(se3mat[..., :3, :3])
+    #omgmat = safe_div(se3mat[...,:3,:3], theta[..., None, None])
+    omgmat = se3mat[..., :3, :3]/safe_theta[..., None, None]
+    v = se3mat[..., :3, 3]/safe_theta[..., None]
 
     theta = theta[..., None, None]
-    tmp = eye * theta + (1-torch.cos(theta)) * omgmat + (theta - torch.sin(theta)) * dot(omgmat, omgmat)
-    p2 = dot(tmp, v)
-    out0 = Rp_to_trans(R2, p2)
-    out1 = Rp_to_trans(eye, se3mat[..., 0:3, 3])
+    omgmat2 = dot(omgmat, omgmat)
+    acos = 1-torch.cos(theta)
+    si = torch.sin(theta)
 
-    is_translation = is_translation[..., None, None].float()
-    return is_translation * out1 + (1-is_translation) * out0
+    R2 =  (si * omgmat + acos * omgmat2) * (1-is_translation[..., None, None])
+    R2 += eye
+    tmp = eye * theta + acos * omgmat + (theta - si) * omgmat2
+    p2 = dot(tmp, v)
+
+    p2 = is_translation[..., None] * se3mat[..., 0:3, 3] + (1-is_translation)[..., None] * p2
+    return Rp_to_trans(R2, p2)
 
 
 def inv_trans(T):
@@ -181,13 +187,18 @@ def Adjoint(T):
     """
     R, p = trans_to_Rp(T)
     zero = torch.zeros_like(R)
-    return make_matrix((
-        (R, zero),
-        (dot(vec_to_so3(p), R), R)
-    ))
+    #return make_matrix((
+    #    (R, zero),
+    #    (dot(vec_to_so3(p), R), R)
+    #))
+    zero = R.new_zeros((*R.shape[:-2], 6, 6))
+    zero[...,:3,:3] = R
+    zero[...,3:,:3] = dot(vec_to_so3(p), R)
+    zero[...,3:,3:] = R
+    return zero
 
 
-def fk_in_space(theta, M, S):
+def fk_in_space(theta, M, A):
     """
     :param theta: qpos
     :param M: home transformation
@@ -195,12 +206,13 @@ def fk_in_space(theta, M, S):
     :return:
     """
     n = theta.shape[1]
-    Mi = eyes_like(M[..., 0, :, :], 4)
+    #Mi = eyes_like(M[..., 0, :, :], 4)
     T = eyes_like(M[..., 0, :, :], 4)
     outputs = []
     for i in range(n):
-        Mi = dot(Mi, M[:, i])
-        Ai = dot(Adjoint(inv_trans(Mi)), S[:, i])
+        #Mi = dot(Mi, M[:, i])
+        #Ai = dot(Adjoint(inv_trans(Mi)), S[:, i])
+        Ai = A[:, i]
         Ti = dot(M[:, i], expse3(vec_to_se3(Ai * theta[:, i, None])))
         T = dot(T, Ti)
         outputs.append(T)
@@ -228,8 +240,17 @@ def ad(V):
 def newton_law(G, V, dV):
     return dot(G, dV) - dot(dot(transpose(ad(V)), G), V)
 
+def S_to_A(S, M):
+    Mi = eyes_like(M[:, 0, :, :], 4) #
+    A = []
+    for i in range(S.shape[1]):
+        Mi = dot(Mi, M[:, i])
+        Ai = dot(Adjoint(inv_trans(Mi)), S[:, i])
+        A.append(Ai)
+    return torch.stack(A, dim=1)
 
-def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
+
+def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, A):
     """Computes inverse dynamics in the space frame for an open chain robot
     :param thetalist: n-vector of joint variables
     :param dthetalist: n-vector of joint rates
@@ -240,7 +261,7 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
     :param Mlist: List of link frames {i} relative to {i-1} at the home
                   position, matrix of (b, n+1, 4, 4)
     :param Glist: Spatial inertia matrices Gi of the links, matrix of (b, n, 6, 6)
-    :param Slist: Screw axes Si of the joints in a space frame, matrix of (b, n, 6)
+    :param Alist: Screw axes Si of the joints in frame {i}, matrix of (b, n, 6)
     :return: The n-vector of required joint forces/torques
     This function uses forward-backward Newton-Euler iterations to solve the
     equation:
@@ -248,39 +269,39 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, S):
               + g(thetalist) + Jtr(thetalist)Ftip
     """
     batch_shape = theta.shape[:-1]
+    assert len(batch_shape) == 1
+
     n = theta.shape[-1]
     #Mi = torch.eye(4)
-    Mi = eyes_like(M[..., 0, :, :], 4) #
 
     Vi = theta.new_zeros(batch_shape + (6,)) # initial Vi
 
     dVi = theta.new_zeros(batch_shape + (6,)) # initial Vi
-    dVi[..., -3:] = -gravity # we need the anti velocity to overcome gravity
+    dVi[:, -3:] = -gravity # we need the anti velocity to overcome gravity
 
-    AdT, A, V, dV = [], [], [Vi], [dVi]
+    A2 = A.reshape(-1, *A.shape[2:]) # on batch version
+    T = dot(expse3(vec_to_se3(A2 * -theta.reshape(-1)[:, None])), inv_trans(M[:, :n].reshape(-1, 4, 4)))
+    AdT = Adjoint(T).view(-1, n, 6, 6)
+
+    V, dV =  [Vi], [dVi]
     for i in range(n):
-        Mi = dot(Mi, M[:, i])
-        Ai = dot(Adjoint(inv_trans(Mi)), S[:, i])
-        # T_{i, i-1} = e^{-[A_i]\theta_i}M_{i-1,i}^-1
-        Ti = dot(expse3(vec_to_se3(Ai * -theta[:, i, None])), inv_trans(M[:, i]))
-        AdTi = Adjoint(Ti)
-        Vi = Ai * dtheta[:, i, None] +dot(AdTi, V[i]) # new Vi
+        Ai, AdTi = A[:, i], AdT[:, i]
+        Vi = Ai * dtheta[:, i, None] + dot(AdTi, V[i]) # new Vi
         dVi= dot(AdTi, dV[i]) + Ai * ddtheta[:, i, None] + dot(ad(Vi), Ai) * dtheta[:, i, None]
-
-        AdT.append(AdTi); A.append(Ai); V.append(Vi); dV.append(dVi)
-
-    AdT.append(Adjoint(inv_trans(M[:, n]))) # the
+        V.append(Vi); dV.append(dVi)
 
     Fi = Ftip
+    last_AdT = Adjoint(inv_trans(M[:, n]))
     tau = []
     for i in range(n-1, -1, -1):
-        Fi = newton_law(G[:, i], V[i+1], dV[i+1]) + dot(transpose(AdT[i + 1]), Fi)
-        tau.append((Fi * A[i]).sum(dim=-1))
+        Fi = newton_law(G[:, i], V[i+1], dV[i+1]) + dot(transpose(last_AdT), Fi)
+        tau.append((Fi * A[:, i]).sum(dim=-1))
+        last_AdT = AdT[:, i]
 
     return torch.stack(tau[::-1], dim=-1)
 
 
-def compute_mass_matrix(theta, M, G, S):
+def compute_mass_matrix(theta, M, G, A):
     """Computes the mass matrix of an open chain robot based on the given
     configuration"""
     def expand_n(array, n):
@@ -294,40 +315,41 @@ def compute_mass_matrix(theta, M, G, S):
     theta = expand_n(theta, n)
     M = expand_n(M, n)
     G = expand_n(G, n)
-    S = expand_n(S, n)
+    A = expand_n(A, n)
     gravity = theta.new_zeros((theta.shape[0], 3))
     ftip = theta.new_zeros((theta.shape[0], 6))
 
-    M = inverse_dynamics(theta, theta * 0, ddtheta, gravity, ftip, M, G, S)
+    M = inverse_dynamics(theta, theta * 0, ddtheta, gravity, ftip, M, G, A)
     M = M.reshape(n, -1, n).permute(1, 0, 2).contiguous()
     return M
 
 
-def compute_coriolis_centripetal(theta, dtheta, M, G, S):
+def compute_coriolis_centripetal(theta, dtheta, M, G, A):
     """
     compute the force, but not the matrix... of course I can do something to retrive the matrix just like the mass matrix.
     """
     gravity = theta.new_zeros((theta.shape[0], 3))
     ftip = theta.new_zeros((theta.shape[0], 6))
-    return inverse_dynamics(theta, dtheta, dtheta * 0, gravity, ftip, M, G, S)
+    return inverse_dynamics(theta, dtheta, dtheta * 0, gravity, ftip, M, G, A)
 
 
-def compute_passive_force(theta, M, G, S, gravity=None, ftip=None):
+def compute_passive_force(theta, M, G, A, gravity=None, ftip=None):
     zero_gravity = theta.new_zeros((theta.shape[0], 3))
     zero_ftip = theta.new_zeros((theta.shape[0], 6))
 
     g, f = None, None
     if gravity is not None:
-        g = inverse_dynamics(theta, theta * 0, theta * 0, gravity, zero_ftip, M, G, S)
+        g = inverse_dynamics(theta, theta * 0, theta * 0, gravity, zero_ftip, M, G, A)
     if ftip is not None:
-        f = inverse_dynamics(theta, theta * 0, theta * 0, zero_gravity, ftip, M, G, S)
+        f = inverse_dynamics(theta, theta * 0, theta * 0, zero_gravity, ftip, M, G, A)
     return g, f
 
 
-def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, S):
-    mass = compute_mass_matrix(theta, M, G, S)
-    c = compute_coriolis_centripetal(theta, dtheta, M, G, S)
-    g, f = compute_passive_force(theta, M, G, S, gravity, Ftip)
+def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, A):
+    mass = compute_mass_matrix(theta, M, G, A)
+    c = compute_coriolis_centripetal(theta, dtheta, M, G, A)
+    g, f = compute_passive_force(theta, M, G, A, gravity, Ftip)
+    #TODO: delete this
     return dot(torch.inverse(mass), tau-c-g-f)
 
 

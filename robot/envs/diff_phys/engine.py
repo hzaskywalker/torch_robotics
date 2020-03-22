@@ -69,7 +69,7 @@ class Articulation2D:
 
         self.M = None # home
         self.G = None
-        self.S = None
+        self.A = None
         self.device = device
         self.timestep = timestep
         self.gravity = torch.tensor(gravity, dtype=torch.float32, device=device)
@@ -108,8 +108,8 @@ class Articulation2D:
         ftip = self.ftip[None,:].expand(b, -1)
         M = self.M[None,:].expand(b, -1, -1, -1)
         G = self.G[None,:].expand(b, -1, -1, -1)
-        S = self.S[None,:].expand(b, -1, -1)
-        return gravity, ftip, M, G, S
+        A = self.A[None,:].expand(b, -1, -1)
+        return gravity, ftip, M, G, A
 
     def forward_kinematics(self, qpos=None):
         # pass
@@ -121,8 +121,8 @@ class Articulation2D:
             qpos = qpos[None, :]
         b = qpos.shape[0]
         M = self.M[None, :].expand(b, -1, -1, -1)
-        S = self.S[None, :].expand(b, -1, -1)
-        Ts = tr.fk_in_space(qpos, M, S)
+        A = self.A[None, :].expand(b, -1, -1)
+        Ts = tr.fk_in_space(qpos, M, A)
         if is_single:
             Ts = Ts[0]
         return Ts
@@ -184,6 +184,7 @@ class Articulation2D:
 
         # A is the screw in link {i}'s framework
         A = torch.tensor(np.array([i.screw for i in self._links]), dtype=torch.float32, device=self.device)
+        """
         S = []
 
         _M = tr.eyes_like(self.M[:1])
@@ -191,15 +192,16 @@ class Articulation2D:
             _M = tr.dot(_M, Mi[None,:])
             Si = tr.dot(tr.Adjoint(_M), Ai[None,:])[0]
             S.append(Si)
-
         self.S = torch.stack(S)
+        """
+        self.A = A
         Glist = np.array([i._inertial for i in self._links])
         self.G = torch.tensor(Glist, dtype=torch.float32, device=self.device)
 
         self.dof = len(self._links)
-        self.qpos = self.S.new_zeros((self.dof,)) # theta
-        self.qvel = self.S.new_zeros((self.dof,)) # dtheta
-        self.qf = self.S.new_zeros((self.dof,))
+        self.qpos = self.A.new_zeros((self.dof,)) # theta
+        self.qvel = self.A.new_zeros((self.dof,)) # dtheta
+        self.qf = self.A.new_zeros((self.dof,))
 
     def draw_objects(self, viewer):
         Ts = self.forward_kinematics(self.qpos)

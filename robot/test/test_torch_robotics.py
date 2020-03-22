@@ -71,34 +71,36 @@ def test_inverse_dynamics():
     gravity = togpu(g)[None, :]
     ftip = togpu(Ftip)[None,:]
     begin = time.time()
-    output = tr.inverse_dynamics(theta, dtheta, ddtheta, gravity, ftip, M, G, S)
+
+    A = tr.S_to_A(S, M)
+    output = tr.inverse_dynamics(theta, dtheta, ddtheta, gravity, ftip, M, G, A)
     check(output[0], gt)
     print('passed', time.time() - begin)
 
     print('test mass matrix')
-    mass2 = tr.compute_mass_matrix(theta, M, G, S)
+    mass2 = tr.compute_mass_matrix(theta, M, G, A)
     check(mass2, mass)
     print('passed')
 
     print('test passive')
-    g, f = tr.compute_passive_force(theta, M, G, S, gravity, ftip)
+    g, f = tr.compute_passive_force(theta, M, G, A, gravity, ftip)
     check(g, passive_gravity)
     check(f, passive_ftip)
     print('passed')
 
     print('test coriolis')
-    output2 = tr.compute_coriolis_centripetal(theta, dtheta, M, G, S)
+    output2 = tr.compute_coriolis_centripetal(theta, dtheta, M, G, A)
     check(output2, c_theta_dtheta)
     print('passed')
 
     print('test forward dynamics')
     tau = togpu(taulist)[None, :]
-    forward2 = tr.forward_dynamics(theta, dtheta, tau, gravity, ftip, M, G, S)
+    forward2 = tr.forward_dynamics(theta, dtheta, tau, gravity, ftip, M, G, A)
     check(forward2, forward)
     print('passed')
 
     print('test forward kinematics')
-    Ts = tr.fk_in_space(theta, M, S)
+    Ts = tr.fk_in_space(theta, M, A)
     check(Ts[:, -1], ee_trans)
     print('passed')
 
