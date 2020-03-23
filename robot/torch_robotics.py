@@ -356,6 +356,7 @@ def compute_passive_force(theta, M, G, A, gravity=None, ftip=None):
         f = inverse_dynamics(theta, theta * 0, theta * 0, zero_gravity, ftip, M, G, A)
     return g, f
 
+
 def compute_all(theta, dtheta, gravity, Ftip, M, G, A):
     def expand_n(array, n):
         return array[:, None].expand(-1, n, *((-1,)*(array.dim()-1))).reshape(-1, *array.shape[1:])
@@ -394,8 +395,6 @@ def compute_all(theta, dtheta, gravity, Ftip, M, G, A):
 def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, A):
     mass, c, g, f = compute_all(theta, dtheta, gravity, Ftip, M, G, A)
     return dot(torch.inverse(mass), tau-c-g-f)
-
-
 
 def rk4(derivs, y0, t, *args, **kwargs):
     """
