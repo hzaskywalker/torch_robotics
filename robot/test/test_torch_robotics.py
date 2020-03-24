@@ -175,7 +175,7 @@ def test_expse3():
 
 
 def test_logSO3():
-    print("test expse3")
+    print("test logSO3")
     np.array([[0, 0, 1],
               [1, 0, 0],
               [0, 1, 0]]),
@@ -200,7 +200,38 @@ def test_logSO3():
     print("passed")
 
 
+def test_logSE3():
+    print("test logSE3")
+
+    SE3List = [
+        np.array([[1, 1, 0, 1],
+                  [0, 1, 1, 0],
+                  [0, 0, 1, 3],
+                  [0, 0, 0, 1]]),
+        np.array([[1, 0, 0, 0],
+                  [0, 0, -1, 0],
+                  [0, 1, 0, 3],
+                  [0, 0, 0, 1]]),
+        np.array([[1, 0, 0, 2],
+                  [0, 0, -1, 3],
+                  [0, 1, 0, 3],
+                  [0, 0, 0, 1]]),
+        np.array([[1, 0, 0, 0],
+                  [0, 1, 0, 0],
+                  [0, 0, 1, 3],
+                  [0, 0, 0, 1]]),
+        np.array([[-1, 2, 0, 1],
+                  [2, -1, 0, 0],
+                  [0, 0, 1, 3],
+                  [0, 0, 0, 1]]),
+    ]
+
+    check(tr.logSE3(togpu(SE3List)), togpu([mr.MatrixLog6(i) for i in SE3List]))
+    print("passed")
+
+
 if __name__ == '__main__':
+    test_logSE3()
     test_logSO3()
     test_inv_trans()
     test_adjoint()

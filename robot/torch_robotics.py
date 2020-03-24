@@ -137,6 +137,7 @@ def logSO3(R):
     near_zero = NearZero(to_div).float()
     to_div += near_zero # we should never add a term to be zero..
 
+    #TODO:very ugly need optimization..
     mask = (1-near_zero)
     mask[..., 0] *= (1-mask[..., 1]) * (1-mask[..., 2])
     mask[..., 1] *= (1-mask[..., 2])
@@ -192,6 +193,28 @@ def expse3(se3mat):
 
     p2 = is_translation[..., None] * se3mat[..., 0:3, 3] + (1-is_translation)[..., None] * p2
     return Rp_to_trans(R2, p2)
+
+
+def logSE3(T):
+    R, p = trans_to_Rp(T)
+    omgmat = logSO3(R)
+
+    equal_zero = (omgmat.abs().sum(dim=(-2, -1)) < 1e-12).float() # in this case, return zero, p
+
+    theta = torch.acos(((trace(R) - 1) / 2.0).clamp(-1, 1))
+    eye = eyes_like(R)
+    theta_to_div = theta + (theta.abs() < 1e-15).float() * 1e-14
+    tanh_theta = torch.tan(theta/2)
+    tanh_theta = tanh_theta + (tanh_theta.abs() < 1e-15).float() * 1e-14
+    p2 = dot(eye - omgmat/2. + (1.0 / theta_to_div - 1.0 / tanh_theta / 2)[..., None, None]\
+             * dot(omgmat,omgmat)/theta_to_div[..., None, None], p)
+
+    p2 = (1-equal_zero)[..., None] * p2 + p * equal_zero[..., None]
+    omgmat = omgmat * (1-equal_zero)[..., None, None]
+    out = p2.new_zeros((*omgmat.shape[:-2], 4, 4))
+    out[...,:3,:3] = omgmat
+    out[...,:3,3] = p2
+    return out
 
 
 def inv_trans(T):
