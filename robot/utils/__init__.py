@@ -11,13 +11,15 @@ from .fps import farthest_point_sample
 from .soft_update import soft_update
 from .draw import *
 from .mp import mp_run
-from .trainer import merge_training_output, AgentBase, train_loop, add_parser
 from . import models
 from .shortest_path import *
 from .packed_tensor import *
 from .distributions import LinearGaussian
 from .control_utils import *
 from .decorators import *
+
+from .trainer import merge_training_output, AgentBase, train_loop, add_parser
+from .rl_utils import *
 
 import torch
 import numpy as np

@@ -31,11 +31,14 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
 
         self.build_model()
+        self.dt = self.articulator.timestep
         self.init_qpos = self.articulator.get_qpos().detach().cpu().numpy()
         self.init_qvel = self.articulator.get_qvel().detach().cpu().numpy()
 
         self.viewer = None
         self._viewers = {}
+
+        self.reset()
 
     def _get_viewer(self, mode):
         self.viewer = self._viewers.get(mode)
@@ -55,17 +58,22 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         bound = 2.2  # 2.2 for default
         self.viewer.set_bounds(-bound, bound, -bound, bound)
 
+
     def render(self, mode='human'):
         viewer = self._get_viewer(mode)
         viewer.draw_line((-2.2, 1), (2.2, 1))
         self.articulator.draw_objects(viewer)
         circle = self.viewer.draw_circle(0.1)
-        circle.add_attr(np.array([[1, 0, 0, self._goal[0]], [0, 1, 0, self._goal[1]], [0, 0, 1, 0], [0, 0, 0, 1]]))
+
+        g = self._goal
+        if len(g.shape) > 1:
+            g = g[0]
+        circle.add_attr(self.viewer.Transform(0, g))
         return viewer.render(return_rgb_array = mode=='rgb_array')
 
 
     def build_model(self):
-        articulator = Articulation2D(timestep=0.2)
+        articulator = Articulation2D(timestep=0.1)
 
         M01 = np.array(
             [
@@ -135,9 +143,11 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
         self._timestep = 0
 
-        r = (np.random.random() * 0.6+0.4) * self.total_length
-        theta = np.random.random() * np.pi * 2 - np.pi
-        self._goal = np.array((np.sin(theta) * r, np.cos(theta) * r))
+        r = (np.random.random(self.batch_size) * 0.6+0.4) * self.total_length
+        theta = np.random.random(self.batch_size) * np.pi * 2 - np.pi
+        self._goal = np.stack((np.sin(theta) * r, np.cos(theta) * r), axis=1)
+        if self.batch_size == 1:
+            self._goal = self._goal[0]
         return self._get_obs()
 
     def _get_obs(self):
@@ -174,4 +184,70 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         if self.reward_type == 'dense':
             return -d
         else:
-            return -(d > self.eps).astype(np.float32)
+            return -(d > self.eps).astype(np.float64)
+
+    def get_jacobian(self):
+        return self.articulator.compute_jacobian().detach().cpu().numpy()
+
+    def compute_inverse_dynamics(self, qacc):
+        if isinstance(qacc, np.ndarray):
+            qacc = torch.tensor(qacc, device=self.articulator.qpos.device, dtype=torch.float64)
+        return self.articulator.inverse_dynamics(self.articulator.qpos, self.articulator.qvel, qacc).detach().cpu().numpy()
+
+    def state_vector(self):
+        qpos = self.articulator.get_qpos().detach().cpu().numpy()
+        qvel = self.articulator.get_qvel().detach().cpu().numpy()
+        return np.concatenate((qpos, qvel, self._goal))
+
+    def load_state_vector(self, state):
+        qpos = state[:self.init_qpos.shape[0]]
+        qvel = state[self.init_qpos.shape[0]:self.init_qpos.shape[0] + self.init_qvel.shape[0]]
+        self._goal = state[-self._goal.shape[0]:]
+        self.set_state(qpos, qvel)
+
+class IKController:
+    def __init__(self, env, p=0):
+        self.env = env.unwrapped
+        self.p = p
+        from sklearn.linear_model import Ridge
+        self.clf = Ridge(alpha=0.0)
+
+    def __call__(self, state):
+        # pass
+        #raise NotImplementedError
+        #self.
+        if np.random.random() < self.p:
+            return self.env.action_space.sample()
+
+        state_vector = self.env.state_vector()
+
+        state, goal = state['observation'], state['desired_goal']
+        #print('state', state)
+        #print('state_vector', state_vector)
+
+        dim = (state.shape[0] - 2)//2
+        qpos = state[:dim]
+        qvel = state[dim:dim*2]
+
+        achieved = np.array([state[dim*2], state[dim*2+1]])
+        goal = np.array((goal[0], goal[1]))
+
+        self.env.set_state(qpos, qvel)
+        jac = self.env.get_jacobian() # notice that the whole system is (w, v)
+
+        #delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] # desired_velocity
+        self.clf.fit(jac[3:5], goal-achieved)
+        delta = self.clf.coef_
+
+        q_delta = qvel.copy() * 0
+        q_delta[:] = delta
+
+        qacc = (q_delta - qvel)/self.env.dt
+        #print('qacc, dt', qacc, self.env.dt, self.env.frame_skip)
+
+        #print(delta, qvel, self.env._actuator_dof['agent'], self.env.agent.compute_inverse_dynamics(qacc).shape)
+        dofs = [0, 1]
+        qf = self.env.compute_inverse_dynamics(qacc)[dofs]
+        self.env.load_state_vector(state_vector)
+        action = qf/self.env.action_range
+        return action

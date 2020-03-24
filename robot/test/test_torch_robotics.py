@@ -107,7 +107,7 @@ def test_inverse_dynamics():
     print('passed')
 
     print('test jacobian')
-    Jac = tr.jacobian(theta, M, A)
+    Jac = tr.jacobian_space(theta, M, A)
     check(Jac, jacobian)
     print('passed')
 

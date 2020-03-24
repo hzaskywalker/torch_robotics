@@ -270,7 +270,7 @@ def fk_in_space(theta, M, A):
     outputs.append(dot(T, M[:, n]))
     return torch.stack(outputs, dim=1)
 
-def jacobian(theta, M, A):
+def jacobian_space(theta, M, A):
     S = A_to_S(A, M)
     Js = transpose(S.clone())
     T = eyes_like(M[:, 0, :, :], 4)
@@ -278,6 +278,11 @@ def jacobian(theta, M, A):
         T = dot(T, expse3(vec_to_se3(S[:, i-1]) * theta[:, i-1]))
         Js[:, :, i] = dot(Adjoint(T), S[:, i])
     return Js
+
+def jacobian_body(theta, M, A):
+    Js = jacobian_space(theta, M, A)
+    T_sb = fk_in_space(theta, M, A)[:, -1]
+    return dot(Adjoint(inv_trans(T_sb)), Js)
 
 def ad(V):
     """Calculate the 6x6 matrix [adV] of the given 6-vector

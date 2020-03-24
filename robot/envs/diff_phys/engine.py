@@ -64,7 +64,7 @@ class Articulation2D:
                  gravity=[0, -9.8, 0],
                  device='cuda:0',
                  batch_size=1,
-                 ftip=None, timestep=0.2):
+                 ftip=None, timestep=0.025):
         self.fixed_base = True
         self._links = []
 
@@ -73,10 +73,10 @@ class Articulation2D:
         self.A = None
         self.device = device
         self.timestep = timestep
-        self.gravity = torch.tensor(gravity, dtype=torch.float32, device=device)
+        self.gravity = torch.tensor(gravity, dtype=torch.float64, device=device)
         if ftip is None:
             ftip = np.zeros(6)
-        self.ftip = torch.tensor(ftip, dtype=torch.float32, device=device)
+        self.ftip = torch.tensor(ftip, dtype=torch.float64, device=device)
 
         self.qpos = None
         self.qvel = None
@@ -93,15 +93,15 @@ class Articulation2D:
 
     def set_qpos(self, qpos):
         assert len(qpos) == self.dof
-        self.qpos = togpu(qpos, torch.float32)
+        self.qpos = togpu(qpos, torch.float64)
 
     def set_qvel(self, qvel):
         assert len(qvel) == self.dof
-        self.qvel = togpu(qvel, torch.float32)
+        self.qvel = togpu(qvel, torch.float64)
 
     def set_qf(self, qf):
         assert len(qf) == self.dof
-        self.qvel = togpu(qf, torch.float32)
+        self.qvel = togpu(qf, torch.float64)
 
     def get_parameters(self, qpos):
         b = qpos.shape[0]
@@ -137,7 +137,7 @@ class Articulation2D:
         b = qpos.shape[0]
         M = self.M[None, :].expand(b, -1, -1, -1)
         A = self.A[None, :].expand(b, -1, -1)
-        Jac = tr.jacobian(qpos, M, A)
+        Jac = tr.jacobian_space(qpos, M, A)
         if is_single:
             Jac = Jac[0]
         return Jac
@@ -200,14 +200,14 @@ class Articulation2D:
 
     def build(self):
         Mlist = np.array([i.T for i in self._links] + [self.ee_M])
-        self.M = torch.tensor(Mlist, dtype=torch.float32, device=self.device)
+        self.M = torch.tensor(Mlist, dtype=torch.float64, device=self.device)
 
         # A is the screw in link {i}'s framework
-        A = torch.tensor(np.array([i.screw for i in self._links]), dtype=torch.float32, device=self.device)
+        A = torch.tensor(np.array([i.screw for i in self._links]), dtype=torch.float64, device=self.device)
 
         self.A = A
         Glist = np.array([i._inertial for i in self._links])
-        self.G = torch.tensor(Glist, dtype=torch.float32, device=self.device)
+        self.G = torch.tensor(Glist, dtype=torch.float64, device=self.device)
 
         batch_size = self.qpos
         self.dof = len(self._links)
