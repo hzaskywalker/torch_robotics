@@ -63,6 +63,7 @@ class Articulation2D:
                  requires_grad=False,
                  gravity=[0, -9.8, 0],
                  device='cuda:0',
+                 batch_size=1,
                  ftip=None, timestep=0.2):
         self.fixed_base = True
         self._links = []
@@ -127,11 +128,30 @@ class Articulation2D:
             Ts = Ts[0]
         return Ts
 
-    def compute_jacobian(self):
-        raise NotImplementedError
+    def compute_jacobian(self, qpos=None):
+        if qpos is None:
+            qpos = self.qpos
+        is_single = qpos.dim() == 1
+        if is_single:
+            qpos = qpos[None, :]
+        b = qpos.shape[0]
+        M = self.M[None, :].expand(b, -1, -1, -1)
+        A = self.A[None, :].expand(b, -1, -1)
+        Jac = tr.jacobian(qpos, M, A)
+        if is_single:
+            Jac = Jac[0]
+        return Jac
 
-    def inverse_dynamics(self):
-        raise NotImplementedError
+    def inverse_dynamics(self, qpos, qvel, qacc):
+        is_single = qpos.dim() == 1
+        if is_single:
+            qpos = qpos[None,:]
+            qvel = qvel[None,:]
+            qacc = qacc[None,:]
+        qf = tr.inverse_dynamics(qpos, qvel, qacc, *self.get_parameters(qpos))
+        if is_single:
+            qf = qacc[0]
+        return qf
 
     def qacc(self, qpos, qvel, qf):
         is_single = qpos.dim() == 1
@@ -189,13 +209,18 @@ class Articulation2D:
         Glist = np.array([i._inertial for i in self._links])
         self.G = torch.tensor(Glist, dtype=torch.float32, device=self.device)
 
+        batch_size = self.qpos
         self.dof = len(self._links)
         self.qpos = self.A.new_zeros((self.dof,)) # theta
         self.qvel = self.A.new_zeros((self.dof,)) # dtheta
         self.qf = self.A.new_zeros((self.dof,))
 
     def draw_objects(self, viewer):
-        Ts = self.forward_kinematics(self.qpos)
+        qpos = self.qpos
+        if qpos.dim() > 1:
+            qpos = qpos[0] # only visualize the first environment
+
+        Ts = self.forward_kinematics(qpos)
         for T, link in zip(Ts, self._links):
             # we don't draw the end-effector?
             T = T.detach().cpu().numpy()

@@ -123,6 +123,34 @@ def expso3(so3mat):
     mask = mask[..., None, None].float()
     return mask * eye + (1-mask) * Rodrigue # if near zero, just return identity...
 
+def trace(R):
+    return (R * eyes_like(R)).sum(dim=(-1, -2))
+
+def logSO3(R):
+    acosinput = (trace(R) - 1)/2
+    condition1 = (acosinput >= 1.).float() # in this case it's zero
+
+    #omg1 = (1.0 / np.sqrt(2 * (1 + R[2][2]))) * np.array([R[0][2], R[1][2], 1 + R[2][2]])
+    condition2 = (acosinput <=-1).float() * (1-condition1)
+    mat = R + eyes_like(R) # (0,0), (0,1), (0,2)
+    to_div = 2 * torch.stack([R[..., i, i] for i in range(3)], dim=-1) + 2
+    near_zero = NearZero(to_div).float()
+    to_div += near_zero # we should never add a term to be zero..
+
+    mask = (1-near_zero)
+    mask[..., 0] *= (1-mask[..., 1]) * (1-mask[..., 2])
+    mask[..., 1] *= (1-mask[..., 2])
+
+    ans = ((mat / to_div[...,None,:].sqrt()) * mask[..., None,:]).sum(dim=-1)
+    ans = vec_to_so3(np.pi * ans) * condition2[..., None, None]
+
+    condition3 = (1-condition1) * (1-condition2)
+    theta = torch.acos(acosinput.clamp(-1, 1))[...,None,None]
+    sin = torch.sin(theta)
+    sin += NearZero(sin).float() * 1e-15
+    out = theta/2.0/sin * (R - transpose(R))
+    ans += condition3[..., None, None] * out
+    return ans
 
 def Rp_to_trans(R, p):
     a = R.new_zeros((*R.shape[:-2], 4, 4))
@@ -219,6 +247,14 @@ def fk_in_space(theta, M, A):
     outputs.append(dot(T, M[:, n]))
     return torch.stack(outputs, dim=1)
 
+def jacobian(theta, M, A):
+    S = A_to_S(A, M)
+    Js = transpose(S.clone())
+    T = eyes_like(M[:, 0, :, :], 4)
+    for i in range(1, theta.shape[-1]):
+        T = dot(T, expse3(vec_to_se3(S[:, i-1]) * theta[:, i-1]))
+        Js[:, :, i] = dot(Adjoint(T), S[:, i])
+    return Js
 
 def ad(V):
     """Calculate the 6x6 matrix [adV] of the given 6-vector
@@ -249,6 +285,14 @@ def S_to_A(S, M):
         A.append(Ai)
     return torch.stack(A, dim=1)
 
+def A_to_S(A, M):
+    Mi = eyes_like(M[:, 0, :, :], 4) #
+    S = []
+    for i in range(A.shape[1]):
+        Mi = dot(Mi, M[:, i])
+        Si = dot(Adjoint(Mi), A[:, i])
+        S.append(Si)
+    return torch.stack(S, dim=1)
 
 def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, A):
     """Computes inverse dynamics in the space frame for an open chain robot

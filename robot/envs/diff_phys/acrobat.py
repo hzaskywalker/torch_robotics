@@ -9,7 +9,7 @@ from .cv2_rendering import cv2Viewer
 import numpy as np
 
 class GoalAcrobat(gym.Env, utils.EzPickle):
-    def __init__(self, reward_type='dense', eps=0.1):
+    def __init__(self, reward_type='dense', eps=0.1, batch_size=1):
         gym.Env.__init__(self)
         utils.EzPickle.__init__(self)
 
@@ -27,6 +27,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         })
         self.action_space = Box(low=-1, high=1, shape=(2,))
         self.action_range = 10
+        self.batch_size = batch_size
 
 
         self.build_model()
@@ -58,6 +59,8 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         viewer = self._get_viewer(mode)
         viewer.draw_line((-2.2, 1), (2.2, 1))
         self.articulator.draw_objects(viewer)
+        circle = self.viewer.draw_circle(0.1)
+        circle.add_attr(np.array([[1, 0, 0, self._goal[0]], [0, 1, 0, self._goal[1]], [0, 0, 1, 0], [0, 0, 0, 1]]))
         return viewer.render(return_rgb_array = mode=='rgb_array')
 
 
@@ -120,12 +123,17 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
 
     def reset(self):
-        qpos = self.init_qpos + np.random.uniform(low=-0.01, high=0.01, size=np.shape(self.init_qpos))
-        qvel = self.init_qvel + np.random.uniform(low=-0.01, high=0.01, size=np.shape(self.init_qvel))
+        if self.batch_size == 1:
+            shape = np.shape(self.init_qpos)
+            qpos = self.init_qpos + np.random.uniform(low=-0.01, high=0.01, size=shape)
+            qvel = self.init_qvel + np.random.uniform(low=-0.01, high=0.01, size=shape)
+        else:
+            shape = (self.batch_size,) + np.shape(self.init_qpos)
+            qpos = self.init_qpos[None,:] + np.random.uniform(low=-0.01, high=0.01, size=shape)
+            qvel = self.init_qpos[None, :] + np.random.uniform(low=-0.01, high=0.01, size=shape)
         self.set_state(qpos, qvel)
 
         self._timestep = 0
-        #self._goal = self.observation_space['desired_goal'].sample()
 
         r = (np.random.random() * 0.6+0.4) * self.total_length
         theta = np.random.random() * np.pi * 2 - np.pi

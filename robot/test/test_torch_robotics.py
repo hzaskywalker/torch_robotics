@@ -58,6 +58,8 @@ def test_inverse_dynamics():
         Mi = np.dot(Mi,Mlist[i])
     ee_trans = togpu(mr.FKinSpace(Mi, Slist, thetalist))[None,:]
 
+    jacobian = togpu(mr.JacobianSpace(Slist, thetalist))[None,:]
+
     theta = togpu(thetalist)[None, :]
     dtheta = togpu(dthetalist)[None, :]
     ddtheta = togpu(ddthetalist)[None, :]
@@ -102,6 +104,11 @@ def test_inverse_dynamics():
     print('test forward kinematics')
     Ts = tr.fk_in_space(theta, M, A)
     check(Ts[:, -1], ee_trans)
+    print('passed')
+
+    print('test jacobian')
+    Jac = tr.jacobian(theta, M, A)
+    check(Jac, jacobian)
     print('passed')
 
 
@@ -166,7 +173,35 @@ def test_expse3():
     """
     print("passed")
 
+
+def test_logSO3():
+    print("test expse3")
+    np.array([[0, 0, 1],
+              [1, 0, 0],
+              [0, 1, 0]]),
+    SO3List = [
+        np.array([[10, 0, 1],
+                  [1, 10, 0],
+                  [0, 1, 10]]),
+        np.array([[0.2, 0, 1],
+                  [1, 0.2, 0],
+                  [0, 1, 0.6]]),
+        np.array([[-1, 0, 2],
+                  [-1, 0, 0],
+                  [0, 3, 0]]),
+        np.array([[0, 0, 2],
+                  [-1, -1, 0],
+                  [0, 3, 0.]]),
+        np.array([[0, 0, 2],
+                  [-1, 0, 0],
+                  [0, 3, -1]]),
+    ]
+    check(tr.logSO3(togpu(SO3List)), togpu([mr.MatrixLog3(i) for i in SO3List]))
+    print("passed")
+
+
 if __name__ == '__main__':
+    test_logSO3()
     test_inv_trans()
     test_adjoint()
     test_expse3()
