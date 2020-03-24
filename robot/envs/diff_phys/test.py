@@ -38,34 +38,11 @@ def solveIK(env):
 
     for i in range(200):
         env.set_state(qpos, qvel * 0)
-
         img = env.render(mode='rgb_array')
-
         achieved = env._get_obs()['achieved_goal']
-
         jac = env.get_jacobian()  # notice that the whole system is (w, v)
 
-        jac = torch.tensor(jac, dtype=torch.float64, device='cuda:0')[None,:]
-        xx = np.array((achieved[0], achieved[1], 0))
-        q_ee = torch.tensor(xx, dtype=torch.float64, device='cuda:0')[None,:]
-
-        print('q_ee so3', tr.vec_to_so3(q_ee)[0], achieved)
-        jac = -tr.dot(tr.vec_to_so3(q_ee), jac[:,:3]) + jac[:,3:]
-        jac = jac[0].detach().cpu().numpy()
-
-        # delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] # desired_velocity
-        # print(qpos)
-        from sklearn.linear_model import Ridge, LinearRegression
-        print(jac, goal-achieved)
-        #clf = Ridge(alpha=0.1)
-        #clf = LinearRegression()
-        #print(jac[1:2], (goal - achieved)[1:2])
-        #clf.fit(jac[1:2], (goal - achieved)[1:2])
-        #delta = clf.coef_
         delta = np.dot(np.linalg.pinv(jac[:2]), (goal-achieved)[:2])
-        print(np.dot(jac[:2], delta))
-        print(qpos, delta * env.dt)
-
         qpos += delta * env.dt
         #print(delta * env.dt)
 
@@ -85,10 +62,12 @@ def test_articulation():
 
     print(env.observation_space)
     print(env.action_space)
+    """
     env.reset()
     qpos = solveIK(env)
     env.articulator.set_qpos(qpos)
     exit(0)
+    """
 
 
     """

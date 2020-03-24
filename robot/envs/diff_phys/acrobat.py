@@ -7,6 +7,7 @@ from .engine import Articulation2D
 from .rendering import Viewer
 from .cv2_rendering import cv2Viewer
 import numpy as np
+from robot import torch_robotics as tr
 
 class GoalAcrobat(gym.Env, utils.EzPickle):
     def __init__(self, reward_type='dense', eps=0.1, batch_size=1):
@@ -26,7 +27,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             'achieved_goal': goal_space
         })
         self.action_space = Box(low=-1, high=1, shape=(2,))
-        self.action_range = 10
+        self.action_range = 5
         self.batch_size = batch_size
 
 
@@ -123,6 +124,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         articulator.build()
 
         self.articulator = articulator
+        self._ee_cache = None
 
 
     def set_state(self, qpos, qvel):
@@ -150,10 +152,14 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             self._goal = self._goal[0]
         return self._get_obs()
 
+    def get_ee(self):
+        # could be accelerated
+        return self.articulator.forward_kinematics()[-1][:2, 3]
+
     def _get_obs(self):
         q = self.articulator.get_qpos().detach().cpu().numpy()
         qvel = self.articulator.get_qvel().detach().cpu().numpy()
-        achieved_goal = self.articulator.forward_kinematics()[-1][:2, 3].detach().cpu().numpy()
+        achieved_goal = self.get_ee().detach().cpu().numpy()
 
         return {
             'observation': np.concatenate([q, qvel, achieved_goal]),
@@ -187,7 +193,15 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             return -(d > self.eps).astype(np.float64)
 
     def get_jacobian(self):
-        return self.articulator.compute_jacobian().detach().cpu().numpy()
+        # only return the jacobian for end effector position
+        jac = self.articulator.compute_jacobian()[None,:]
+        #return self.articulator.compute_jacobian().detach().cpu().numpy()
+        achieved = self.get_ee().detach().cpu().numpy()
+        xx = np.array((achieved[0], achieved[1], 0))
+        q_ee = torch.tensor(xx, dtype=torch.float64, device='cuda:0')[None,:]
+        jac = -tr.dot(tr.vec_to_so3(q_ee), jac[:,:3]) + jac[:,3:]
+        jac = jac[0].detach().cpu().numpy()
+        return jac
 
     def compute_inverse_dynamics(self, qacc):
         if isinstance(qacc, np.ndarray):
@@ -204,6 +218,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         qvel = state[self.init_qpos.shape[0]:self.init_qpos.shape[0] + self.init_qvel.shape[0]]
         self._goal = state[-self._goal.shape[0]:]
         self.set_state(qpos, qvel)
+
 
 class IKController:
     def __init__(self, env, p=0):
@@ -233,21 +248,15 @@ class IKController:
         goal = np.array((goal[0], goal[1]))
 
         self.env.set_state(qpos, qvel)
-        jac = self.env.get_jacobian() # notice that the whole system is (w, v)
 
-        #delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] # desired_velocity
-        self.clf.fit(jac[3:5], goal-achieved)
-        delta = self.clf.coef_
+        jac = self.env.get_jacobian()  # notice that the whole system is (w, v)
+        delta = np.dot(np.linalg.pinv(jac[:2]), (goal-achieved)[:2])
 
         q_delta = qvel.copy() * 0
-        q_delta[:] = delta
+        q_delta[:] = delta * 10 #/self.env.dt
 
-        qacc = (q_delta - qvel)/self.env.dt
-        #print('qacc, dt', qacc, self.env.dt, self.env.frame_skip)
-
-        #print(delta, qvel, self.env._actuator_dof['agent'], self.env.agent.compute_inverse_dynamics(qacc).shape)
-        dofs = [0, 1]
-        qf = self.env.compute_inverse_dynamics(qacc)[dofs]
+        qacc = (q_delta - qvel) * 0.3 #/self.env.dt
+        qf = self.env.compute_inverse_dynamics(qacc)
         self.env.load_state_vector(state_vector)
         action = qf/self.env.action_range
         return action
