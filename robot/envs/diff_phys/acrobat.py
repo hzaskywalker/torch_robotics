@@ -27,7 +27,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             'achieved_goal': goal_space
         })
         self.action_space = Box(low=-1, high=1, shape=(2,))
-        self.action_range = 200
+        self.action_range = 200 #200
         self.batch_size = batch_size
 
 
@@ -74,7 +74,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
 
     def build_model(self):
-        articulator = Articulation2D(timestep=0.1)
+        articulator = Articulation2D(timestep=0.02)
 
         M01 = np.array(
             [
