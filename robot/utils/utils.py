@@ -155,7 +155,7 @@ def write_video(gen, path=None):
         if path is not None:
             if out is None:
                 out = cv2.VideoWriter(
-                    path, cv2.VideoWriter_fourcc(*'mp4v'), 20.0, (img.shape[1], img.shape[0]))
+                    path, cv2.VideoWriter_fourcc(*'MJPG'), 20.0, (img.shape[1], img.shape[0]))
             out.write(img)
         else:
             cv2.imshow('x', img)

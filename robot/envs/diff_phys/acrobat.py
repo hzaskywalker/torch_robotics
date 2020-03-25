@@ -4,7 +4,6 @@ import gym
 from gym import utils
 from gym.spaces import Dict, Box
 from .engine import Articulation2D
-from .rendering import Viewer
 from .cv2_rendering import cv2Viewer
 import numpy as np
 from robot import torch_robotics as tr
@@ -45,6 +44,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         self.viewer = self._viewers.get(mode)
         if self.viewer is None:
             if mode == 'human':
+                from .rendering import Viewer
                 #self.viewer = mujoco_py.MjViewer(self.sim)
                 self.viewer = Viewer(500, 500)
             elif mode == 'rgb_array':
@@ -74,7 +74,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
 
     def build_model(self):
-        articulator = Articulation2D(timestep=0.02)
+        articulator = Articulation2D(timestep=0.1)
 
         M01 = np.array(
             [
@@ -205,8 +205,8 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         q_ee = torch.tensor(xx, dtype=torch.float64, device='cuda:0')
         if len(q_ee.shape) == 1:
             q_ee = q_ee[None,:]
+
         jac = -tr.dot(tr.vec_to_so3(q_ee), jac[:,:3]) + jac[:,3:]
-        #jac = jac[0].detach().cpu().numpy()
         return jac.detach().cpu().numpy()
 
     def compute_inverse_dynamics(self, qacc):
@@ -238,7 +238,6 @@ class IKController:
         #    return self.env.action_space.sample()
 
         state_vector = self.env.state_vector()
-
         state, goal = state['observation'], state['desired_goal']
 
         dim = (state.shape[-1] - 2)//2
@@ -251,7 +250,6 @@ class IKController:
 
         jac = self.env.get_jacobian()  # notice that the whole system is (w, v)
 
-        #jac = jac[0]
         def togpu(x): return torch.tensor(x, device='cuda:0', dtype=torch.float64)
         cartesian_diff = togpu((goal-achieved)[..., :2])
         is_single = 0
@@ -259,13 +257,17 @@ class IKController:
             is_single = 1
             cartesian_diff = cartesian_diff[None,:]
         q_delta = tr.dot(torch.pinverse(togpu(jac[:, :2])), cartesian_diff)
-        #q_delta = togpu([np.dot(np.linalg.pinv(a[:2]), b.detach().cpu().numpy()) for a, b in zip(jac, cartesian_diff)])
+
         qvel = togpu(qvel)
         #qacc = (q_delta - qvel) * 0.3 #/self.env.dt
-        qacc = (q_delta * 10 - qvel)/self.env.dt
-        qf = self.env.compute_inverse_dynamics(qacc)
-        self.env.load_state_vector(state_vector)
+        qacc = (q_delta - qvel)/self.env.dt
+
         if is_single:
-            qf = qf[0]
+            qacc = qacc[0]
+        qf = self.env.compute_inverse_dynamics(qacc)
+        #qf = qacc.detach().cpu().numpy()
+
+        self.env.load_state_vector(state_vector)
         action = qf/self.env.action_range
+
         return action

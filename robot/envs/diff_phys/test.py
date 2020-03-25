@@ -5,6 +5,7 @@ import tqdm
 import numpy as np
 import cv2
 from robot.envs.diff_phys.acrobat import GoalAcrobat
+from robot import utils as tru
 
 from robot import torch_robotics as tr
 import robot.utils as tru
@@ -97,23 +98,19 @@ def test_batched_env():
     # pass
     from robot.envs.diff_phys.acrobat import IKController
 
-    env = GoalAcrobat(batch_size=2)
-    obs = env.reset()
+    env = GoalAcrobat(batch_size=200)
     controller = IKController(env)
-    num = 10
+    np.random.seed(1)
 
-    cc = 0
-    for j in range(num):
-        idx = 0
+    def write():
         obs = env.reset()
         for i in tqdm.trange(50):
             a = controller(obs)
             obs, r, done, info = env.step(a)
-            #img = env.render(mode='rgb_array')
-            #cv2.imshow('x', img)
-            #cv2.waitKey(0)
-        cc += info['is_success'].mean()
-    print(cc/num)
+            img = env.render(mode='rgb_array')
+            yield img
+        print(info['is_success'].mean())
+    tru.write_video(write(), "video0.avi")
 
 
 if __name__ == '__main__':

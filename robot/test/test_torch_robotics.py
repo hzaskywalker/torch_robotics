@@ -97,7 +97,8 @@ def test_inverse_dynamics():
 
     print('test forward dynamics')
     tau = togpu(taulist)[None, :]
-    forward2 = tr.forward_dynamics(theta, dtheta, tau, gravity, ftip, M, G, A)
+    def ep(a): return a.expand(10, *((-1,) * (a.dim()-1)))
+    forward2 = tr.forward_dynamics(ep(theta), ep(dtheta), ep(tau), ep(gravity), ep(ftip), ep(M), ep(G), ep(A))[-1:]
     check(forward2, forward)
     print('passed')
 

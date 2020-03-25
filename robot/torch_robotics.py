@@ -23,6 +23,7 @@ def transpose(R):
 
 
 def dot(A, B):
+    assert A.shape[0] == B.shape[0]
     if A.dim() == 3 and B.dim() == 3:
         return A @ B
     elif A.dim() ==3 and B.dim() == 2:
@@ -91,7 +92,7 @@ def vec_to_se3(V):
 
 
 def safe_div(a, b):
-    b += (torch.abs(b) < 1e-15).float() * 1e-14 # make sure it's not zero
+    b = b + (torch.abs(b) < 1e-15).float() * 1e-14 # make sure it's not zero
     return a / b
 
 
@@ -379,10 +380,12 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, A):
     tau = []
     for i in range(n-1, -1, -1):
         Fi = total_F[:, i] + dot(transpose(last_AdT), Fi)
+        assert A[:, i].shape == Fi.shape
         tau.append((Fi * A[:, i]).sum(dim=-1))
         last_AdT = AdT[:, i]
 
-    return torch.stack(tau[::-1], dim=-1)
+    out = torch.stack(tau[::-1], dim=-1)
+    return out
 
 
 def compute_mass_matrix(theta, M, G, A):
@@ -429,7 +432,7 @@ def compute_passive_force(theta, M, G, A, gravity=None, ftip=None):
     return g, f
 
 
-def compute_all(theta, dtheta, gravity, Ftip, M, G, A):
+def compute_all_dynamic_parameters(theta, dtheta, gravity, Ftip, M, G, A):
     def expand_n(array, n):
         return array[:, None].expand(-1, n, *((-1,)*(array.dim()-1))).reshape(-1, *array.shape[1:])
 
@@ -465,7 +468,7 @@ def compute_all(theta, dtheta, gravity, Ftip, M, G, A):
     return all[:,:n], all[:, n], all[:, n+1], all[:, n+2]
 
 def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, A):
-    mass, c, g, f = compute_all(theta, dtheta, gravity, Ftip, M, G, A)
+    mass, c, g, f = compute_all_dynamic_parameters(theta, dtheta, gravity, Ftip, M, G, A)
     return dot(torch.inverse(mass), tau-c-g-f)
 
 def rk4(derivs, y0, t, *args, **kwargs):
@@ -522,4 +525,5 @@ def rk4(derivs, y0, t, *args, **kwargs):
         k3 = derivs(y0 + dt2 * k2, thist + dt2, *args, **kwargs)
         k4 = derivs(y0 + dt * k3, thist + dt, *args, **kwargs)
         yout[i + 1] = y0 + dt / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
+
     return yout

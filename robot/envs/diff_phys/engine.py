@@ -100,7 +100,7 @@ class Articulation2D:
         self.qvel = togpu(qvel, torch.float64)
 
     def set_qf(self, qf):
-        assert qf.shape[-1] == self.dof
+        assert qf.shape[-1] == self.dof, f"qf.shape: {qf.shape}, dof: {self.dof}"
         self.qf = togpu(qf, torch.float64)
 
     def get_parameters(self, qpos):
@@ -143,6 +143,7 @@ class Articulation2D:
         return Jac
 
     def inverse_dynamics(self, qpos, qvel, qacc):
+        assert qpos.shape == qvel.shape and qvel.shape == qacc.shape
         is_single = qpos.dim() == 1
         if is_single:
             qpos = qpos[None,:]
@@ -150,7 +151,8 @@ class Articulation2D:
             qacc = qacc[None,:]
         qf = tr.inverse_dynamics(qpos, qvel, qacc, *self.get_parameters(qpos))
         if is_single:
-            qf = qacc[0]
+            assert qf.shape == qacc.shape, f"qf: {qf.shape}, qacc: {qacc.shape}, qpos: {qpos.shape}"
+            qf = qf[0]
         return qf
 
     def qacc(self, qpos, qvel, qf):
