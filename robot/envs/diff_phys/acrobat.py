@@ -140,7 +140,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         else:
             shape = (self.batch_size,) + np.shape(self.init_qpos)
             qpos = self.init_qpos[None,:] + np.random.uniform(low=-0.01, high=0.01, size=shape)
-            qvel = self.init_qpos[None, :] + np.random.uniform(low=-0.01, high=0.01, size=shape)
+            qvel = self.init_qpos[None,:] + np.random.uniform(low=-0.01, high=0.01, size=shape)
         self.set_state(qpos, qvel)
 
         self._timestep = 0
@@ -155,10 +155,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
     def get_ee(self):
         # could be accelerated
         Ts = self.articulator.forward_kinematics()
-        if len(Ts.shape) == 3:
-            return Ts[-1][:2, 3]
-        else:
-            return Ts[:, -1, :2, 3]
+        return Ts[..., -1, :2, 3]
 
     def _get_obs(self):
         q = self.articulator.get_qpos().detach().cpu().numpy()
@@ -198,14 +195,19 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
     def get_jacobian(self):
         # only return the jacobian for end effector position
-        jac = self.articulator.compute_jacobian()[None,:]
+        jac = self.articulator.compute_jacobian()
+        if len(jac.shape) == 2:
+            jac = jac[None,:]
         #return self.articulator.compute_jacobian().detach().cpu().numpy()
         achieved = self.get_ee().detach().cpu().numpy()
-        xx = np.array((achieved[0], achieved[1], 0))
-        q_ee = torch.tensor(xx, dtype=torch.float64, device='cuda:0')[None,:]
+        #xx = np.array((achieved[0], achieved[1], 0))
+        xx = np.concatenate((achieved, achieved[..., -1:]*0), axis=-1)
+        q_ee = torch.tensor(xx, dtype=torch.float64, device='cuda:0')
+        if len(q_ee.shape) == 1:
+            q_ee = q_ee[None,:]
         jac = -tr.dot(tr.vec_to_so3(q_ee), jac[:,:3]) + jac[:,3:]
-        jac = jac[0].detach().cpu().numpy()
-        return jac
+        #jac = jac[0].detach().cpu().numpy()
+        return jac.detach().cpu().numpy()
 
     def compute_inverse_dynamics(self, qacc):
         if isinstance(qacc, np.ndarray):
@@ -215,53 +217,55 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
     def state_vector(self):
         qpos = self.articulator.get_qpos().detach().cpu().numpy()
         qvel = self.articulator.get_qvel().detach().cpu().numpy()
-        return np.concatenate((qpos, qvel, self._goal))
+        return np.concatenate((qpos, qvel, self._goal), axis=-1)
 
     def load_state_vector(self, state):
-        qpos = state[:self.init_qpos.shape[0]]
-        qvel = state[self.init_qpos.shape[0]:self.init_qpos.shape[0] + self.init_qvel.shape[0]]
-        self._goal = state[-self._goal.shape[0]:]
+        qpos = state[..., :self.init_qpos.shape[-1]]
+        qvel = state[..., self.init_qpos.shape[-1]:self.init_qpos.shape[-1] + self.init_qvel.shape[-1]]
+        self._goal = state[..., -self._goal.shape[-1]:]
         self.set_state(qpos, qvel)
 
 
 class IKController:
-    def __init__(self, env, p=0):
+    def __init__(self, env):
         self.env = env.unwrapped
-        self.p = p
-        from sklearn.linear_model import Ridge
-        self.clf = Ridge(alpha=0.0)
 
     def __call__(self, state):
         # pass
         #raise NotImplementedError
         #self.
-        if np.random.random() < self.p:
-            return self.env.action_space.sample()
+        #if np.random.random() < self.p:
+        #    return self.env.action_space.sample()
 
         state_vector = self.env.state_vector()
 
         state, goal = state['observation'], state['desired_goal']
-        #print('state', state)
-        #print('state_vector', state_vector)
 
-        dim = (state.shape[0] - 2)//2
-        qpos = state[:dim]
-        qvel = state[dim:dim*2]
-
-        achieved = np.array([state[dim*2], state[dim*2+1]])
-        goal = np.array((goal[0], goal[1]))
+        dim = (state.shape[-1] - 2)//2
+        qpos = state[..., :dim]
+        qvel = state[..., dim:dim*2]
+        achieved = state[..., dim*2:]
+        #goal = np.array((goal[0], goal[1]))
 
         self.env.set_state(qpos, qvel)
 
         jac = self.env.get_jacobian()  # notice that the whole system is (w, v)
-        delta = np.dot(np.linalg.pinv(jac[:2]), (goal-achieved)[:2])
 
-        q_delta = qvel.copy() * 0
-        q_delta[:] = delta * 10
-
+        #jac = jac[0]
+        def togpu(x): return torch.tensor(x, device='cuda:0', dtype=torch.float64)
+        cartesian_diff = togpu((goal-achieved)[..., :2])
+        is_single = 0
+        if len(cartesian_diff.shape) == 1:
+            is_single = 1
+            cartesian_diff = cartesian_diff[None,:]
+        q_delta = tr.dot(torch.pinverse(togpu(jac[:, :2])), cartesian_diff)
+        #q_delta = togpu([np.dot(np.linalg.pinv(a[:2]), b.detach().cpu().numpy()) for a, b in zip(jac, cartesian_diff)])
+        qvel = togpu(qvel)
         #qacc = (q_delta - qvel) * 0.3 #/self.env.dt
-        qacc = (q_delta - qvel)/self.env.dt
+        qacc = (q_delta * 10 - qvel)/self.env.dt
         qf = self.env.compute_inverse_dynamics(qacc)
         self.env.load_state_vector(state_vector)
+        if is_single:
+            qf = qf[0]
         action = qf/self.env.action_range
         return action

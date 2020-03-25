@@ -92,7 +92,7 @@ class Articulation2D:
         return self.qf.clone()
 
     def set_qpos(self, qpos):
-        assert qpos.shape[-1] == self.dof
+        assert qpos.shape[-1] == self.dof, f"qpos.shape[-1] {qpos.shape[-1]}"
         self.qpos = togpu(qpos, torch.float64)
 
     def set_qvel(self, qvel):
@@ -160,8 +160,6 @@ class Articulation2D:
             qvel = qvel[None,:]
             qf = qf[None,:]
 
-        #print(qpos.shape, qvel.shape, qf.shape)
-        #print([i.shape for i in self.get_parameters(qpos)])
         qacc = tr.forward_dynamics(qpos, qvel, qf, *self.get_parameters(qpos))
         if is_single:
             qacc = qacc[0]
@@ -174,7 +172,8 @@ class Articulation2D:
             qpos = state[..., :self.dof]
             qvel = state[..., self.dof:self.dof*2]
             qf = state[..., self.dof*2:self.dof*3]
-            return torch.cat((qvel, self.qacc(qpos, qvel, qf), qf*0))
+            out = torch.cat((qvel, self.qacc(qpos, qvel, qf), qf*0), dim=-1)
+            return out
 
         state = torch.cat((self.qpos, self.qvel, self.qf), dim=-1)
         output = tr.rk4(derivs, state, [0, self.timestep])[1]

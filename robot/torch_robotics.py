@@ -275,7 +275,7 @@ def jacobian_space(theta, M, A):
     Js = transpose(S.clone())
     T = eyes_like(M[:, 0, :, :], 4)
     for i in range(1, theta.shape[-1]):
-        T = dot(T, expse3(vec_to_se3(S[:, i-1]) * theta[:, i-1]))
+        T = dot(T, expse3(vec_to_se3(S[:, i-1]) * theta[:, i-1][:, None, None]))
         Js[:, :, i] = dot(Adjoint(T), S[:, i])
     return Js
 

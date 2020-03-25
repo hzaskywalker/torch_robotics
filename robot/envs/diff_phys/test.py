@@ -81,7 +81,7 @@ def test_articulation():
     """
     from robot.envs.diff_phys.acrobat import IKController
     policy = IKController(env)
-    tru.eval_policy(policy, env, save_video=1, eval_episodes=10, progress_episode=True, timestep=50)
+    tru.eval_policy(policy, env, save_video=1, eval_episodes=50, progress_episode=True, timestep=50)
     exit(0)
 
     def write():
@@ -95,15 +95,28 @@ def test_articulation():
 
 def test_batched_env():
     # pass
+    from robot.envs.diff_phys.acrobat import IKController
 
-    env = GoalAcrobat(batch_size=200)
+    env = GoalAcrobat(batch_size=2)
     obs = env.reset()
-    for i in tqdm.trange(1000):
-        a = np.array([env.action_space.sample() for i in range(200)])
-        obs, r, done, _ = env.step(a)
+    controller = IKController(env)
+    num = 10
+
+    cc = 0
+    for j in range(num):
+        idx = 0
+        obs = env.reset()
+        for i in tqdm.trange(50):
+            a = controller(obs)
+            obs, r, done, info = env.step(a)
+            #img = env.render(mode='rgb_array')
+            #cv2.imshow('x', img)
+            #cv2.waitKey(0)
+        cc += info['is_success'].mean()
+    print(cc/num)
 
 
 if __name__ == '__main__':
     #test_acrobat()
-    test_articulation()
-    #test_batched_env()
+    #test_articulation()
+    test_batched_env()
