@@ -27,7 +27,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             'achieved_goal': goal_space
         })
         self.action_space = Box(low=-1, high=1, shape=(2,))
-        self.action_range = 100
+        self.action_range = 200
         self.batch_size = batch_size
 
 
@@ -257,7 +257,7 @@ class IKController:
         delta = np.dot(np.linalg.pinv(jac[:2]), (goal-achieved)[:2])
 
         q_delta = qvel.copy() * 0
-        q_delta[:] = delta * 5
+        q_delta[:] = delta * 10
 
         #qacc = (q_delta - qvel) * 0.3 #/self.env.dt
         qacc = (q_delta - qvel)/self.env.dt
