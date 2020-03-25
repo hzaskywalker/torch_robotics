@@ -231,12 +231,6 @@ class IKController:
         self.env = env.unwrapped
 
     def __call__(self, state):
-        # pass
-        #raise NotImplementedError
-        #self.
-        #if np.random.random() < self.p:
-        #    return self.env.action_space.sample()
-
         state_vector = self.env.state_vector()
         state, goal = state['observation'], state['desired_goal']
 
@@ -244,7 +238,6 @@ class IKController:
         qpos = state[..., :dim]
         qvel = state[..., dim:dim*2]
         achieved = state[..., dim*2:]
-        #goal = np.array((goal[0], goal[1]))
 
         self.env.set_state(qpos, qvel)
 
@@ -259,13 +252,11 @@ class IKController:
         q_delta = tr.dot(torch.pinverse(togpu(jac[:, :2])), cartesian_diff)
 
         qvel = togpu(qvel)
-        #qacc = (q_delta - qvel) * 0.3 #/self.env.dt
         qacc = (q_delta - qvel)/self.env.dt
 
         if is_single:
             qacc = qacc[0]
         qf = self.env.compute_inverse_dynamics(qacc)
-        #qf = qacc.detach().cpu().numpy()
 
         self.env.load_state_vector(state_vector)
         action = qf/self.env.action_range
