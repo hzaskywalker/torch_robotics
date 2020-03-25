@@ -1,4 +1,5 @@
 import gym
+import tqdm
 import torch
 import tqdm
 import numpy as np
@@ -92,7 +93,17 @@ def test_articulation():
     tru.write_video(write())
 
 
+def test_batched_env():
+    # pass
+
+    env = GoalAcrobat(batch_size=200)
+    obs = env.reset()
+    for i in tqdm.trange(1000):
+        a = np.array([env.action_space.sample() for i in range(200)])
+        obs, r, done, _ = env.step(a)
+
 
 if __name__ == '__main__':
     #test_acrobat()
     test_articulation()
+    #test_batched_env()

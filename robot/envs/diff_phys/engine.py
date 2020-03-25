@@ -92,16 +92,16 @@ class Articulation2D:
         return self.qf.clone()
 
     def set_qpos(self, qpos):
-        assert len(qpos) == self.dof
+        assert qpos.shape[-1] == self.dof
         self.qpos = togpu(qpos, torch.float64)
 
     def set_qvel(self, qvel):
-        assert len(qvel) == self.dof
+        assert qvel.shape[-1] == self.dof
         self.qvel = togpu(qvel, torch.float64)
 
     def set_qf(self, qf):
-        assert len(qf) == self.dof
-        self.qvel = togpu(qf, torch.float64)
+        assert qf.shape[-1] == self.dof
+        self.qf = togpu(qf, torch.float64)
 
     def get_parameters(self, qpos):
         b = qpos.shape[0]
@@ -171,15 +171,15 @@ class Articulation2D:
         # forward ...
         def derivs(state, t):
             # only one batch
-            qpos = state[:self.dof]
-            qvel = state[self.dof:self.dof*2]
-            qf = state[self.dof*2:self.dof*3]
+            qpos = state[..., :self.dof]
+            qvel = state[..., self.dof:self.dof*2]
+            qf = state[..., self.dof*2:self.dof*3]
             return torch.cat((qvel, self.qacc(qpos, qvel, qf), qf*0))
 
-        state = torch.cat((self.qpos, self.qvel, self.qf))
+        state = torch.cat((self.qpos, self.qvel, self.qf), dim=-1)
         output = tr.rk4(derivs, state, [0, self.timestep])[1]
-        self.qpos = output[:self.dof]
-        self.qvel = output[self.dof:self.dof*2]
+        self.qpos = output[..., :self.dof]
+        self.qvel = output[..., self.dof:self.dof*2]
 
     def add_link(self, M, screw, type='hinge', range=None):
         """

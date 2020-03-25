@@ -27,7 +27,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             'achieved_goal': goal_space
         })
         self.action_space = Box(low=-1, high=1, shape=(2,))
-        self.action_range = 5
+        self.action_range = 100
         self.batch_size = batch_size
 
 
@@ -154,7 +154,11 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
     def get_ee(self):
         # could be accelerated
-        return self.articulator.forward_kinematics()[-1][:2, 3]
+        Ts = self.articulator.forward_kinematics()
+        if len(Ts.shape) == 3:
+            return Ts[-1][:2, 3]
+        else:
+            return Ts[:, -1, :2, 3]
 
     def _get_obs(self):
         q = self.articulator.get_qpos().detach().cpu().numpy()
@@ -162,7 +166,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         achieved_goal = self.get_ee().detach().cpu().numpy()
 
         return {
-            'observation': np.concatenate([q, qvel, achieved_goal]),
+            'observation': np.concatenate([q, qvel, achieved_goal], axis=-1),
             'desired_goal': np.array(self._goal).copy(),
             'achieved_goal': achieved_goal.copy(),
         }
@@ -253,9 +257,10 @@ class IKController:
         delta = np.dot(np.linalg.pinv(jac[:2]), (goal-achieved)[:2])
 
         q_delta = qvel.copy() * 0
-        q_delta[:] = delta * 10 #/self.env.dt
+        q_delta[:] = delta * 5
 
-        qacc = (q_delta - qvel) * 0.3 #/self.env.dt
+        #qacc = (q_delta - qvel) * 0.3 #/self.env.dt
+        qacc = (q_delta - qvel)/self.env.dt
         qf = self.env.compute_inverse_dynamics(qacc)
         self.env.load_state_vector(state_vector)
         action = qf/self.env.action_range
