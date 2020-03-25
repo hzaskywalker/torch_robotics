@@ -124,8 +124,10 @@ def expso3(so3mat):
     mask = mask[..., None, None].float()
     return mask * eye + (1-mask) * Rodrigue # if near zero, just return identity...
 
+
 def trace(R):
     return (R * eyes_like(R)).sum(dim=(-1, -2))
+
 
 def logSO3(R):
     acosinput = (trace(R) - 1)/2
@@ -153,6 +155,7 @@ def logSO3(R):
     out = theta/2.0/sin * (R - transpose(R))
     ans += condition3[..., None, None] * out
     return ans
+
 
 def Rp_to_trans(R, p):
     a = R.new_zeros((*R.shape[:-2], 4, 4))
@@ -271,6 +274,7 @@ def fk_in_space(theta, M, A):
     outputs.append(dot(T, M[:, n]))
     return torch.stack(outputs, dim=1)
 
+
 def jacobian_space(theta, M, A):
     S = A_to_S(A, M)
     Js = transpose(S.clone())
@@ -280,10 +284,12 @@ def jacobian_space(theta, M, A):
         Js[:, :, i] = dot(Adjoint(T), S[:, i])
     return Js
 
+
 def jacobian_body(theta, M, A):
     Js = jacobian_space(theta, M, A)
     T_sb = fk_in_space(theta, M, A)[:, -1]
     return dot(Adjoint(inv_trans(T_sb)), Js)
+
 
 def ad(V):
     """Calculate the 6x6 matrix [adV] of the given 6-vector
@@ -305,6 +311,7 @@ def ad(V):
 def newton_law(G, V, dV):
     return dot(G, dV) - dot(dot(transpose(ad(V)), G), V)
 
+
 def S_to_A(S, M):
     Mi = eyes_like(M[:, 0, :, :], 4) #
     A = []
@@ -314,6 +321,7 @@ def S_to_A(S, M):
         A.append(Ai)
     return torch.stack(A, dim=1)
 
+
 def A_to_S(A, M):
     Mi = eyes_like(M[:, 0, :, :], 4) #
     S = []
@@ -322,6 +330,7 @@ def A_to_S(A, M):
         Si = dot(Adjoint(Mi), A[:, i])
         S.append(Si)
     return torch.stack(S, dim=1)
+
 
 def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, A):
     """Computes inverse dynamics in the space frame for an open chain robot
@@ -467,9 +476,11 @@ def compute_all_dynamic_parameters(theta, dtheta, gravity, Ftip, M, G, A):
     all = inverse_dynamics(theta, _dtheta, ddtheta, _gravity, _ftip, M, G, A).reshape(-1, n+3, n)
     return all[:,:n], all[:, n], all[:, n+1], all[:, n+2]
 
+
 def forward_dynamics(theta, dtheta, tau, gravity, Ftip, M, G, A):
     mass, c, g, f = compute_all_dynamic_parameters(theta, dtheta, gravity, Ftip, M, G, A)
     return dot(torch.inverse(mass), tau-c-g-f)
+
 
 def rk4(derivs, y0, t, *args, **kwargs):
     """
