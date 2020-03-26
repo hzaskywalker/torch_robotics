@@ -19,10 +19,10 @@ class Controller:
 
         state, goal = state['observation'], state['desired_goal']
 
-        assert len(state) == 29
+#         assert len(state) == 29
         qpos = state[:13]
         qvel = state[13:26]
-        achieved = state[26:29]
+        achieved = state[-3:]
 
         self.env.agent.set_qpos(qpos)
         self.env.agent.set_qvel(qvel)
@@ -31,12 +31,13 @@ class Controller:
 
         delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] * 10 # desired_velocity
         q_delta = qvel.copy() * 0
-        q_delta[self.env._actuator_dof['agent']] = delta
+#         q_delta[self.env._actuator_dof['agent']] = delta
+        q_delta[1:8] = delta  # private attribute...
         qacc = (q_delta - qvel)/self.env.dt
 
-        qf = self.env.agent.compute_inverse_dynamics(qacc)[self.env._actuator_dof['agent']]
+        qf = self.env.agent.compute_inverse_dynamics(qacc)[1:8]
         self.env.load_state_vector(state_vector)
-        return qf/self.env._actuator_range['agent'][:, 1]
+        return qf/50  # again, private attribute...
 
 class RandomController:
     def __init__(self, env: ArmReachWithXYZ):

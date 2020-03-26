@@ -38,12 +38,13 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
                 if geom is not None:
                     geoms = np.empty([num_episode, timestep, geom.shape[-1]])
 
-            observations[i, j] = obs
-            actions[i, j] = action
-
             if geom is not None:
                 geoms[i, j] = geom
 
+            
+            # action from PREVIOUS timestep matches current obs
+            observations[i, j] = obs
+            actions[i, j] = action
             obs, reward, done, _ = env.step(action)
             if done:
                 break
@@ -58,7 +59,7 @@ def make_dataset(env_name):
     from robot.model.arm.envs.arm_controller import RandomController, Controller as ArmController
     from robot.model.arm.envs.test_acrobat import AcrobatController
 
-    path = os.path.join('/dataset/', env_name)
+    path = os.path.join('./dataset/', env_name)
     Controller = {
         'arm': ArmController,
         'acrobat2': AcrobatController,
@@ -108,7 +109,7 @@ class Dataset:
             b = int(i.split('/')[-1].split('.')[0])
             #if b != 0:
             #    continue
-            with open(os.path.join(path, i), 'rb') as f:
+            with open(i, 'rb') as f:
                 data = pickle.load(f)
                 observations.append(data[0])
                 actions.append(data[1])
@@ -164,7 +165,7 @@ class Dataset:
 
 def test():
     from robot.model.arm.envs import make
-    dataset = Dataset('/dataset/plane')
+    dataset = Dataset('./dataset/plane')
     # test acrobat
     s = dataset.sample(batch_size=1, timestep=25)[0][0].detach().cpu().numpy()
     from robot.utils import write_video

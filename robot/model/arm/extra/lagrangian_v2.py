@@ -20,13 +20,15 @@ def get_batch_jacobian(net, x, noutputs):
     y,g = net(x)
     input_val = torch.eye(noutputs).reshape(1,noutputs, noutputs).repeat(n, 1, 1).cuda()
     x.retain_grad()
-    y.backward(input_val, retain_graph=True)
-    return y[:,0,:], g[:,0,:], x.grad.data
+    jac=torch.autograd.grad(y,x,input_val,create_graph=True)
+    return y[:,0,:], g[:,0,:], jac[0]
 
 
 def inverse_model(net_L, q, dq, ddq, return_all=False):
     nbatch=q.shape[0]
     ndim=q.shape[1]
+    dqr=dq.unsqueeze(1).repeat(1,ndim,1)
+    
     l, g, l_jac=get_batch_jacobian(net_L, q, int(ndim*(ndim+1)/2))
     L = torch.zeros((nbatch, ndim, ndim)).cuda()
     tril_indices = torch.tril_indices(row=ndim, col=ndim, offset=-1)
@@ -36,20 +38,46 @@ def inverse_model(net_L, q, dq, ddq, return_all=False):
     
     dLdq=torch.zeros((nbatch, ndim, ndim, ndim)).cuda()
     dLdq[:,tril_indices[0], tril_indices[1],:]=l_jac[:,:-ndim]
-    dLdq[:,torch.arange(ndim),torch.arange(ndim)]=l_jac[:,-ndim:]
-#    dLdt=(dLdq@dq.unsqueeze(2)).squeeze()
+    dLdq[:,torch.arange(ndim),torch.arange(ndim)]=l_jac[:,-ndim:]   
+    dLdt=(dLdq@dqr.unsqueeze(3)).squeeze()
     
-    dLdt=dLdq.view(nbatch,-1,ndim).bmm(dq.unsqueeze(2)).view(nbatch,ndim,ndim)
     H=L@L.transpose(1,2)
-    dHdt=L@dLdt.transpose(1,2)+dLdt@L.transpose(1,2)
-#     dHdq=dLdq.permute(0,3,1,2)@L.transpose(1,2)+L@dLdq.permute(0,3,2,1)
-    dHdq=dLdq.permute(0,3,1,2).reshape(nbatch,-1,ndim).bmm(L.transpose(1,2)).view(nbatch,ndim,ndim,ndim)
+    dHdt=L@dLdt.transpose(1,2)
+    dHdt=dHdt+dHdt.transpose(1,2)
+    dHdq=dLdq.permute(0,3,1,2)@(L.unsqueeze(1).repeat(1,ndim,1,1).transpose(2,3))
     dHdq=dHdq+dHdq.transpose(2,3)
-#     quad=((dq.unsqueeze(1)@dHdq)@dq.unsqueeze(2)).squeeze() # d(dqHdq)dq
-    quad=dq.unsqueeze(1).bmm(dHdq.view(nbatch,ndim,-1)).view(nbatch,-1,ndim).bmm(dq.unsqueeze(2)).squeeze()
-    tau=H.bmm(ddq.unsqueeze(2)).squeeze()+dHdt.bmm(dq.unsqueeze(2)).squeeze()-0.5*quad+g
+    
+    quad=(dqr.unsqueeze(2)@dHdq@dqr.unsqueeze(3)).squeeze()
+    tau=(H@ddq.unsqueeze(2)).squeeze()+(dHdt@dq.unsqueeze(2)).squeeze()-quad/2+g
     if return_all:
-        return L,dLdq,dLdt,H,dHdq,dHdt,tau
+        return L,dLdq,dLdt,H,dHdq,dHdt,quad,tau
+    else:
+        return tau
+    
+def inverse_model_v2(net_L, q, dq, ddq, return_all=False):
+    nbatch=q.shape[0]
+    ndim=q.shape[1]
+    dqr=dq.unsqueeze(1).repeat(1,ndim,1)
+    l, g, l_jac=get_batch_jacobian(net_L, q, int(ndim*(ndim+1)/2))
+    L = torch.zeros((nbatch, ndim, ndim)).cuda()
+    tril_indices = torch.tril_indices(row=ndim, col=ndim, offset=-1)
+
+    L[:,tril_indices[0], tril_indices[1]] = l[:,:-ndim]
+    L[:,torch.arange(ndim),torch.arange(ndim)]=l[:,-ndim:]
+
+    dLdq=torch.zeros((nbatch, ndim, ndim, ndim)).cuda()
+    dLdq[:,tril_indices[0], tril_indices[1],:]=l_jac[:,:-ndim]
+    dLdq[:,torch.arange(ndim),torch.arange(ndim)]=l_jac[:,-ndim:]
+
+    dLdt=(dLdq@dqr.unsqueeze(3)).squeeze()
+    H=L+L.transpose(1,2)
+    dHdt=dLdt+dLdt.transpose(-1,-2)
+    dHdq=dLdq+dLdq.transpose(-1,-2)
+    dHdq=dHdq.permute(0,3,1,2)
+    quad=(dqr.unsqueeze(2)@dHdq@dqr.unsqueeze(3)).squeeze()
+    tau=(H@ddq.unsqueeze(2)).squeeze()+(dHdt@dq.unsqueeze(2)).squeeze()-quad/2+g
+    if return_all:
+        return L,dLdq,dLdt,H,dHdq,dHdt,quad,tau
     else:
         return tau
     
@@ -57,9 +85,10 @@ class TestModule(nn.Module):
     # Test module only for ndim=3
     def __init__(self):
         super(TestModule, self).__init__()
+        self.g=nn.Linear(3,3)
         
     def forward(self, x):
-        return torch.cat([torch.exp(x),torch.exp(2*x)],-1)
+        return torch.cat([torch.exp(x),torch.exp(2*x)],-1), self.g(x)
 
 if __name__ == '__main__':
     model_L=TestModule().cuda()

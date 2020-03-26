@@ -149,7 +149,7 @@ class ArmReach(Simulator):
 
     def _get_obs(self):
         # pass
-        observation = np.concatenate([self.agent.get_qpos(), self.agent.get_qvel()])
+        observation = np.concatenate([self.agent.get_qpos(), self.agent.get_qvel(), self.agent.get_qacc()])
 
         ee_idx = self._ee_link_idx['agent']
         achieved_goal = self.agent.get_links()[ee_idx].pose.p
