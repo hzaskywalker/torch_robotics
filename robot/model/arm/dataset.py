@@ -1,5 +1,6 @@
 # robot arm model
 # we will use envs.hyrule.rl_env.ArmReachGoal to generate enough trianing data...
+import robot
 import os
 import glob
 import pickle
@@ -10,7 +11,6 @@ import numpy as np
 
 # easier for parallel
 def data_collector(env, make_policy, num_episode, timestep, path, make=None, use_tqdm=False, seed=None):
-
     if isinstance(env, str):
         env = make(env)
 
@@ -51,6 +51,36 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
     with open(path, 'wb') as f:
         print('saving... ', path)
         pickle.dump([observations, actions, geoms], f)
+
+
+def batch_collector(env, policy, path, num_episode=25):
+    p = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.]
+    for idx, p in enumerate(p):
+        obss, acts = [], []
+        for _ in tqdm.trange(num_episode):
+            obs = env.reset()
+            observations = [obs['observation']]
+            actions = []
+            for j in tqdm.trange(50):
+                action = policy(obs).clip(-1, 1)
+                rand_action = np.random.random(action.shape) * 2 - 1 #(-1, 1)
+
+                mask = np.float32(np.random.random() < p)
+                a = mask * rand_action + (1-mask) * action
+
+                obs, _, _, _ = env.step(a)
+                observations.append(obs['observation'])
+                actions.append(action)
+            obss.append(np.stack(observations, axis=1))
+            acts.append(np.stack(actions, axis=1))
+        obss = np.concatenate(obss)
+        acts = np.concatenate(acts)
+        print(obss.shape, acts.shape)
+
+        path_name = os.path.join(path, f'{idx}.pkl')
+        with open(path_name, 'wb') as f:
+            print('saving... ', path_name)
+            pickle.dump([obss, acts, None], f)
 
 
 def make_dataset(env_name):
@@ -98,7 +128,16 @@ class Dataset:
         files = glob.glob(os.path.join(path, '*.pkl'))
         if len(files) == 0:
             env_name = path.split('/')[-1]
-            make_dataset(env_name)
+            if env_name == 'diff_acrobat':
+                from robot.envs.diff_phys.acrobat import GoalAcrobat, IKController
+                env = GoalAcrobat(batch_size=200)
+                policy = IKController(env)
+
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                batch_collector(env, policy, path, 25)
+            else:
+                make_dataset(env_name)
 
         files = glob.glob(os.path.join(path, '*.pkl'))
         observations = []
@@ -110,6 +149,7 @@ class Dataset:
             #    continue
             with open(os.path.join(path, i), 'rb') as f:
                 data = pickle.load(f)
+                #print("NAN", i, (np.isnan(data[0]).sum(axis=(-1, -2)) > 0).sum() / data[0].shape[0])
                 observations.append(data[0])
                 actions.append(data[1])
                 if len(data) > 2:
@@ -117,8 +157,14 @@ class Dataset:
                         geoms.append(data[2])
 
         self.obs = np.concatenate(observations)
+
         self.action = np.concatenate(actions).clip(-1, 1)
         self.device = device
+
+        inf_mask = 1-(np.isnan(self.obs).sum(axis=(-1, -2)) > 0)
+        self.obs = self.obs[inf_mask]
+        self.action = self.action[inf_mask]
+
         print('MAX ACTION', np.abs(self.action).max(axis=(0,1)))
         print('MAX Q', np.abs(self.obs[...,:,1:8]).max(axis=(0,1)))
         print('MAX DQ', np.abs(self.obs[...,:, 13+1:8+13]).max(axis=(0,1)))
@@ -164,13 +210,14 @@ class Dataset:
 
 def test():
     from robot.model.arm.envs import make
-    dataset = Dataset('/dataset/plane')
+    dataset = Dataset('/dataset/diff_acrobat')
     # test acrobat
-    s = dataset.sample(batch_size=1, timestep=25)[0][0].detach().cpu().numpy()
+    s = dataset.sample(batch_size=1, timestep=50)[0][0].detach().cpu().numpy()
     from robot.utils import write_video
 
-    env = make('plane')
+    env = make('diff_acrobat')
     env.reset()
+
     def make():
         for i in s:
             img = env.render_obs({'observation':i})

@@ -26,7 +26,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             'achieved_goal': goal_space
         })
         self.action_space = Box(low=-1, high=1, shape=(2,))
-        self.action_range = 200 #200
+        self.action_range = 50 #200
         self.batch_size = batch_size
 
 
@@ -71,6 +71,17 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
             g = g[0]
         circle.add_attr(self.viewer.Transform(0, g))
         return viewer.render(return_rgb_array = mode=='rgb_array')
+
+    def render_obs(self, obs):
+        state = self.state_vector()
+
+        self.set_state(obs['observation'][...,:2], obs['observation'][...,2:4])
+        if 'desired_goal' in obs:
+            self._goal = obs['desired_goal']
+        img = self.render(mode='rgb_array')
+        #TODO: render achieved_goal
+        self.load_state_vector(state)
+        return img
 
 
     def build_model(self):

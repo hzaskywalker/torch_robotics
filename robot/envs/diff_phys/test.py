@@ -64,51 +64,29 @@ def test_articulation():
 
     print(env.observation_space)
     print(env.action_space)
-    """
-    env.reset()
-    qpos = solveIK(env)
-    env.articulator.set_qpos(qpos)
-    exit(0)
-    """
 
-
-    """
-    state = env.state_vector()
-    obs1 = env._get_obs()['observation']
-    env.step(np.array([1, 2]))
-
-    env.load_state_vector(state)
-    obs2 = env._get_obs()['observation']
-    """
     from robot.envs.diff_phys.acrobat import IKController
     policy = IKController(env)
     tru.eval_policy(policy, env, save_video=1, eval_episodes=50, progress_episode=True, timestep=50)
-    exit(0)
-
-    def write():
-        for i in tqdm.trange(60):
-            a = env.action_space.sample()
-            img = env.render(mode='rgb_array')
-            yield img
-            obs, r, done, _ = env.step(a)
-    tru.write_video(write())
 
 
 def test_batched_env():
     # pass
     from robot.envs.diff_phys.acrobat import IKController
+    import robot
 
-    env = GoalAcrobat(batch_size=200)
+    env = GoalAcrobat(batch_size=400)
     controller = IKController(env)
-    np.random.seed(1)
 
     def write():
         obs = env.reset()
         for i in tqdm.trange(50):
             a = controller(obs)
+            #a = np.random.random((400, 2)) * 2 -1
             obs, r, done, info = env.step(a)
             img = env.render(mode='rgb_array')
             yield img
+        #print((np.isnan(obs['observation']).sum(axis=(-1))>0).sum())
         print(info['is_success'].mean())
     tru.write_video(write(), "video0.avi")
 
