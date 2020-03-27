@@ -125,7 +125,7 @@ class trainer:
 
         for i in range(args.num_epoch):
             print("TRAIN EPOCH", i)
-            self.epoch(args.num_train_iter, args.num_valid_iter, num_eval=1, use_tqdm=True)
+            self.epoch(args.num_train_iter, args.num_valid_iter, num_eval=5, use_tqdm=True)
 
     def get_model(self):
         self.model = make_model(self.frame_type, self.args)
