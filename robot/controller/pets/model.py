@@ -107,7 +107,9 @@ class EnBNN(nn.Module):
         # action (ensemble, batch, action)
         inp = torch.cat((obs, action), dim=-1)
         if inp.shape == 2:
-            inp = inp[None, :, :].expand(self.ensemble_size, -1, -1)
+            inp = inp[None, :, :]
+        if inp.shape[0] != self.ensemble_size:
+            inp = inp.expand(self.ensemble_size, -1, -1)
         return self.gaussian(self.mlp(inp))
 
     def var_reg(self):

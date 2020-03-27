@@ -61,11 +61,11 @@ class Frame:
 
     @property
     def shape(self):
-        return [i.shape for i in self.iter()]
+        return [i.shape for i in self.iter() if i is not None]
 
     @property
     def size(self):
-        return sum([i.size for i in self.iter()])
+        return sum([i.size for i in self.iter() if i is not None])
 
     def __iter__(self):
         element = self.iter()

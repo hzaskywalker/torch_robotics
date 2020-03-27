@@ -119,7 +119,7 @@ class trainer:
         self.vis = U.Visualizer(args.path)
 
         for i in range(args.num_epoch):
-            print("TRAIN EPOCH", i)
+            print("TRAIN EPOCH", i, args.num_train_iter, args.num_valid_iter)
             self.epoch(args.num_train_iter, args.num_valid_iter, num_eval=5, use_tqdm=True)
 
     def get_envs(self):
@@ -140,8 +140,12 @@ class trainer:
     def get_renderer(self):
         self.renderer = Renderer(self.env)
 
-    def get_api(self):
+    def get_rollout_model(self):
         self.rollout_predictor = RolloutWrapper(self.agent, self.frame_type)
+
+    def get_api(self):
+        self.get_rollout_model()
+        args = self.args
         self.controller = RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=10,
                                      horizon=args.timestep-1, num_mutation=500, num_elite=50, device=args.device)
 

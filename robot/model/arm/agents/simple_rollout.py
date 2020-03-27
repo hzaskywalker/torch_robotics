@@ -12,11 +12,12 @@ class RolloutAgent(AgentBase):
         predict, reward = [], 0
 
         for i in range(a.shape[1]):
-            t = s.add(*self.model(*s.as_input(a[:, i])))
+            ai = a[:, i]
+            t = s.add(*self.model(*s.as_input(ai)))
             predict.append(t)
 
             if goal is not None:
-                reward = t.compute_reward(s, a, goal) + reward
+                reward = t.compute_reward(s, ai, goal) + reward
             s = t
 
         return s.stack(predict), reward
@@ -28,6 +29,11 @@ class RolloutAgent(AgentBase):
 
         predict, _ = self.rollout(state, actions, None)
         losses = predict.calc_loss(future)
+
+        try:
+            losses['model_decay'] = self.model.loss()
+        except AttributeError as e:
+            pass
 
         total_loss = 0
         assert len(losses) == len(self.loss_weights), "Please assign weights for all losses"
