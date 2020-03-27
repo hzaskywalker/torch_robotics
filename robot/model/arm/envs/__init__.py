@@ -1,18 +1,17 @@
-from .acrobat import GoalAcrobat
 from gym.wrappers import TimeLimit
-from ....envs.hyrule.rl_env import ArmReachWithXYZ
-from robot.envs.toy.plane import GoalPlane
-from robot.envs.diff_phys.acrobat import GoalAcrobat
-
 
 def make(env_name):
     if env_name == 'acrobat2':
+        from robot.envs.diff_phys.acrobat import GoalAcrobat
         return TimeLimit(GoalAcrobat(), 50)
     elif env_name == 'arm':
+        from ....envs.hyrule.rl_env import ArmReachWithXYZ
         return TimeLimit(ArmReachWithXYZ(), 50)
     elif env_name == 'plane':
+        from robot.envs.toy.plane import GoalPlane
         return TimeLimit(GoalPlane(), 50)
     elif env_name == 'diff_acrobat':
+        from .acrobat import GoalAcrobat
         return TimeLimit(GoalAcrobat(), 50)
     else:
         raise NotImplementedError

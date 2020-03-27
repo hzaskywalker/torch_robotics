@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from robot.utils.models import fc
+from .frame import Frame
 
 class MLP(nn.Module):
     def __init__(self, inp_dim, oup_dim, num_layers, mid_channels, batchnorm=False):
@@ -35,9 +36,9 @@ class MLP_ARM(nn.Module):
         return new_state, self.mlp2(new_state[...,:new_state.shape[-1]//2])
 
 
-def make_model(info, args):
+def make_model(cls: Frame, args):
     if args.model == 'mlp':
-        model = MLP_ARM(info.inp_dim, info.oup_dim, 4, 256, batchnorm=args.batchnorm)
+        model = MLP_ARM(cls.input_dims, cls.output_dims, 4, 256, batchnorm=args.batchnorm)
     else:
         raise NotImplementedError
     return model

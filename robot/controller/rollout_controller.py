@@ -71,10 +71,4 @@ class RolloutCEM:
         if self.add_actions:
             self.prev_actions = torch.cat((self.prev_actions, self.init_actions(self.replan_period)))
 
-        #import numpy as np
-        #for i in range(1, len(self.prev_actions)):
-        #    if np.random.random() < 0.2:
-        #        self.prev_actions[i] = self.init_actions(1)[0]
-        #k = self.prev_actions.shape[0]//2
-        #self.prev_actions[k:] = self.init_actions(self.prev_actions.shape[0] - k)
         return self.__call__(obs).detach().cpu().numpy()

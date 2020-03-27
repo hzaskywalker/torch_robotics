@@ -21,7 +21,9 @@ def set_state(env, state):
     env.set_state(state[:l], state[l:])
     return env
 
-def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.avi", use_hidden_state=False, progress_episode=False, timestep=int(1e9), start_state=None, print_state=False):
+def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, video_path="video{}.avi",
+                use_hidden_state=False, progress_episode=False, timestep=int(1e9),
+                start_state=None, print_state=False, return_trajectories=False):
     if isinstance(env_name, str):
         eval_env = make(env_name)
         eval_env.seed(seed + 100)
@@ -31,6 +33,10 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
     avg_reward = 0.
     ran = range if not progress_episode else tqdm.trange
     acc = []
+
+    if return_trajectories:
+        trajectories = []
+
     for episode_id in ran(eval_episodes):
         print(episode_id)
         state, done = eval_env.reset(), False
@@ -42,8 +48,10 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
             if 'reset' in policy.__dir__():
                 policy.reset()
 
-        #while not done:
-        cc = 0
+        episode_reward = 0
+        if return_trajectories:
+            observations, actions = [], []
+
         for i in ran(timestep):
             if episode_id < save_video:
                 if video_path[-3:] == 'avi':
@@ -60,22 +68,33 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
                 state = get_state(eval_env)
                 if print_state:
                     print(state)
-            #print()
-            #print(','.join(map(lambda x: f"{x:.6f}", list(state))) )
-            #print()
+
             if isinstance(state, dict): pass
             else: state = np.array(state)
+
             action = policy(state)
+
+
+            if return_trajectories:
+                observations.append(state)
+                actions.append(action)
+
             state, reward, done, info = eval_env.step(action)
+
             avg_reward += reward
-            cc += reward
+            episode_reward += reward
             if done:
                 break
+
+        if return_trajectories:
+            observations.append(state)
+            trajectories.append([observations, actions])
+
         if 'is_success' in info:
             acc.append(info['is_success'])
 
         if progress_episode:
-            print(f'episode {episode_id}:', cc)
+            print(f'episode {episode_id}:', episode_reward)
 
         if out is not None:
             out.release()
@@ -88,7 +107,10 @@ def eval_policy(policy, env_name, seed=12345, eval_episodes=10, save_video=0, vi
     if len(acc) > 0:
         print(f"Evaluation success rate over {eval_episodes} episodes: {np.mean(acc):.3f}")
     print("---------------------------------------")
-    return avg_reward
+    if not return_trajectories:
+        return avg_reward
+    else:
+        return avg_reward, trajectories
 
 
 class RLRecorder:
