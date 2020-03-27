@@ -37,14 +37,15 @@ class RolloutWrapper:
         a = U.togpu(a)
         if goal is not None:
             goal = U.togpu(goal)
+
         s = self.cls.from_observation(obs)
-        return self.model.rollout(s, a, goal)
+        predict, reward = self.model.rollout(s, a, goal)
+        return predict, -reward
 
 
 class Renderer:
     # renderer is not the state
-    def __init__(self, env_name, env):
-        self.env_name = env_name
+    def __init__(self, env):
         self.env = env
 
     def render_frame(self, x):
@@ -55,7 +56,7 @@ class Renderer:
 
     def render(self, data, info, num=2, return_image=True, goal=None):
         self.goal = goal
-        start, actions, future = [i[:2] for i in data]
+        start, actions, future = [i[:num] for i in data]
 
         start = start.cpu()
         future = future.cpu()
@@ -73,9 +74,10 @@ class Renderer:
                     np.concatenate(predicted, axis=1),
                 ), axis=0))
             else:
-                for a, b in zip(ground_truth, predicted):
-                    yield np.concatenate((a, b), axis=1)
-                return
+                def make():
+                    for a, b in zip(ground_truth, predicted):
+                        yield np.concatenate((a, b), axis=1)
+                return make()
         return np.stack(images)
 
 
@@ -102,7 +104,7 @@ def get_args():
     return args
 
 
-class main:
+class trainer:
     def __init__(self, args):
         self.args = args
         self.path = self.args.path
@@ -132,7 +134,7 @@ class main:
         self.agent = make_agent(self.model, self.frame_type, self.args).cuda(self.args.device)
 
     def get_renderer(self):
-        self.renderer = Renderer(self.args.env_name, self.env)
+        self.renderer = Renderer(self.env)
 
     def get_api(self):
         self.rollout_predictor = RolloutWrapper(self.agent, self.frame_type)
@@ -140,14 +142,16 @@ class main:
                                      horizon=args.timestep-1, num_mutation=500, num_elite=50, device=args.device)
 
     def epoch(self, num_train, num_valid, num_eval=5, use_tqdm=False):
-        def add_video(to_vis, num_eval):
-            to_vis['reward_eval'], trajectories = U.eval_policy(self.controller, self.env, eval_episodes=num_eval,
-                                                save_video=0., video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True)
+
+        def evaluate(to_vis, num_eval):
+            to_vis['reward_eval'], trajectories = U.eval_policy(self.controller, self.env, eval_episodes=num_eval, save_video=0.,
+                                                                video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True)
 
             obs, actions = trajectories[0]
             goal = obs[0]['desired_goal']
             obs = np.array([i['observation'] for i in obs]) # note that we always use goal conditioned environment
             actions = np.array(actions)
+
             as_frame = self.frame_type.from_observation(obs)
             predict = self.rollout_predictor.rollout(obs[None, 0], actions[None, :], None)[0].cpu()
 
@@ -155,21 +159,19 @@ class main:
             to_vis['rollout'] = self.renderer.render(data, {'predict': predict}, num=1, return_image=False, goal=goal)
             return to_vis
 
+
         ran = tqdm.trange if use_tqdm else range
         # train
         train_output = []
-        cc = 0
         for idx in ran(num_train):
             data = self.dataset.sample('train')
 
             self.agent.update_normalizer(data)
             info = self.agent.update(*data)
             train_output.append(info)
-            out = None
             if idx % 200 == 0:
                 out = U.merge_training_output(train_output)
-                cc += 1
-                if cc % 25 == 1:
+                if idx == 0:
                     out['image'] = self.renderer.render(data, info)
                 self.vis(out)
                 train_output = []
@@ -190,7 +192,7 @@ class main:
 
         to_vis = {'valid_'+i:v for i, v in to_vis.items()}
 
-        add_video(to_vis, num_eval=num_eval)
+        evaluate(to_vis, num_eval=num_eval)
         self.vis(to_vis, self.vis.tb.step - 1)
 
         torch.save(self.agent, os.path.join(self.path, 'agent'))
@@ -199,4 +201,4 @@ class main:
 
 if __name__ == '__main__':
     args = get_args()
-    main(args)
+    trainer(args)

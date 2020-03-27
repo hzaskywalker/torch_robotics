@@ -250,7 +250,7 @@ class GoalPlane(gym.Env):
         else:
             return image
 
-    def render_obs(self, state):
+    def render_obs(self, state, reset=False):
         tmp = np.array(self.env.state).copy()
         self.env.state = state['observation']/self.maze_size
 
@@ -262,7 +262,8 @@ class GoalPlane(gym.Env):
 
 if __name__ == '__main__':
     env = GoalPlane()
-    env.reset()
+    obs = env.reset()
+    print(obs)
 
     while True:
         a = env.action_space.sample()

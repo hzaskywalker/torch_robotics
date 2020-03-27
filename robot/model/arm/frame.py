@@ -73,6 +73,9 @@ class Frame:
             yield self.new(i)
 
 
+    def __str__(self):
+        return " ".join([str(i) for i in self.iter()])
+
 
 class ArmBase(Frame):
     max_q = 7
@@ -153,6 +156,9 @@ class Plane(ArmBase):
     @classmethod
     def from_observation(cls, observation):
         return cls(observation, observation * 0, observation)
+
+    def as_observation(self):
+        return {'observation': U.tocpu(self.q)}
 
 
 def make_frame_cls(env_name, env):

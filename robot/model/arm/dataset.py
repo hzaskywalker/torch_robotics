@@ -50,6 +50,7 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
 
     with open(path, 'wb') as f:
         print('saving... ', path)
+        print('obs max', observations.max(axis=(0, 1)))
         pickle.dump([observations, actions, geoms], f)
 
 
@@ -161,12 +162,12 @@ class Dataset:
         self.action = np.concatenate(actions).clip(-1, 1)
         self.device = device
 
-        inf_mask = 1-(np.isnan(self.obs).sum(axis=(-1, -2)) > 0)
-        self.obs = self.obs[inf_mask]
-        self.action = self.action[inf_mask]
+        not_inf_mask = (1-(np.isnan(self.obs).sum(axis=(-1, -2)) > 0)) > 0.5
+        self.obs = self.obs[not_inf_mask]
+        self.action = self.action[not_inf_mask]
 
         print('MAX ACTION', np.abs(self.action).max(axis=(0,1)))
-        print('MAX Q', np.abs(self.obs[...,:,1:8]).max(axis=(0,1)))
+        print('MAX Q', np.abs(self.obs[..., :, :2]).max(axis=(0,1)))
         print('MAX DQ', np.abs(self.obs[...,:, 13+1:8+13]).max(axis=(0,1)))
 
         if len(geoms)>0:

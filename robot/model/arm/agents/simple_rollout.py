@@ -10,12 +10,15 @@ class RolloutAgent(AgentBase):
         # s (inp_dim)
         # a (pop, T, acts)
         predict, reward = [], 0
+
         for i in range(a.shape[1]):
             t = s.add(*self.model(*s.as_input(a[:, i])))
             predict.append(t)
+
             if goal is not None:
                 reward = t.compute_reward(goal) + reward
-        return s.stack(predict), -reward
+
+        return s.stack(predict), reward
 
     def update(self, state, actions, future):
         # state is the frame
