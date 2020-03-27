@@ -16,7 +16,8 @@ class RolloutAgent(AgentBase):
             predict.append(t)
 
             if goal is not None:
-                reward = t.compute_reward(goal) + reward
+                reward = t.compute_reward(s, a, goal) + reward
+            s = t
 
         return s.stack(predict), reward
 

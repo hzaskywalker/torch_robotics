@@ -252,11 +252,15 @@ class GoalPlane(gym.Env):
 
     def render_obs(self, state, reset=False):
         tmp = np.array(self.env.state).copy()
+        tmp_goal = self.goal
+        if 'desired_goal' in state:
+            self.goal = state['desired_goal']
         self.env.state = state['observation']/self.maze_size
 
         image = self.render(mode='rgb_array')
 
         self.env.state = tmp
+        self.goal = tmp_goal
         return image
 
 

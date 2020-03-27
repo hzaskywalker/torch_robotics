@@ -1,10 +1,6 @@
 import torch
 import copy
 import numpy as np
-#from tools import Field
-#from tools.rl.actor import make_actor
-#from tools.utils import soft_update, sync_networks, sync_grads
-#from mpi4py import MPI
 from .models import actor, critic
 from robot.utils.normalizer import Normalizer
 from robot.utils import soft_update, Timer

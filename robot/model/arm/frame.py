@@ -31,7 +31,7 @@ class Frame:
         # In fact it's the achieved goal
         raise NotImplementedError
 
-    def compute_reward(self, goal):
+    def compute_reward(self, s, a, goal):
         # Calculate the reward, currently we only support the form like R(t, g)
         raise NotImplementedError
 
@@ -135,7 +135,7 @@ class ArmBase(Frame):
     def EE(self):
         return self.ee
 
-    def compute_reward(self, goal):
+    def compute_reward(self, s, a, goal):
         while len(goal.shape) < len(self.ee.shape):
             goal = goal[None, :]
         return -(((self.ee - goal) ** 2).sum(dim=-1)) ** 0.5

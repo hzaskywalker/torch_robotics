@@ -108,13 +108,8 @@ class trainer:
     def __init__(self, args):
         self.args = args
         self.path = self.args.path
-        self.env = make(args.env_name)
-        dataset_path = os.path.join('/dataset/', args.env_name)
-        self.frame_type = make_frame_cls(args.env_name, self.env)
-        self.dataset = DatasetWrapper(Dataset(dataset_path, device=args.device),
-                                 batch_size=args.batch_size,
-                                 timestep=args.timestep, cls = self.frame_type)
 
+        self.get_envs()
         self.get_model()
         self.get_agent()
 
@@ -126,6 +121,15 @@ class trainer:
         for i in range(args.num_epoch):
             print("TRAIN EPOCH", i)
             self.epoch(args.num_train_iter, args.num_valid_iter, num_eval=5, use_tqdm=True)
+
+    def get_envs(self):
+        args = self.args
+        self.env = make(args.env_name)
+        dataset_path = os.path.join('/dataset/', args.env_name)
+        self.frame_type = make_frame_cls(args.env_name, self.env)
+        self.dataset = DatasetWrapper(Dataset(dataset_path, device=args.device),
+                                      batch_size=args.batch_size,
+                                      timestep=args.timestep, cls = self.frame_type)
 
     def get_model(self):
         self.model = make_model(self.frame_type, self.args)
@@ -144,8 +148,12 @@ class trainer:
     def epoch(self, num_train, num_valid, num_eval=5, use_tqdm=False):
 
         def evaluate(to_vis, num_eval):
-            to_vis['reward_eval'], trajectories = U.eval_policy(self.controller, self.env, eval_episodes=num_eval, save_video=0.,
-                                                                video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True)
+            if num_eval == 0:
+                return
+
+            policy = U.eval_policy(self.controller, self.env, eval_episodes=num_eval, save_video=0.,
+                                   video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True)
+            to_vis['reward_eval'], trajectories = policy
 
             obs, actions = trajectories[0]
             goal = obs[0]['desired_goal']

@@ -1,5 +1,5 @@
 from .device import MI, MO, device
-from .utils import batched_index_select, save, resume, resume_if_exists, dict2field, write_video
+from .utils import batched_index_select, write_video
 from .tags import *
 from .seed import seed
 from .set_logger import set_logger, info
@@ -24,6 +24,8 @@ from .rl_utils import *
 import torch
 import numpy as np
 def togpu(x, dtype=torch.float32):
+    if x is None:
+        return x
     if not isinstance(x, torch.Tensor):
         x = torch.tensor(x, device='cuda:0', dtype=dtype)
     else:
@@ -32,6 +34,8 @@ def togpu(x, dtype=torch.float32):
     return x
 
 def tocpu(x):
+    if x is None:
+        return x
     if isinstance(x, list) or isinstance(x, np.ndarray):
         return x
     return x.detach().cpu().numpy()

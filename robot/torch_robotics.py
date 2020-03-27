@@ -17,9 +17,7 @@ def trans_to_Rp(T):
 
 
 def transpose(R):
-    dim = len(R.shape)
-    Rt = R.permute(*range(dim-2), dim-1, dim-2) # (b, 3, 3)
-    return Rt
+    return R.transpose(-1, -2)
 
 
 def dot(A, B):

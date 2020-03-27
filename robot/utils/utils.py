@@ -7,32 +7,6 @@ import gym
 import numpy as np
 
 
-def save(path, field, epochs):
-    print('Saving.. ', path)
-    #state = net.state_dict()
-    if not os.path.isdir(path):
-        os.mkdir(path)
-    field = Field({i:field[i].state_dict() for i in field})
-    field.epoch = epochs
-    torch.save(field, os.path.join(path, 'ckpt.t7'))
-
-
-def resume(path, dict):
-    print('==> Resuming from checkpoint..: {}'.format(path))
-    assert os.path.isdir(path), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load(os.path.join(path, 'ckpt.t7'))
-    for i in dict:
-        dict[i].load_state_dict(checkpoint[i])
-    print('==> Loaded epoch: {}'.format(checkpoint['epoch']))
-    return checkpoint['epoch']
-
-
-def resume_if_exists(path, net):
-    if path is not None and os.path.exists(os.path.join(path, 'ckpt.t7')):
-        return resume(path, net)
-    return 0
-
-
 def test(envs, model, nstack, render=False, viewer=None):
     obs = envs.reset()
     if nstack > 1:
@@ -91,38 +65,6 @@ def batch_gen(batch_size, *args):
         l = r
 
 
-class Normalizer(nn.Module):
-    def __init__(self, space, bound=1, show=True):
-        nn.Module.__init__(self)
-        low = np.maximum(-bound, space.low)
-        high = np.minimum(bound, space.high)
-        self.low = nn.Parameter(torch.tensor(
-            low.reshape(-1)), requires_grad=False)
-        self.high = nn.Parameter(torch.tensor(
-            high.reshape(-1)), requires_grad=False)
-        if show:
-            print('low', self.low, space.low)
-            print('high', self.high, space.high)
-        self.oup_dim = np.prod(space.shape)
-
-    def forward(self, x):
-        x = x.view(x.size(0), -1)
-        return (x[:, ] - self.low[None, :]) / (self.high - self.low)[None, :] - 0.5
-
-    def denorm(self, x):
-        x = x.view(x.size(0), -1)
-        return (x + 0.5) * (self.high.detach() - self.low.detach())[None, :] + self.low.detach()[None, :]
-
-
-class NormalizerV2(Normalizer):
-    def __init__(self, x):
-        nn.Module.__init__(self)
-        x = x.view(x.size(0), -1)
-        self.low = nn.Parameter(x.min(dim=0)[0], requires_grad=False)
-        self.high = nn.Parameter(x.max(dim=0)[0], requires_grad=False)
-        print('range', self.low, self.high)
-
-
 def select_discrete_action(out, action, action_n):
     # for different action space
     assert len(action.shape) == 1
@@ -140,13 +82,6 @@ def batched_index_select(input, dim, index):
     expanse[dim] = -1
     index = index.view(views).expand(expanse)
     return torch.gather(input, dim, index)
-
-def dict2field(d):
-    out = Field(d)
-    for key, val in out.items():
-        if isinstance(val, dict):
-            out[key] = dict2field(val)
-    return out
 
 
 def write_video(gen, path=None):
