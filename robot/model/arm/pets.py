@@ -37,6 +37,14 @@ class Distribution(Frame):
             'loss': loss
         }
 
+    @classmethod
+    def from_observation(cls, observation):
+        # build new frame from the observation
+        return cls(observation[..., None, :], None, None) # notice, there is no mean, std, but only state
+
+    def as_observation(self):
+        return U.tocpu(self.state)
+
 
 class CheetahFrame(Distribution):
     input_dims = (5, 18, 6)
@@ -48,17 +56,9 @@ class CheetahFrame(Distribution):
         inp = torch.cat([s[..., 1:2], s[..., 2:3].sin(), s[..., 2:3].cos(), s[..., 3:]], dim=-1)
         return inp, action
 
-    def as_observation(self):
-        return U.tocpu(self.state)
-
     def add(self, mean, std):
         mean =  torch.cat([mean[..., :1], self.state[..., 1:] + mean[..., 1:]], dim=-1)
         return self.__class__(None, mean, std)
-
-    @classmethod
-    def from_observation(cls, observation):
-        # build new frame from the observation
-        return cls(observation[..., None, :], None, None) # notice, there is no mean, std, but only state
 
     @classmethod
     def obs_cost_fn(cls, obs):
@@ -70,6 +70,22 @@ class CheetahFrame(Distribution):
 
     def compute_reward(self, s, a, goal):
         return -(self.obs_cost_fn(s.state) + self.ac_cost_fn(a))
+
+
+class PlaneFrame(Distribution):
+    input_dims = (5, 2, 2)
+    output_dims = (2, 2)
+
+    def as_input(self, action):
+        return self.state, action
+
+    def add(self, mean, std):
+        return self.__class__(None, self.state + mean, std)
+
+    def compute_reward(self, s, a, g):
+        while g.dim() < self.state.dim():
+            g = g[None,:]
+        return -(((self.state - g) ** 2).sum(dim=-1)) ** 0.5
 
 
 class EnsembleModel(EnBNN):
@@ -170,9 +186,16 @@ class online_trainer(trainer):
 
     def get_envs(self):
         from robot.controller.pets.envs import make
-        self.env, _ = make('cheetah')
-        self.frame_type = CheetahFrame
-        self.dataset = Dataset(1000, int(1e6), 32, self.frame_type)
+        if self.args.dataset == 'cheetah':
+            self.env, _ = make('cheetah')
+            self.frame_type = CheetahFrame
+            timestep = 1000
+        else:
+            self.env, _ = make('plane')
+            self.frame_type = PlaneFrame
+            timestep = 50
+
+        self.dataset = Dataset(timestep, int(1e6), 32, self.frame_type)
 
     def get_model(self):
         self.model = EnsembleModel(self.frame_type.input_dims, self.frame_type.output_dims)
@@ -194,7 +217,7 @@ class online_trainer(trainer):
             policy = lambda x: self.env.action_space.sample()
         else:
             policy = self.controller
-        avg_reward, trajectories = U.eval_policy(policy, self.env, eval_episodes=1, save_video=0, progress_episode=True,
+        avg_reward, trajectories = U.eval_policy(policy, self.env, eval_episodes=1, save_video=1, progress_episode=True,
                                      video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True,
                                      timestep=self.dataset.timestep)
         for i in trajectories:
