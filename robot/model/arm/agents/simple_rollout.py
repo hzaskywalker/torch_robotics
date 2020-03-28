@@ -1,10 +1,11 @@
 from robot.utils.trainer import AgentBase
 
 class RolloutAgent(AgentBase):
-    def __init__(self, model, lr, loss_weights):
+    def __init__(self, model, lr, loss_weights, normalizers=None):
         self.model = model
         super(RolloutAgent, self).__init__(model, lr)
         self.loss_weights = loss_weights
+        self.normalizers = normalizers
 
     def rollout(self, s, a, goal=None):
         # s (inp_dim)
@@ -13,7 +14,10 @@ class RolloutAgent(AgentBase):
 
         for i in range(a.shape[1]):
             ai = a[:, i]
-            t = s.add(*self.model(*s.as_input(ai)))
+            inp = s.as_input(ai)
+            if self.normalizers is not None:
+                inp = [norm(x) for x, norm in zip(inp, self.normalizers)]
+            t = s.add(*self.model(*inp))
             predict.append(t)
 
             if goal is not None:
@@ -21,6 +25,11 @@ class RolloutAgent(AgentBase):
             s = t
 
         return s.stack(predict), reward
+
+    def cuda(self, device='cuda:0'):
+        self.normalizers.cuda()
+        super(RolloutAgent, self).cuda()
+        return self
 
     def update(self, state, actions, future):
         # state is the frame
@@ -50,4 +59,6 @@ class RolloutAgent(AgentBase):
         return {'predict': predict.cpu(), **losses}
 
     def update_normalizer(self, batch):
-        pass
+        if self.normalizers is not None:
+            for x, norm in zip(batch, self.normalizers):
+                norm.update(x)

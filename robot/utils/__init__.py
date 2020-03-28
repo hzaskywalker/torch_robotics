@@ -17,6 +17,7 @@ from .packed_tensor import *
 from .distributions import LinearGaussian
 from .control_utils import *
 from .decorators import *
+from .normalizer import Normalizer
 
 from .trainer import merge_training_output, AgentBase, train_loop, add_parser
 from .rl_utils import *

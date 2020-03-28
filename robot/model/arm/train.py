@@ -83,7 +83,7 @@ class Renderer:
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env_name", type=str, default='arm', choices=['arm', 'acrobat2', 'plane'])
+    parser.add_argument("--env_name", type=str, default='arm', choices=['arm', 'acrobat2', 'plane', 'cheetah'])
     parser.add_argument("--batchnorm", type=int, default=0)
     parser.add_argument("--model", type=str, default='mlp')
     parser.add_argument("--batch_size", type=int, default=256)
@@ -118,8 +118,8 @@ class trainer:
         self.get_renderer()
         self.vis = U.Visualizer(args.path)
 
-        for i in range(args.num_epoch):
-            print("TRAIN EPOCH", i, args.num_train_iter, args.num_valid_iter)
+        self.epoch_num = 0
+        for self.epoch_num in range(args.num_epoch):
             self.epoch(args.num_train_iter, args.num_valid_iter, num_eval=5, use_tqdm=True)
 
     def get_envs(self):
@@ -150,6 +150,7 @@ class trainer:
                                      horizon=args.timestep-1, num_mutation=500, num_elite=50, device=args.device)
 
     def epoch(self, num_train, num_valid, num_eval=5, use_tqdm=False):
+        print("TRAIN EPOCH", self.epoch_num)
 
         def evaluate(to_vis, num_eval):
             if num_eval == 0:

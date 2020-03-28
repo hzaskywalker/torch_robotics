@@ -2,6 +2,7 @@
 import os
 import torch
 import tqdm
+from torch import nn
 import numpy as np
 from robot.controller.pets.model import EnBNN
 
@@ -121,9 +122,7 @@ class Dataset:
         self.frame_type = frame_type
 
     def store_episode(self, data):
-        obs = np.array([i['observation'] for i in data[0]])[None,:]
-        action = np.array(data[1])[None,:]
-        self.dataset.store_episode([obs, action])
+        self.dataset.store_episode(data)
 
     def gen_data(self, num_train):
         tmp = self.dataset.get()
@@ -179,21 +178,18 @@ class PetsRollout:
 
 
 class online_trainer(trainer):
-    def __init__(self, *args, **kwargs):
-        self.epoch_num = 0
-
-        super(online_trainer, self).__init__(*args, **kwargs)
-
     def get_envs(self):
         from robot.controller.pets.envs import make
-        if self.args.dataset == 'cheetah':
-            self.env, _ = make('cheetah')
+        self.env, _ = make(self.args.env_name)
+        if self.args.env_name == 'cheetah':
             self.frame_type = CheetahFrame
             timestep = 1000
-        else:
+        elif self.args.env_name == 'plane':
             self.env, _ = make('plane')
             self.frame_type = PlaneFrame
             timestep = 50
+        else:
+            raise NotImplementedError
 
         self.dataset = Dataset(timestep, int(1e6), 32, self.frame_type)
 
@@ -202,28 +198,39 @@ class online_trainer(trainer):
 
     def get_agent(self):
         from .agents.simple_rollout import RolloutAgent
+        normalizer = nn.ModuleList([U.Normalizer((i,)) for i in self.frame_type.input_dims[1:]])
         self.agent = RolloutAgent(self.model, lr=self.args.lr, loss_weights={
             'model_decay': 1.,
             'loss': 1.,
-        }).cuda()
+        }, normalizers=normalizer).cuda()
 
     def get_rollout_model(self):
         self.rollout_predictor = PetsRollout(self.agent, self.frame_type)
 
+    def get_api(self):
+        self.get_rollout_model()
+        args = self.args
+        from .train import RolloutCEM
+        self.controller = RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=5,
+                                     horizon=30, num_mutation=200, num_elite=10, device=args.device)
+
     def epoch(self, num_train=5, num_valid=0, num_eval=0, use_tqdm=False):
+        print(f"########################EPOCH {self.epoch_num}###########################")
         # update buffer by run once
         self.agent.eval()
         if self.epoch_num == 0:
             policy = lambda x: self.env.action_space.sample()
         else:
             policy = self.controller
-        avg_reward, trajectories = U.eval_policy(policy, self.env, eval_episodes=1, save_video=1, progress_episode=True,
+        avg_reward, trajectories = U.eval_policy(policy, self.env, eval_episodes=1, save_video=0, progress_episode=True,
                                      video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True,
                                      timestep=self.dataset.timestep)
         for i in trajectories:
-            self.dataset.store_episode(i)
+            obs = np.array([i['observation'] for i in i[0]])[None, :]
+            action = np.array(i[1])[None, :]
 
-        # update normalizer ...
+            self.agent.update_normalizer([U.togpu(obs), U.togpu(action)])
+            self.dataset.store_episode([obs, action])
 
         # train with the dataset
         self.agent.train()
