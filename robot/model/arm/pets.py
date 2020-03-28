@@ -132,7 +132,6 @@ class Dataset:
         t = t.reshape(-1, t.shape[-1])
         idxs = np.arange(len(s))
 
-        train_output = []
         for _ in tqdm.trange(num_train):
             idxs = np.random.permutation(idxs)
 
@@ -169,12 +168,14 @@ class PetsRollout:
         a = a.transpose(2, 1).reshape(-1, a.shape[1], self.ensemble_size, a.shape[-1])
 
         predict, reward = self.model.rollout(s, a, goal)
+        """
         predict = predict.state
         predict = predict.mean(dim=1).reshape(-1, self.K, *predict.shape[2:]).mean(dim=1)
         predict = self.cls(predict[..., None,:])
-
-        reward = reward.reshape(-1, self.K, self.ensemble_size).mean(dim=(1, 2))
-        return predict, -reward
+        """
+        reward = reward.reshape(-1, self.K, self.ensemble_size)
+        reward = reward.mean(dim=(1, 2))
+        return None, -reward
 
 
 class online_trainer(trainer):
@@ -211,8 +212,11 @@ class online_trainer(trainer):
         self.get_rollout_model()
         args = self.args
         from .train import RolloutCEM
-        self.controller = RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=5,
-                                     horizon=30, num_mutation=200, num_elite=10, device=args.device)
+        env = self.env
+        self.controller = RolloutCEM(self.rollout_predictor, env.action_space, iter_num=5,
+                                     horizon=30, num_mutation=200, num_elite=10, device=args.device,
+                                     alpha=0.1, trunc_norm=True,
+                                     upper_bound=env.action_space.high, lower_bound=env.action_space.low)
 
     def epoch(self, num_train=5, num_valid=0, num_eval=0, use_tqdm=False):
         print(f"########################EPOCH {self.epoch_num}###########################")
@@ -222,7 +226,8 @@ class online_trainer(trainer):
             policy = lambda x: self.env.action_space.sample()
         else:
             policy = self.controller
-        avg_reward, trajectories = U.eval_policy(policy, self.env, eval_episodes=1, save_video=0, progress_episode=True,
+        env = self.env
+        avg_reward, trajectories = U.eval_policy(policy, env, eval_episodes=1, save_video=0, progress_episode=True,
                                      video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True,
                                      timestep=self.dataset.timestep)
         for i in trajectories:

@@ -56,6 +56,7 @@ class Normalizer(nn.Module):
 
     # normalize the observation
     def norm(self, v: torch.Tensor, clip_range=None):
+        assert v.shape[-len(self.size):] == self.size
         if clip_range is None:
             clip_range = self.default_clip_range
         return ((v - self.mean)/self.std).clamp(-clip_range, clip_range)
