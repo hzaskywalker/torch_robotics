@@ -18,7 +18,8 @@ def main():
             env.reset()
         env.render()
         action = env.action_space.sample()
-        _, reward, _, info = env.step(action)
+        obs, reward, _, info = env.step(action)
+        print(obs['geom'].reshape())
         print(reward, info['is_success'])
 
 

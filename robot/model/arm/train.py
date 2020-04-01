@@ -121,6 +121,8 @@ class trainer:
         self.epoch_num = 0
         for self.epoch_num in range(args.num_epoch):
             self.epoch(args.num_train_iter, args.num_valid_iter, num_eval=5, use_tqdm=True)
+            # we save the agent by default
+            self.save()
 
     def get_envs(self):
         args = self.args
@@ -207,9 +209,10 @@ class trainer:
 
         evaluate(to_vis, num_eval=num_eval)
         self.vis(to_vis, self.vis.tb.step - 1)
-
-        torch.save(self.agent, os.path.join(self.path, 'agent'))
         self.agent.train()
+
+    def save(self):
+        torch.save(self.agent, os.path.join(self.path, 'agent'))
 
 
 if __name__ == '__main__':

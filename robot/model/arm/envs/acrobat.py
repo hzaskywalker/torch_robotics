@@ -40,7 +40,7 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         #self.ee.set_pose()
         q = self.model.get_qpos().flat
         qvel =self.model.get_qvel().flat
-        #print(np.array(q))
+        qacc =self.model.get_qacc().flat
 
         self.goal_sphere.set_pose(Pose((self._goal[0], 0, self._goal[1])))
 
@@ -50,7 +50,7 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         self.ee_sphere.set_pose(Pose((x, 0, z)))
 
         return {
-            'observation': np.concatenate([q, qvel, achieved_goal]),
+            'observation': np.concatenate([q, qvel, qacc, achieved_goal]),
             'desired_goal': np.array(self._goal).copy(),
             'achieved_goal': np.array([achieved_goal[0], achieved_goal[2]]),
         }

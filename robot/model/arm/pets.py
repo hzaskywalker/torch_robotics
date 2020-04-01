@@ -33,10 +33,9 @@ class Distribution(Frame):
         t = label.state
         inv_var = torch.exp(-self.log_var)
         loss = ((self.mean - t.detach()) ** 2) * inv_var + self.log_var
-        loss = loss.mean(dim=(0, -1)).sum() # sum across different models
-        return {
-            'loss': loss
-        }
+        loss = loss.mean(dim=(0, 1, 3))
+        loss = loss.sum() # sum across different models
+        return {'loss': loss}
 
     @classmethod
     def from_observation(cls, observation):
@@ -168,11 +167,6 @@ class PetsRollout:
         a = a.transpose(2, 1).reshape(-1, a.shape[1], self.ensemble_size, a.shape[-1])
 
         predict, reward = self.model.rollout(s, a, goal)
-        """
-        predict = predict.state
-        predict = predict.mean(dim=1).reshape(-1, self.K, *predict.shape[2:]).mean(dim=1)
-        predict = self.cls(predict[..., None,:])
-        """
         reward = reward.reshape(-1, self.K, self.ensemble_size)
         reward = reward.mean(dim=(1, 2))
         return None, -reward
@@ -200,23 +194,19 @@ class online_trainer(trainer):
     def get_agent(self):
         from .agents.simple_rollout import RolloutAgent
         normalizer = nn.ModuleList([U.Normalizer((i,)) for i in self.frame_type.input_dims[1:]])
-        self.agent = RolloutAgent(self.model, lr=self.args.lr, loss_weights={
-            'model_decay': 1.,
-            'loss': 1.,
-        }, normalizers=normalizer).cuda()
+        self.agent = RolloutAgent(self.model, lr=self.args.lr, loss_weights={'model_decay': 1.,'loss': 1.}, normalizers=normalizer).cuda()
 
     def get_rollout_model(self):
-        self.rollout_predictor = PetsRollout(self.agent, self.frame_type)
+        self.rollout_predictor = PetsRollout(self.agent, self.frame_type, npart=20)
 
     def get_api(self):
         self.get_rollout_model()
         args = self.args
         from .train import RolloutCEM
         env = self.env
-        self.controller = RolloutCEM(self.rollout_predictor, env.action_space, iter_num=5,
-                                     horizon=30, num_mutation=200, num_elite=10, device=args.device,
-                                     alpha=0.1, trunc_norm=True,
-                                     upper_bound=env.action_space.high, lower_bound=env.action_space.low)
+        self.controller = RolloutCEM(self.rollout_predictor, env.action_space, iter_num=5, horizon=30,
+                                     num_mutation=500, num_elite=50, device=args.device, alpha=0.1, trunc_norm=True,
+                                     lower_bound=env.action_space.low, upper_bound=env.action_space.high)
 
     def epoch(self, num_train=5, num_valid=0, num_eval=0, use_tqdm=False):
         print(f"########################EPOCH {self.epoch_num}###########################")
@@ -230,6 +220,7 @@ class online_trainer(trainer):
         avg_reward, trajectories = U.eval_policy(policy, env, eval_episodes=1, save_video=0, progress_episode=True,
                                      video_path=os.path.join(self.path, "video{}.avi"), return_trajectories=True,
                                      timestep=self.dataset.timestep)
+
         for i in trajectories:
             obs = np.array([i['observation'] for i in i[0]])[None, :]
             action = np.array(i[1])[None, :]
@@ -245,4 +236,6 @@ class online_trainer(trainer):
             out = self.agent.update(*data)
             train_output.append(out)
 
-        self.epoch_num += 1
+        out = U.merge_training_output(train_output)
+        out['reward'] = avg_reward
+        self.vis(out)

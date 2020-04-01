@@ -5,8 +5,8 @@ import torch
 from .cem import CEM
 
 class RolloutCEM:
-    def __init__(self, model, action_space, horizon, replan_period=1, add_actions=True, initial_iter=None, device='cuda:0', std=None,
-                 *args, **kwargs):
+    def __init__(self, model, action_space, horizon, replan_period=1, add_actions=True, initial_iter=None,
+                 device='cuda:0', std=None, *args, **kwargs):
         # add actions=0 means we plan for the whole trajectory
         assert 'rollout' in model.__dir__()
         self.model = model

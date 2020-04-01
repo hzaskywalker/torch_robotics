@@ -47,7 +47,7 @@ class Frame:
         return self.new([i[item] for i in self.iter()])
 
     @classmethod
-    def stack(cls, list, dim=-2):
+    def stack(cls, list, dim=1):
         outs = [i.iter() for i in list]
         outs = [torch.stack([j[i] for j in outs], dim=dim) for i in range(len(outs[0]))]
         return cls.new(outs)

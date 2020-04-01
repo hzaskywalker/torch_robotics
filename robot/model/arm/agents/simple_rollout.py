@@ -17,6 +17,7 @@ class RolloutAgent(AgentBase):
             inp = s.as_input(ai)
             if self.normalizers is not None:
                 inp = [norm(x) for x, norm in zip(inp, self.normalizers)]
+
             t = s.add(*self.model(*inp))
             predict.append(t)
 
