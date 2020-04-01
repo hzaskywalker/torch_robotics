@@ -3,8 +3,7 @@ from torch import nn
 import torch
 
 # q,dq,ddq: (b x ndim)
-# net_L: q(b x ndim)->l(b x ndim*(ndim+1)/2)
-# net_g: q(b x ndim)->g(b x ndim)
+# net_L: q(b x ndim)->l(b x ndim*(ndim+1)/2), g(b x ndim)
 
 
 # q(b x ndim)--net_L-->l(b x ndim*(ndim+1)/2)--reshape-->L(b x ndim x ndim,lower triangle), dLdq(b x ndim x ndim x ndim, lower triangle)
@@ -19,7 +18,7 @@ def get_batch_jacobian(net, x, noutputs):
     x.requires_grad_(True)
     y,g = net(x)
     input_val = torch.eye(noutputs).reshape(1,noutputs, noutputs).repeat(n, 1, 1).cuda()
-    x.retain_grad()
+#     x.retain_grad()
     jac=torch.autograd.grad(y,x,input_val,create_graph=True)
     return y[:,0,:], g[:,0,:], jac[0]
 
@@ -68,14 +67,14 @@ def inverse_model_v2(net_L, q, dq, ddq, return_all=False):
     dLdq=torch.zeros((nbatch, ndim, ndim, ndim)).cuda()
     dLdq[:,tril_indices[0], tril_indices[1],:]=l_jac[:,:-ndim]
     dLdq[:,torch.arange(ndim),torch.arange(ndim)]=l_jac[:,-ndim:]
-
     dLdt=(dLdq@dqr.unsqueeze(3)).squeeze()
+    
     H=L+L.transpose(1,2)
     dHdt=dLdt+dLdt.transpose(-1,-2)
     dHdq=dLdq+dLdq.transpose(-1,-2)
     dHdq=dHdq.permute(0,3,1,2)
     quad=(dqr.unsqueeze(2)@dHdq@dqr.unsqueeze(3)).squeeze()
-    tau=(H@ddq.unsqueeze(2)).squeeze()+(dHdt@dq.unsqueeze(2)).squeeze()-quad/2+g
+    tau=(H@ddq.unsqueeze(2)).squeeze()+(dHdt@dq.unsqueeze(2)).squeeze()-quad/2#+g
     if return_all:
         return L,dLdq,dLdt,H,dHdq,dHdt,quad,tau
     else:
