@@ -70,7 +70,7 @@ class Simulator(Env):
             self.sim.set_renderer(self._optifuser)
         else:
             self.sim = sim
-            self._optifuser = self.sim.get_renderer()
+            self._optifuser = self.sim.set_renderer()
         self.scene: sapien_core.Scene = self.sim.create_scene(gravity=np.array(gravity), solver_type=sapien_core.SolverType.PGS)
         self.scene.set_timestep(self._dt)
 

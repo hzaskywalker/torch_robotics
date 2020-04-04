@@ -27,7 +27,7 @@ class MLP_ARM(nn.Module):
 
         self.q_dim = inp_dim[0]
         self.mlp1 = MLP(inp_dim[0] +inp_dim[1], oup_dims[0], num_layers, mid_channels, batchnorm=batchnorm)
-        self.mlp2 = MLP(inp_dim[0]//2, oup_dims[1], num_layers, mid_channels, batchnorm=batchnorm)
+        self.mlp2 = MLP(oup_dims[0]//2, oup_dims[1], num_layers, mid_channels, batchnorm=batchnorm)
 
     def forward(self, state, action):
         #print(state.shape, action.shape)
@@ -35,10 +35,3 @@ class MLP_ARM(nn.Module):
         new_state = state + self.mlp1(torch.cat((state, action), dim=-1)) # should we just use add here
         return new_state, self.mlp2(new_state[...,:new_state.shape[-1]//2])
 
-
-def make_model(cls: Frame, args):
-    if args.model == 'mlp':
-        model = MLP_ARM(cls.input_dims, cls.output_dims, 4, 256, batchnorm=args.batchnorm)
-    else:
-        raise NotImplementedError
-    return model

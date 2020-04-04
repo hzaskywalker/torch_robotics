@@ -8,9 +8,6 @@ from robot.controller.rollout_controller import RolloutCEM
 import torch
 from robot.model.arm.dataset import Dataset
 from robot.model.arm.envs import make
-from robot.model.arm.frame import make_frame_cls
-from robot.model.arm.models import make_model
-from robot.model.arm.agents import make_agent
 from robot import U
 
 
@@ -109,13 +106,13 @@ class trainer:
         self.args = args
         self.path = self.args.path
 
-        self.get_envs()
-        self.get_model()
-        self.get_agent()
+        self.set_env()
+        self.set_model()
+        self.set_agent()
 
-        self.get_api()
+        self.set_policy()
 
-        self.get_renderer()
+        self.set_renderer()
         self.vis = U.Visualizer(args.path)
 
         self.epoch_num = 0
@@ -124,29 +121,53 @@ class trainer:
             # we save the agent by default
             self.save()
 
-    def get_envs(self):
+    def make_frame_cls(self, env_name, env):
+        from .frame import ArmBase, Plane
+        if env_name == 'arm':
+            return ArmBase
+        elif env_name == 'plane':
+            return Plane
+        else:
+            raise NotImplementedError
+
+    def set_env(self):
         args = self.args
         self.env = make(args.env_name)
         dataset_path = os.path.join('/dataset/', args.env_name)
-        self.frame_type = make_frame_cls(args.env_name, self.env)
+        self.frame_type = self.make_frame_cls(args.env_name, self.env)
         self.dataset = DatasetWrapper(Dataset(dataset_path, device=args.device),
                                       batch_size=args.batch_size,
                                       timestep=args.timestep, cls = self.frame_type)
 
-    def get_model(self):
-        self.model = make_model(self.frame_type, self.args)
+    def set_model(self):
+        from .models import MLP_ARM
+        cls = self.frame_type
+        self.model = MLP_ARM(cls.input_dims, cls.output_dims, 4, 256, batchnorm=self.args.batchnorm)
 
-    def get_agent(self):
-        self.agent = make_agent(self.model, self.frame_type, self.args).cuda(self.args.device)
+    def set_agent(self):
+        # max_a is very important to make it work...
+        from .agents import RolloutAgent
+        args = self.args
+        if not args.resume:
+            agent = RolloutAgent(self.model, lr=args.lr, loss_weights={
+                'q_loss': args.weight_q,
+                'dq_loss': args.weight_dq,
+                'ee_loss': args.weight_ee,
+            })
+        else:
+            import torch, os
+            agent = torch.load(os.path.join(args.path, 'agent'))
 
-    def get_renderer(self):
+        self.agent = agent.cuda()
+
+    def set_renderer(self):
         self.renderer = Renderer(self.env)
 
-    def get_rollout_model(self):
+    def set_rollout_model(self):
         self.rollout_predictor = RolloutWrapper(self.agent, self.frame_type)
 
-    def get_api(self):
-        self.get_rollout_model()
+    def set_policy(self):
+        self.set_rollout_model()
         args = self.args
         self.controller = RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=10,
                                      horizon=args.timestep-1, num_mutation=500, num_elite=50, device=args.device)
@@ -180,8 +201,6 @@ class trainer:
         train_output = []
         for idx in ran(num_train):
             data = self.dataset.sample('train')
-
-            self.agent.update_normalizer(data)
             info = self.agent.update(*data)
             train_output.append(info)
             if idx % 200 == 0:
@@ -213,8 +232,3 @@ class trainer:
 
     def save(self):
         torch.save(self.agent, os.path.join(self.path, 'agent'))
-
-
-if __name__ == '__main__':
-    args = get_args()
-    trainer(args)

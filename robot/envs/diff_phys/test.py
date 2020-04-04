@@ -16,7 +16,7 @@ def test_acrobat():
     env = AcrobotEnv()
     #env = gym.make('Acrobot-v1')
     env.reset()
-    env.state = np.zeros((2,))
+    env.state = np.zeros((2,)) + np.pi * 2
     img = env.render(mode='rgb_array')
     cv2.imwrite('x.jpg', img)
     exit(0)
@@ -81,10 +81,11 @@ def test_batched_env():
     def write():
         obs = env.reset()
         for i in tqdm.trange(50):
-            a = controller(obs)
-            #a = np.random.random((400, 2)) * 2 -1
+            #a = controller(obs)
+            a = np.random.random((400, 2)) * 2 -1
             obs, r, done, info = env.step(a)
             img = env.render(mode='rgb_array')
+            print(obs['observation'].max())
             yield img
         #print((np.isnan(obs['observation']).sum(axis=(-1))>0).sum())
         print(info['is_success'].mean())

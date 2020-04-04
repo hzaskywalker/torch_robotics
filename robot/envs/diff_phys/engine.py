@@ -60,10 +60,9 @@ class Link:
 
 class Articulation2D:
     def __init__(self, fixed_base=True,
-                 requires_grad=False,
                  gravity=[0, -9.8, 0],
                  device='cuda:0',
-                 batch_size=1,
+                 max_velocity=100,
                  ftip=None, timestep=0.025):
         self.fixed_base = True
         self._links = []
@@ -73,6 +72,7 @@ class Articulation2D:
         self.A = None
         self.device = device
         self.timestep = timestep
+        self.max_velocity = max_velocity
         self.gravity = torch.tensor(gravity, dtype=torch.float64, device=device)
         if ftip is None:
             ftip = np.zeros(6)
@@ -178,9 +178,11 @@ class Articulation2D:
             return out
 
         state = torch.cat((self.qpos, self.qvel, self.qf), dim=-1)
+        # ideally we should do intergral at the euclidea space
         output = tr.rk4(derivs, state, [0, self.timestep])[1]
-        self.qpos = output[..., :self.dof]
-        self.qvel = output[..., self.dof:self.dof*2]
+
+        self.qpos = (output[..., :self.dof] + np.pi) % (np.pi * 2) - np.pi
+        self.qvel = output[..., self.dof:self.dof*2].clamp(-self.max_velocity, self.max_velocity) # velocity is bounded
 
     def add_link(self, M, screw, type='hinge', range=None):
         """

@@ -27,6 +27,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         })
         self.action_space = Box(low=-1, high=1, shape=(2,))
         self.action_range = 50 #200
+        self.velocity_range = 20 #200
         self.batch_size = batch_size
 
 
@@ -72,7 +73,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         circle.add_attr(self.viewer.Transform(0, g))
         return viewer.render(return_rgb_array = mode=='rgb_array')
 
-    def render_obs(self, obs):
+    def render_obs(self, obs, reset=False):
         state = self.state_vector()
 
         self.set_state(obs['observation'][...,:2], obs['observation'][...,2:4])
@@ -85,7 +86,7 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
 
 
     def build_model(self):
-        articulator = Articulation2D(timestep=0.1)
+        articulator = Articulation2D(timestep=0.1, max_velocity=self.velocity_range)
 
         M01 = np.array(
             [

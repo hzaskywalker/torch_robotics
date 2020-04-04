@@ -5,6 +5,8 @@ from robot.utils.trunc_norm import trunc_norm
 
 
 class CEM:
+    # CEM optimizer, it's used for minimization instead of maximization!!!
+    # the eval_function should evaluate the costs!!!
     def __init__(self, eval_function, iter_num, num_mutation, num_elite, std=0.2,
                  alpha=0., upper_bound=None, lower_bound=None, trunc_norm=False, inf=int(1e9)):
         self.eval_function = eval_function

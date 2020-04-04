@@ -173,7 +173,7 @@ class PetsRollout:
 
 
 class online_trainer(trainer):
-    def get_envs(self):
+    def set_env(self):
         from robot.controller.pets.envs import make
         self.env, _ = make(self.args.env_name)
         if self.args.env_name == 'cheetah':
@@ -188,19 +188,19 @@ class online_trainer(trainer):
 
         self.dataset = Dataset(timestep, int(1e6), 32, self.frame_type)
 
-    def get_model(self):
+    def set_model(self):
         self.model = EnsembleModel(self.frame_type.input_dims, self.frame_type.output_dims)
 
-    def get_agent(self):
+    def set_agent(self):
         from .agents.simple_rollout import RolloutAgent
         normalizer = nn.ModuleList([U.Normalizer((i,)) for i in self.frame_type.input_dims[1:]])
         self.agent = RolloutAgent(self.model, lr=self.args.lr, loss_weights={'model_decay': 1.,'loss': 1.}, normalizers=normalizer).cuda()
 
-    def get_rollout_model(self):
+    def set_rollout_model(self):
         self.rollout_predictor = PetsRollout(self.agent, self.frame_type, npart=20)
 
-    def get_api(self):
-        self.get_rollout_model()
+    def set_policy(self):
+        self.set_rollout_model()
         args = self.args
         from .train import RolloutCEM
         env = self.env

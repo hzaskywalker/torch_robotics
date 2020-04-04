@@ -157,7 +157,7 @@ def test_expse3():
     se3mat = np.array([[0, -3, 2, 4],
                        [3, 0, -1, 5],
                        [-2, 1, 0, 6],
-                       [0, 0, 0, 0]])
+                       [0, 0, 0, 0]]) * np.pi * 2
     check(tr.expse3(togpu(se3mat)[None, :])[0], togpu(mr.MatrixExp6(se3mat)))
 
     se3mat = np.array([[0, 0, 0, 4],

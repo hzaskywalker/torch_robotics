@@ -28,7 +28,8 @@ class RolloutAgent(AgentBase):
         return s.stack(predict), reward
 
     def cuda(self, device='cuda:0'):
-        self.normalizers.cuda()
+        if self.normalizers is not None:
+            self.normalizers.cuda()
         super(RolloutAgent, self).cuda()
         return self
 

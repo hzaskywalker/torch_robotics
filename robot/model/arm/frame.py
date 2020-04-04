@@ -82,10 +82,12 @@ class ArmBase(Frame):
     max_dq = 2000 * 0.1
     max_a = 1
     loss = nn.MSELoss()
-    dim = 7
 
-    input_dims = (2 * 7, 7)
-    output_dims = (2 * 7, 3)
+    dim = 7
+    d_ee = 3
+
+    input_dims = (2 * dim, dim)
+    output_dims = (2 * dim, d_ee)
 
     def __init__(self, q, dq, ee=None):
         self.q = q
@@ -143,7 +145,6 @@ class ArmBase(Frame):
     def iter(self):
         return self.q, self.dq, self.ee
 
-
 class Plane(ArmBase):
     input_dims = (4, 2)
     output_dims = (4, 2)
@@ -159,13 +160,3 @@ class Plane(ArmBase):
 
     def as_observation(self):
         return {'observation': U.tocpu(self.q)}
-
-
-def make_frame_cls(env_name, env):
-    # hopefully we don't need env
-    if env_name == 'arm':
-        return ArmBase
-    elif env_name == 'plane':
-        return Plane
-    else:
-        raise NotImplementedError
