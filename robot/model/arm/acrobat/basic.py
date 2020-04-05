@@ -76,6 +76,17 @@ class SapienAcrobat2Frame(AcrobatFrame):
             q[-self.d_ee:] = U.tocpu(self.ee)
         return {'observation': q}
 
+    def calc_loss(self, label):
+        # label are also type a frame..
+        assert self.q.shape == label.q.shape
+        assert self.dq.shape == label.dq.shape
+        assert self.ee.shape == label.ee.shape
+        return {
+            'q_loss': self.angle_loss(self.q, label.q),
+            'dq_loss': self.loss(self.dq, label.dq) * 0.001,
+            'ee_loss': self.loss(self.ee, label.ee)
+        }
+
 
 class MLP_ACROBAT(nn.Module):
     def __init__(self, inp_dim, oup_dims, num_layers, mid_channels, batchnorm=False):

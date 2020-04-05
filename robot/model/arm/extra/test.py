@@ -14,13 +14,22 @@ dataset=Dataset('/dataset/acrobat2', device='cuda:0')
 from robot.model.arm.acrobat.phys_model import ArmModel
 from robot import tr
 class InverseDynamicsModel(ArmModel):
-    def __init__(self, dim):
-        super(InverseDynamicsModel, self).__init__(dim)
+    def __init__(self, dim, dtype):
+        super(InverseDynamicsModel, self).__init__(dim, dtype=dtype)
+
+        self.q_fc = nn.Linear(1, 1)
+        self.dq_fc = nn.Linear(1, 1)
+        self.ddq_fc = nn.Linear(1, 1)
+        self.out = nn.Linear(1, 1)
 
     def forward(self, q, dq, ddq, return_all=False):
         q = (q + np.pi) % (2*np.pi) - np.pi
+        q = self.q_fc(q.reshape(-1, 1)).reshape(q.shape)
+        dq = self.dq_fc(dq.reshape(-1, 1)).reshape(dq.shape)
+        ddq = self.ddq_fc(ddq.reshape(-1, 1)).reshape(ddq.shape)
         tau = tr.inverse_dynamics(q, dq, ddq, *self.get_parameters(q))
         #return [] + [None for i in range(7)]
+        #tau = self.out(tau.reshape(-1, 1)).reshape(tau.shape)
         return tau
 
 
