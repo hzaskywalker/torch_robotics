@@ -11,6 +11,18 @@ from robot.model.arm.dataset import *
 #mm = A.train.make('diff_acrobat').unwrapped.articulator
 dataset=Dataset('/dataset/acrobat2', device='cuda:0')
 
+from robot.model.arm.acrobat.phys_model import ArmModel
+from robot import tr
+class InverseDynamicsModel(ArmModel):
+    def __init__(self, dim):
+        super(InverseDynamicsModel, self).__init__(dim)
+
+    def forward(self, q, dq, ddq, return_all=False):
+        q = (q + np.pi) % (2*np.pi) - np.pi
+        tau = tr.inverse_dynamics(q, dq, ddq, *self.get_parameters(q))
+        #return [] + [None for i in range(7)]
+        return tau
+
 
 def get_info(data, ndim):
     q = data[0][:, 1, 0:ndim]
@@ -93,7 +105,8 @@ torch.cuda.set_device('cuda:0')
 # ndim=7 for arm, ndim=2 for acrobat
 ndim = 2
 
-model_lag = LagrangianNetwork(ndim)
+#model_lag = LagrangianNetwork(ndim)
+model_lag = InverseDynamicsModel(2, dtype=torch.float)
 model_lag = model_lag.cuda()
 
 model_naive = nn.Sequential(
@@ -112,7 +125,7 @@ train_loss_naive = []
 val_loss_lag = []
 val_loss_naive = []
 
-optimizer_lag = torch.optim.Adam(model_lag.parameters(), lr=1e-4)
+optimizer_lag = torch.optim.Adam(model_lag.parameters(), lr=0.1)
 optimizer_naive = torch.optim.Adam(model_naive.parameters(), lr=1e-4)
 
 for t in range(5):
@@ -150,7 +163,8 @@ for t in range(5):
             q, dq, ddq, tau_target = get_info(vdata, ndim)
 
             # Lagrangian network
-            L_lag, dLdq_lag, dLdt_lag, H_lag, dHdq_lag, dHdt_lag, quad_lag, tau = model_lag(q, dq, ddq, True)
+            #L_lag, dLdq_lag, dLdt_lag, H_lag, dHdq_lag, dHdt_lag, quad_lag, tau = model_lag(q, dq, ddq, True)
+            tau = model_lag(q, dq, ddq, True)
 
             loss_lag = crit(tau, tau_target)
             loss_lag_rel = torch.mean((tau - tau_target) ** 2 / (tau_target) ** 2)

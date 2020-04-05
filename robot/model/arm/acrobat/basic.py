@@ -43,7 +43,7 @@ class AcrobatFrame(A.ArmBase):
     def from_observation(cls, observation):
         # make sure observation is a tensor
         # this is indeed the deserialization ...
-        assert observation.shape[-1] == cls.dim *2 + cls.d_ee
+        #assert observation.shape[-1] == cls.dim *2 + cls.d_ee
         q = observation[..., :cls.dim]
         dq = observation[..., cls.dim:cls.dim + cls.dim]
         ee = observation[..., -cls.d_ee:]
@@ -66,7 +66,16 @@ class AcrobatFrame(A.ArmBase):
         }
 
 class SapienAcrobat2Frame(AcrobatFrame):
-    def __init__(self):
+    def as_observation(self):
+        s = self.q
+        assert s.shape[0] == self.dim, f"ERROOR: s.shape: {s.shape}"
+        q = np.zeros((*s.shape[:-1], self.dim * 3 + self.d_ee))
+
+        q[:self.dim] = U.tocpu(s)
+        if self.ee is not None:
+            q[-self.d_ee:] = U.tocpu(self.ee)
+        return {'observation': q}
+
 
 class MLP_ACROBAT(nn.Module):
     def __init__(self, inp_dim, oup_dims, num_layers, mid_channels, batchnorm=False):
@@ -94,7 +103,8 @@ class MLP_ACROBAT(nn.Module):
 
 class AcrobatTrainer(A.trainer):
     def __init__(self, args):
-        args.env_name = 'diff_acrobat'
+        if args.env_name != 'acrobat2':
+            args.env_name = 'diff_acrobat'
         args.num_train_iter = 2000
         args.num_valid_iter = 20
         args.timestep = 2
@@ -107,7 +117,9 @@ class AcrobatTrainer(A.trainer):
             self.model = MLP_ACROBAT(self.frame_type.input_dims, self.frame_type.output_dims,
                                      4, 256, batchnorm=self.args.batchnorm)
         else:
-            self.model = ArmModel(2, dtype=torch.float)
+            max_velocity = 20 if args.env_name== 'diff_acrobat' else 100
+            timestep = 0.1 if args.env_name== 'diff_acrobat' else 0.025
+            self.model = ArmModel(2, dtype=torch.float, max_velocity=max_velocity, timestep=timestep)
 
     def set_rollout_model(self):
         #from robot.model.arm.acrobat.phys_model import ArmModel

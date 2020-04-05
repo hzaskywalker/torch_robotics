@@ -157,11 +157,22 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         # reset = False to speed up
         if reset:
             _state = self.state_vector()
+        obs = state
         state = state['observation']
 
         tmp_qpos = self.agent.get_qpos()
         self.agent.set_qpos(state[:len(tmp_qpos)])
-        self.ee_sphere.set_pose(Pose(state[-3:]))
+
+        achieved = state[-2:]
+        if 'achived_goal' in obs:
+            achieved = obs['achieved_goal']
+        achieved = np.array((achieved[0], 0, achieved[1]))
+        self.ee_sphere.set_pose(Pose(achieved))
+
+        if 'desired_goal' in obs:
+            goal = obs['desired_goal']
+            goal = np.array((goal[0], 0, goal[1]))
+            self.goal_sphere.set_pose(Pose(goal))
 
         img = self.render(mode='rgb_array')
         if reset:

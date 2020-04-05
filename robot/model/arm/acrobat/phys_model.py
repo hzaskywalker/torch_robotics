@@ -10,7 +10,7 @@ class AngleLoss(nn.Module):
         return (torch.min(diff, 2 * np.pi - diff) ** 2).mean()
 
 class ArmModel(nn.Module):
-    def __init__(self, dof, dtype=torch.float64, max_velocity=20, action_range=50):
+    def __init__(self, dof, dtype=torch.float64, max_velocity=20, action_range=50, timestep=0.1):
         super(ArmModel, self).__init__()
 
         self.dof = dof
@@ -36,7 +36,7 @@ class ArmModel(nn.Module):
 
         self.gravity = nn.Parameter(torch.tensor([0., -9.8, 0.], dtype=dtype), requires_grad=False)
         self.ftip = nn.Parameter(torch.zeros(6, dtype=dtype), requires_grad=False)
-        self.timestep = nn.Parameter(torch.tensor(0.1, dtype=dtype), requires_grad=False)
+        self.timestep = nn.Parameter(torch.tensor(timestep, dtype=dtype), requires_grad=False)
 
     @property
     def G(self):
