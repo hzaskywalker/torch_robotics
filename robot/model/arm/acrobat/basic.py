@@ -15,19 +15,19 @@ class AngleLoss(nn.Module):
 class AcrobatFrame(A.ArmBase):
     dim = 2
     d_ee = 2
-    max_dq = 10000
+    max_dq = 20
     input_dims = (dim, dim, dim)
     output_dims = d_ee # output the ddq and the position of the end-effectors..
 
     # action factor, the observed_action * action_norm <= max_a
-    action_norm = 0.1
+    action_norm = 1
     max_a = 1
 
     angle_loss = AngleLoss()
 
     def as_input(self, action=None):
         action = action.clamp(-self.max_a, self.max_a)
-        return self.q, self.dq, action
+        return torch.cat((self.q, self.dq), dim=-1), action
 
     def as_observation(self):
         s = self.q
@@ -45,12 +45,12 @@ class AcrobatFrame(A.ArmBase):
         # this is indeed the deserialization ...
         assert observation.shape[-1] == cls.dim *2 + cls.d_ee
         q = observation[..., :cls.dim]
-        dq = observation[..., cls.dim:cls.dim + cls.dim] * 0.1
+        dq = observation[..., cls.dim:cls.dim + cls.dim]
         ee = observation[..., -cls.d_ee:]
         return cls(q, dq, ee)
 
     def add(self, new_state, ee):
-        q = (new_state[...,:self.dim] + np.pi) % np.pi - np.pi# we don't clip the q as we will use sin/cos as the input
+        q = (new_state[...,:self.dim] + np.pi) % (2 * np.pi) - np.pi# we don't clip the q as we will use sin/cos as the input
         dq = new_state[..., self.dim:self.dim * 2].clamp(-self.max_dq, self.max_dq)
         return self.__class__(q, dq, ee)
 
@@ -80,7 +80,9 @@ class MLP_ACROBAT(nn.Module):
         # the wrapper is the information of the neural network
         return torch.cat((torch.sin(q), torch.cos(q)), dim=-1)
 
-    def forward(self, q, dq, action):
+    def forward(self, state, action):
+        q, dq = state[..., :self.dof], state[..., self.dof:]
+
         inp = torch.cat((self.wrap(q), dq, action), dim=-1)
         delta = self.mlp1(inp) # should we just use add here
         new_q = q + delta[..., :self.dof]
@@ -91,20 +93,30 @@ class MLP_ACROBAT(nn.Module):
 class AcrobatTrainer(A.trainer):
     def __init__(self, args):
         args.env_name = 'diff_acrobat'
-        args.num_train_iter = 10000
-        args.num_valid_iter = 200
-        args.timestep = 4
+        args.num_train_iter = 20000
+        args.num_valid_iter = 20
+        args.timestep = 2
+        args.lr = 0.01
         super(AcrobatTrainer, self).__init__(args)
 
     def set_model(self):
-        self.model = MLP_ACROBAT(self.frame_type.input_dims, self.frame_type.output_dims,
-                                 4, 256, batchnorm=self.args.batchnorm)
+        from robot.model.arm.acrobat.phys_model import ArmModel
+        #self.model = MLP_ACROBAT(self.frame_type.input_dims, self.frame_type.output_dims,
+        #                         4, 256, batchnorm=self.args.batchnorm)
+        self.model = ArmModel(2, dtype=torch.float)
+
+    def set_rollout_model(self):
+        #from robot.model.arm.acrobat.phys_model import ArmModel
+        #model = ArmModel(2)
+        #self.rollout_predictor = A.train.RolloutWrapper()
+        #raise NotImplementedError
+        super(AcrobatTrainer, self).set_rollout_model()
 
     def set_policy(self):
         self.set_rollout_model()
         args = self.args
-        self.controller = A.train.RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=5,
-                                     horizon=10, num_mutation=200, num_elite=20, device=args.device)
+        self.controller = A.train.RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=2,
+                                     horizon=10, num_mutation=500, num_elite=20, device=args.device)
 
     def make_frame_cls(self, env_name, env):
         return AcrobatFrame
