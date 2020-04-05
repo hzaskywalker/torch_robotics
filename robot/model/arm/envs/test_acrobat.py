@@ -21,11 +21,11 @@ class AcrobatController:
 
         state, goal = state['observation'], state['desired_goal']
 
-        dim = (state.shape[0] - 3)//2
+        dim = (state.shape[0] - 3)//3
         qpos = state[:dim]
         qvel = state[dim:dim*2]
 
-        achieved = np.array([state[dim*2], 0, state[dim*2+2]])
+        achieved = np.array([state[-3], 0, state[-1]])
         goal = np.array((goal[0], 0, goal[1]))
 
         self.env.agent.set_qpos(qpos)
