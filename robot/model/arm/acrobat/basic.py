@@ -93,7 +93,7 @@ class MLP_ACROBAT(nn.Module):
 class AcrobatTrainer(A.trainer):
     def __init__(self, args):
         args.env_name = 'diff_acrobat'
-        args.num_train_iter = 20000
+        args.num_train_iter = 2000
         args.num_valid_iter = 20
         args.timestep = 2
         args.lr = 0.01
@@ -101,9 +101,11 @@ class AcrobatTrainer(A.trainer):
 
     def set_model(self):
         from robot.model.arm.acrobat.phys_model import ArmModel
-        #self.model = MLP_ACROBAT(self.frame_type.input_dims, self.frame_type.output_dims,
-        #                         4, 256, batchnorm=self.args.batchnorm)
-        self.model = ArmModel(2, dtype=torch.float)
+        if args.model == 'mlp':
+            self.model = MLP_ACROBAT(self.frame_type.input_dims, self.frame_type.output_dims,
+                                     4, 256, batchnorm=self.args.batchnorm)
+        else:
+            self.model = ArmModel(2, dtype=torch.float)
 
     def set_rollout_model(self):
         #from robot.model.arm.acrobat.phys_model import ArmModel
@@ -115,8 +117,8 @@ class AcrobatTrainer(A.trainer):
     def set_policy(self):
         self.set_rollout_model()
         args = self.args
-        self.controller = A.train.RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=2,
-                                     horizon=10, num_mutation=500, num_elite=20, device=args.device)
+        self.controller = A.train.RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=5,
+                                     horizon=4, num_mutation=500, num_elite=20, device=args.device)
 
     def make_frame_cls(self, env_name, env):
         return AcrobatFrame
