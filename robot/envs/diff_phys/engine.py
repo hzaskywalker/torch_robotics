@@ -212,7 +212,6 @@ class Articulation2D:
         Glist = np.array([i._inertial for i in self._links])
         self.G = torch.tensor(Glist, dtype=torch.float64, device=self.device)
 
-        batch_size = self.qpos
         self.dof = len(self._links)
         self.qpos = self.A.new_zeros((self.dof,)) # theta
         self.qvel = self.A.new_zeros((self.dof,)) # dtheta

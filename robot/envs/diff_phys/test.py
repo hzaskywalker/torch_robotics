@@ -81,11 +81,10 @@ def test_batched_env():
     def write():
         obs = env.reset()
         for i in tqdm.trange(50):
-            #a = controller(obs)
-            a = np.random.random((400, 2)) * 2 -1
+            a = controller(obs)
+            #a = np.random.random((400, 2)) * 2 -1
             obs, r, done, info = env.step(a)
             img = env.render(mode='rgb_array')
-            print(obs['observation'].max())
             yield img
         #print((np.isnan(obs['observation']).sum(axis=(-1))>0).sum())
         print(info['is_success'].mean())

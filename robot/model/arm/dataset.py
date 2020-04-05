@@ -45,6 +45,7 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
                 geoms[i, j] = geom
 
             obs, reward, done, _ = env.step(action)
+            observations[i, j+1] = obs
             if done:
                 break
 
@@ -71,7 +72,7 @@ def batch_collector(env, policy, path, num_episode=25):
 
                 obs, _, _, _ = env.step(a)
                 observations.append(obs['observation'])
-                actions.append(action)
+                actions.append(a)
             obss.append(np.stack(observations, axis=1))
             acts.append(np.stack(actions, axis=1))
         obss = np.concatenate(obss)
@@ -129,7 +130,7 @@ class Dataset:
         files = glob.glob(os.path.join(path, '*.pkl'))
         if len(files) == 0:
             env_name = path.split('/')[-1]
-            if env_name == 'diff_acrobat':
+            if env_name.startswith('diff_acrobat'):
                 from robot.envs.diff_phys.acrobat import GoalAcrobat, IKController
                 env = GoalAcrobat(batch_size=200)
                 policy = IKController(env)
@@ -137,7 +138,10 @@ class Dataset:
                 if not os.path.exists(path):
                     os.makedirs(path)
                 #batch_collector(env, policy, path, 25)
-                batch_collector(env, policy, path, num_episode=1)
+                if env_name[-1] != '1':
+                    batch_collector(env, policy, path, num_episode=25)
+                else:
+                    batch_collector(env, policy, path, num_episode=1)
             else:
                 make_dataset(env_name)
 

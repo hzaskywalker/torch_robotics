@@ -9,23 +9,24 @@ import numpy as np
 from robot import torch_robotics as tr
 
 class GoalAcrobat(gym.Env, utils.EzPickle):
-    def __init__(self, reward_type='dense', eps=0.1, batch_size=1):
+    def __init__(self, reward_type='dense', eps=0.1, batch_size=1, n_links=2):
         gym.Env.__init__(self)
         utils.EzPickle.__init__(self)
 
         self.eps = eps
-        self.total_length = 2
+        self.n_links = n_links
+        self.total_length = n_links * 1
         self.reward_type = reward_type
 
         goal_space = Box(low=np.array([-self.total_length, -self.total_length]),
                          high=np.array([self.total_length, self.total_length]))
 
         self.observation_space = Dict({
-            'observation': Box(low=-np.inf, high=np.inf, shape=(6,)),
+            'observation': Box(low=-np.inf, high=np.inf, shape=(n_links * 2 + 2,)),
             'desired_goal': goal_space,
             'achieved_goal': goal_space
         })
-        self.action_space = Box(low=-1, high=1, shape=(2,))
+        self.action_space = Box(low=-1, high=1, shape=(n_links,))
         self.action_range = 50 #200
         self.velocity_range = 20 #200
         self.batch_size = batch_size
@@ -108,21 +109,22 @@ class GoalAcrobat(gym.Env, utils.EzPickle):
         link1.add_box_visual([0, 0, 0], [0.1, 0.5, 0], (0, 0.8, 0.8))
         link1.add_circle_visual((0, 0.5, 0), 0.1, (0.8, 0.8, 0.))
 
-        M12 = np.array(
-            [
-                [1, 0, 0, 0],
-                [0, 1, 0, -1.0],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1],
-            ]
-        )
-        screw2 = screw1
-        # m = 1
-        G2 = np.diag([1, 1, 1, 1, 1, 1])
-        link2 = articulator.add_link(M12, screw2)
-        link2.set_inertial(np.array(G2))
-        link2.add_box_visual([0, 0, 0], [0.1, 0.5, 0], (0, 0.8, 0.8))
-        link2.add_circle_visual((0, 0.5, 0), 0.1, (0.8, 0.8, 0.))
+        if self.n_links > 1:
+            M12 = np.array(
+                [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, -1.0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1],
+                ]
+            )
+            screw2 = screw1
+            # m = 1
+            G2 = np.diag([1, 1, 1, 1, 1, 1])
+            link2 = articulator.add_link(M12, screw2)
+            link2.set_inertial(np.array(G2))
+            link2.add_box_visual([0, 0, 0], [0.1, 0.5, 0], (0, 0.8, 0.8))
+            link2.add_circle_visual((0, 0.5, 0), 0.1, (0.8, 0.8, 0.))
 
         EE = np.array(
             [
