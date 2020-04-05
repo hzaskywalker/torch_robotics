@@ -7,17 +7,22 @@ import torch
 from robot import A
 from robot.model.arm.dataset import *
 
-dataset=Dataset('/dataset/diff_acrobat', device='cuda:0')
-
-mm = A.train.make('diff_acrobat').unwrapped.articulator
+#dataset=Dataset('/dataset/diff_acrobat', device='cuda:0')
+#mm = A.train.make('diff_acrobat').unwrapped.articulator
+dataset=Dataset('/dataset/acrobat2', device='cuda:0')
 
 
 def get_info(data, ndim):
     q = data[0][:, 1, 0:ndim]
     dq = data[0][:, 1, ndim:2 * ndim]
-    #ddq = data[0][:, 1, 2 * ndim:3 * ndim]
+    ddq = data[0][:, 1, 2 * ndim:3 * ndim]
     tau = data[1].squeeze()
-    ddq = mm.qacc(q.double(), dq.double(), tau.double() * 50).float()
+
+    #dq0 = data[0][:, 0, ndim:2*ndim]
+    #ddq0 = data[0][:, 0, 2*ndim:3*ndim]
+    #print('real qacc', (dq - dq0)[0], 'estimated qacc', ddq0[0], tau.abs().max())
+    #ddq = mm.qacc(q.double(), dq.double(), tau.double() * 50).float()
+    #exit(0)
     return q, dq, ddq, tau * 50
 
 
@@ -29,17 +34,15 @@ class LagrangianNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.ReLU(),
         )
         self.diag = nn.Sequential(
             nn.Linear(256, ndim),
-            #nn.ReLU(),
         )
-        self.tril = nn.Linear(256, int(ndim * (ndim - 1) / 2))
+        self.tril = nn.Sequential(
+            nn.Linear(256, int(ndim * (ndim - 1) / 2)),
+        )
         self.g = nn.Linear(256, ndim)
+        self.output = nn.Sequential(nn.Linear(ndim, 256), nn.ReLU(), nn.Linear(256, ndim))
 
     def get_batch_jacobian(self, q, noutputs):
         n = q.size()[0]
@@ -80,6 +83,7 @@ class LagrangianNetwork(nn.Module):
 
         quad = (dqr.unsqueeze(2) @ dHdq @ dqr.unsqueeze(3)).squeeze()
         tau = (H @ ddq.unsqueeze(2)).squeeze() + (dHdt @ dq.unsqueeze(2)).squeeze() - quad / 2 + g
+        #tau = self.output(tau)
         if return_all:
             return L, dLdq, dLdt, H, dHdq, dHdt, quad, tau
         else:
@@ -134,13 +138,11 @@ for t in range(5):
         loss_naive.backward()
         optimizer_naive.step()
 
-        print(i, 'MSE:', loss_lag.data.item(), loss_naive.data.item(), 'Relative MSE:', loss_lag_rel.data.item(),
-              loss_naive_rel.data.item(), )
-
         if i % 1000 == 0:
+            print(i, 'MSE:', loss_lag.data.item(), loss_naive.data.item(), 'Relative MSE:', loss_lag_rel.data.item(),
+                  loss_naive_rel.data.item(), )
             vdata = dataset.sample('valid')
             q, dq, ddq, tau_target = get_info(vdata, ndim)
-            tau_target = vdata[1] * 50
 
             # Lagrangian network
             L_lag, dLdq_lag, dLdt_lag, H_lag, dHdq_lag, dHdt_lag, quad_lag, tau = model_lag(q, dq, ddq, True)

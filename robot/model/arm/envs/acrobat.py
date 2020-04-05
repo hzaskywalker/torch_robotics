@@ -26,12 +26,13 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
 
         self._length = length
 
-        sapien_env.SapienEnv.__init__(self, 4, timestep=0.025)
+        #sapien_env.SapienEnv.__init__(self, 4, timestep=0.025)
+        sapien_env.SapienEnv.__init__(self, 1, timestep=0.025)
         utils.EzPickle.__init__(self)
 
         # The goal is to stablize at one location.
         self.observation_space = Dict({
-            'observation': Box(low=-np.inf, high=np.inf, shape=(6,)),
+            'observation': Box(low=-np.inf, high=np.inf, shape=(len(length) * 3 + 2,)),
             'desired_goal': goal_space,
             'achieved_goal': goal_space
         })
@@ -50,7 +51,7 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         self.ee_sphere.set_pose(Pose((x, 0, z)))
 
         return {
-            'observation': np.concatenate([q, qvel, qacc, achieved_goal]),
+            'observation': np.concatenate([q, qvel, qacc, achieved_goal[[0, 2]]]),
             'desired_goal': np.array(self._goal).copy(),
             'achieved_goal': np.array([achieved_goal[0], achieved_goal[2]]),
         }
@@ -70,11 +71,8 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
 
     def step(self, a):
         a = a.clip(-1, 1)
-        #print('wa start step')
         self.do_simulation(a * self.actuator_range_val, self.frame_skip)
-        #print('finish simulate')
         ob = self._get_obs()
-        #print('get_obs start step')
 
         reward = self.compute_reward(ob['achieved_goal'], ob['desired_goal'])
         if self.reward_type == 'dense':

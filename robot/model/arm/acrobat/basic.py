@@ -65,6 +65,8 @@ class AcrobatFrame(A.ArmBase):
             'ee_loss': self.loss(self.ee, label.ee)
         }
 
+class SapienAcrobat2Frame(AcrobatFrame):
+    def __init__(self):
 
 class MLP_ACROBAT(nn.Module):
     def __init__(self, inp_dim, oup_dims, num_layers, mid_channels, batchnorm=False):
@@ -121,7 +123,12 @@ class AcrobatTrainer(A.trainer):
                                      horizon=4, num_mutation=500, num_elite=20, device=args.device)
 
     def make_frame_cls(self, env_name, env):
-        return AcrobatFrame
+        if env_name == 'diff_acrobat':
+            return AcrobatFrame
+        elif env_name == 'acrobat2':
+            return SapienAcrobat2Frame
+        else:
+            raise NotImplementedError
 
 
 if __name__ == '__main__':

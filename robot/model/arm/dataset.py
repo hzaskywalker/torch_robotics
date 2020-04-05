@@ -45,7 +45,7 @@ def data_collector(env, make_policy, num_episode, timestep, path, make=None, use
                 geoms[i, j] = geom
 
             obs, reward, done, _ = env.step(action)
-            observations[i, j+1] = obs
+            observations[i, j+1] = obs['observation'] #TODO: hack here
             if done:
                 break
 

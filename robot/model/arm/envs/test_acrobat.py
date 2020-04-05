@@ -21,12 +21,12 @@ class AcrobatController:
 
         state, goal = state['observation'], state['desired_goal']
 
-        dim = (state.shape[0] - 3)//3
+        dim = (state.shape[0] - 2)//3
         qpos = state[:dim]
         qvel = state[dim:dim*2]
 
-        achieved = np.array([state[-3], 0, state[-1]])
-        goal = np.array((goal[0], 0, goal[1]))
+        achieved = np.array([state[-2], state[-1]])
+        goal = np.array((goal[0], goal[1]))
 
         self.env.agent.set_qpos(qpos)
         self.env.agent.set_qvel(qvel)
@@ -34,7 +34,8 @@ class AcrobatController:
         jac = self.env.get_jacobian()[0]
 
         #delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] # desired_velocity
-        self.clf.fit(jac[:3], goal-achieved)
+        diff = np.array((goal[0]-achieved[0], 0, goal[1] - achieved[1]))
+        self.clf.fit(jac[:3], diff)
         delta = self.clf.coef_ * 10
 
         q_delta = qvel.copy() * 0
