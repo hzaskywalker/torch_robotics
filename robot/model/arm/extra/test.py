@@ -102,7 +102,6 @@ model_naive = nn.Sequential(
     nn.Linear(256, 256),
     nn.ReLU(),
     nn.Linear(256, ndim),
-    nn.Tanh()
 )
 
 model_naive = model_naive.cuda()
@@ -123,10 +122,10 @@ for t in range(5):
         #         tau_target=tau_target/50
 
         # Lagrangian network
-        tau = model_lag(q, dq, ddq)
+        tau_lag = model_lag(q, dq, ddq)
         optimizer_lag.zero_grad()
-        loss_lag = crit(tau, tau_target)
-        loss_lag_rel = torch.mean((tau - tau_target) ** 2 / (tau_target) ** 2)
+        loss_lag = crit(tau_lag, tau_target)
+        loss_lag_rel = torch.mean((tau_lag - tau_target) ** 2 / (tau_target) ** 2)
         loss_lag.backward()
         optimizer_lag.step()
 
@@ -139,6 +138,12 @@ for t in range(5):
         optimizer_naive.step()
 
         if i % 1000 == 0:
+            print(tau_lag[0], tau[0], tau_target[0])
+            print('mse lag', crit(tau_lag[0], tau_target[0]))
+            print('mse naive', crit(tau[0], tau_target[0]))
+            print('relative lag', torch.mean((tau_lag[0] - tau_target[0]) ** 2 / (tau_target[0]) ** 2))
+            print('relative naive', torch.mean((tau[0] - tau_target[0]) ** 2 / (tau_target[0]) ** 2))
+
             print(i, 'MSE:', loss_lag.data.item(), loss_naive.data.item(), 'Relative MSE:', loss_lag_rel.data.item(),
                   loss_naive_rel.data.item(), )
             vdata = dataset.sample('valid')
