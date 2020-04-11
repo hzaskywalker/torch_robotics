@@ -31,6 +31,7 @@ class ArmModel(nn.Module):
 
         #G = [torch.rand((6), dtype=dtype).diag() for _ in range(dof)] # G should be positive...
         #self.G = nn.Parameter(torch.stack(G), requires_grad=True)
+
         L = [torch.randn((6, 6), dtype=dtype) for _ in range(dof)]
         self.L = nn.Parameter(torch.stack(L), requires_grad=True)
 
@@ -51,6 +52,12 @@ class ArmModel(nn.Module):
         A = self.A[None,:].expand(b, -1, -1)
         return gravity, ftip, M, G, A
 
+    def fk(self, q):
+        params = self.get_parameters(q)
+        ee = tr.fk_in_space(q, params[-3], params[-1])
+        return ee[:, -1, :2, 3]
+
+
     def forward(self, state, torque):
         # return the
         torque *= self.action_range
@@ -62,14 +69,16 @@ class ArmModel(nn.Module):
             qvel = state[..., self.dof:self.dof*2]
             qf = state[..., self.dof*2:self.dof*3]
             qacc = tr.forward_dynamics(qpos, qvel, qf, *params)
+            #print(qpos, qvel, qacc, torque)
             out = torch.cat((qvel, qacc, qf*0), dim=-1)
             return out
 
         state = torch.cat((state, torque), dim=-1)
-        new_state = tr.rk4(derivs, state, [0, self.timestep])[1][...,:self.dof * 2]
+        new_state = tr.rk4(derivs, state, [0, self.timestep])[1]
+        #new_state = state + derivs(state, None) * self.timestep
+        new_state = new_state[..., :self.dof * 2]
         q = (new_state[...,:self.dof] + np.pi)%(2*np.pi) - np.pi
         dq = new_state[..., self.dof:].clamp(-self.max_velocity, self.max_velocity)
-
 
         ee = tr.fk_in_space(q, params[-3], params[-1])
         return torch.cat((q, dq), -1), ee[:, -1, :2, 3]
@@ -77,7 +86,8 @@ class ArmModel(nn.Module):
     def assign(self, mm):
         self.M.data = mm.M.detach()
         self.A.data = mm.A.detach()
-        self.G.data = mm.G.detach()
+        #self.G.data = mm.G.detach()
+        self.L.data = torch.stack([torch.cholesky(g) for g in mm.G.detach()])
         return self
 
 
@@ -95,8 +105,6 @@ def test_model_by_gt():
     model = ArmModel(2).cuda()
     model.assign(mm)
 
-    action_range = env.unwrapped.action_range
-
     obs = env.reset()
     for i in range(50):
         s = extract_state(obs)
@@ -105,15 +113,17 @@ def test_model_by_gt():
         t = extract_state(obs)
 
         predict = U.tocpu(model( U.togpu(s, torch.float64)[None,:],
-                                 U.togpu(torque * action_range, torch.float64)[None,:])[0])[0]
+                                 U.togpu(torque, torch.float64)[None,:])[0])[0]
         print(((predict - t) ** 2).mean(), predict, t)
 
 
 def test_model_by_training():
     from robot import A, U
 
-    dataset = A.train_utils.Dataset('/dataset/diff_acrobat')
-    model = ArmModel(2).cuda()
+    #dataset = A.train_utils.Dataset('/dataset/diff_acrobat')
+    #model = ArmModel(2).cuda()
+    dataset = A.train_utils.Dataset('/dataset/acrobat2')
+    model = ArmModel(2, max_velocity=100, timestep=0.025).cuda()
 
     optim = torch.optim.Adam(model.parameters(), lr=0.01)
     loss_fn = nn.MSELoss()
@@ -121,7 +131,7 @@ def test_model_by_training():
 
     #model.assign()
 
-    mm = A.train_utils.make('diff_acrobat').unwrapped.articulator
+    #mm = A.train_utils.make('diff_acrobat').unwrapped.articulator
     #model.M.data = mm.M.detach() + torch.randn_like(mm.M)
     #model.A.data = mm.A.detach() + torch.randn_like(mm.A)
 
@@ -133,6 +143,8 @@ def test_model_by_training():
         predict, ee = output
         loss = loss_fn(predict[..., 2:], t[..., 2:4]) + loss_fn2(predict[..., :2], t[..., :2])
         loss += loss_fn(ee, t[..., 4:6])
+        print(loss_fn(ee, t[..., 4:6]))
+        exit(0)
         return loss
 
     def validate(num_iter=20):
@@ -143,6 +155,7 @@ def test_model_by_training():
             s = data[0][:, 0, :4].double()
             t = data[0][:, 1].double()
             a = data[1][:, 0].double()
+            print(data[0][0, 0, -2:])
             total += eval_predict(model(s[:, :], a), t)  # action_range = 50
         model.train()
         return U.tocpu(total/num_iter)
@@ -162,7 +175,7 @@ def test_model_by_training():
 
         if i % 100 == 0:
             print("learned G:", model.G[1])
-            print("env G:", mm.G[1])
+            #print("env G:", mm.G[1])
             print('mse loss', U.tocpu(loss), predict[0], t[0])
             print('valid mse loss', validate(5))
 

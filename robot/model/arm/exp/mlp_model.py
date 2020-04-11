@@ -16,6 +16,9 @@ class MLP_ACROBAT(nn.Module):
         # the wrapper is the information of the neural network
         return torch.cat((torch.sin(q), torch.cos(q)), dim=-1)
 
+    def fk(self, q):
+        return self.mlp2(self.wrap(q))
+
     def forward(self, state, action):
         q, dq = state[..., :self.dof], state[..., self.dof:]
 
@@ -23,6 +26,6 @@ class MLP_ACROBAT(nn.Module):
         delta = self.mlp1(inp) # should we just use add here
         new_q = q + delta[..., :self.dof]
         new_dq = dq + delta[..., self.dof:]
-        return torch.cat((new_q, new_dq), dim=-1), self.mlp2(self.wrap(new_q))
+        return torch.cat((new_q, new_dq), dim=-1), self.fk(new_q)
 
 

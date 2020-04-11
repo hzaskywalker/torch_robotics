@@ -3,12 +3,14 @@ import os
 import argparse
 import tqdm
 import numpy as np
+import pickle
 from robot.controller.rollout_controller import RolloutCEM
 
 import torch
 from robot.model.arm.dataset import Dataset
 from robot.model.arm.envs import make
 from robot import U
+from .agents import RolloutAgent
 
 
 class DatasetWrapper:
@@ -105,6 +107,10 @@ class trainer:
     def __init__(self, args):
         self.args = args
         self.path = self.args.path
+        self.vis = U.Visualizer(args.path)
+
+        with open(os.path.join(args.path, 'args'), 'wb') as f:
+            pickle.dump(args, f)
 
         self.set_env()
         self.set_model()
@@ -113,7 +119,6 @@ class trainer:
         self.set_policy()
 
         self.set_renderer()
-        self.vis = U.Visualizer(args.path)
 
         self.epoch_num = 0
         for self.epoch_num in range(args.num_epoch):
@@ -146,7 +151,6 @@ class trainer:
 
     def set_agent(self):
         # max_a is very important to make it work...
-        from .agents import RolloutAgent
         args = self.args
         if not args.resume:
             agent = RolloutAgent(self.model, lr=args.lr, loss_weights={

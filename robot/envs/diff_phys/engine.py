@@ -165,6 +165,7 @@ class Articulation2D:
         qacc = tr.forward_dynamics(qpos, qvel, qf, *self.get_parameters(qpos))
         if is_single:
             qacc = qacc[0]
+        #print('qpos, qvel, qacc', qpos, qvel, qacc, qf)
         return qacc
 
     def step(self):

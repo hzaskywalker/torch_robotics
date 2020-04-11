@@ -33,14 +33,17 @@ class RolloutAgent(AgentBase):
         super(RolloutAgent, self).cuda()
         return self
 
+    def get_loss(self, state, actions, future):
+        predict, _ = self.rollout(state, actions, None)
+        losses = predict.calc_loss(future)
+        return predict, losses
+
     def update(self, state, actions, future):
         # state is the frame
         if self.training:
             self.optim.zero_grad()
 
-        predict, _ = self.rollout(state, actions, None)
-        losses = predict.calc_loss(future)
-
+        predict, losses = self.get_loss(state, actions, future)
         try:
             losses['model_decay'] = self.model.loss()
         except AttributeError as e:

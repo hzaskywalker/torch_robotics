@@ -3,7 +3,17 @@
 import torch
 from robot import A
 import os
-from .frame_types import SapienAcrobat2Frame
+
+class Agent(A.train_utils.RolloutAgent):
+    # we now ask
+    def get_loss(self, state, actions, future):
+        predict, _ = self.rollout(state, actions, None)
+        losses = predict.calc_loss(future)
+        if 'gt_ee_loss' in self.loss_weights:
+            predict.ee = self.model.fk(future.q.reshape(-1, future.q.shape[-1])).reshape(predict.ee.shape)
+            losses['gt_ee_loss']  = predict.calc_loss(future)['ee_loss']
+        return predict, losses
+
 
 class AcrobatTrainer(A.trainer):
     def __init__(self, dataset, frame_type, model, args):
@@ -24,11 +34,21 @@ class AcrobatTrainer(A.trainer):
         self.dataset = A.train_utils.DatasetWrapper(self._dataset, batch_size=args.batch_size,
                                                     timestep=args.timestep, cls = self.frame_type)
 
+    def set_agent(self):
+        args = self.args
+        self.agent = Agent(self.model, lr=args.lr, loss_weights={
+            'q_loss': args.weight_q,
+            'dq_loss': args.weight_dq,
+            'ee_loss': args.weight_ee * 0,
+            'gt_ee_loss': args.weight_ee,
+        }).cuda()
+
     def set_policy(self):
         self.set_rollout_model()
-        args = self.args
-        self.controller = A.train_utils.RolloutCEM(self.rollout_predictor, self.env.action_space, iter_num=5,
-                                                   horizon=4, num_mutation=500, num_elite=20, device=args.device)
+        self.controller = A.train_utils.RolloutCEM(self.rollout_predictor,
+                                                   self.env.action_space, iter_num=5,
+                                                   horizon=4, num_mutation=500,
+                                                   num_elite=20, device=self.args.device)
 
 DatasetConfigs = {
 }
@@ -67,9 +87,11 @@ def evaluate_model(env_name, model, **kwargs):
     if model == 'mlp':
         model = MLP_ACROBAT(frame_type.input_dims, frame_type.output_dims,
                                  4, 256, batchnorm=args.batchnorm)
-    else:
-        max_velocity = 20 if args.env_name == 'diff_acrobat' else 100
-        timestep = 0.1 if args.env_name == 'diff_acrobat' else 0.025
+    elif model == 'phys':
+        max_velocity = 20 if args.env_name == 'diff_acrobat2' else 100
+        timestep = 0.1 if args.env_name == 'diff_acrobat2' else 0.025
         model = ArmModel(2, dtype=torch.float, max_velocity=max_velocity, timestep=timestep)
+    else:
+        raise NotImplementedError
 
     AcrobatTrainer(dataset, frame_type, model, args)
