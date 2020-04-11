@@ -1,17 +1,11 @@
-from gym.wrappers import TimeLimit
-from robot.envs.hyrule.rl_env import ArmReachWithXYZ
-import numpy as np
-from robot.model.arm.extra import lagrangian_v2 as lg
 from torch import nn
-import torch
-from robot import A
 from robot.model.arm.dataset import *
 
 #dataset=Dataset('/dataset/diff_acrobat', device='cuda:0')
 #mm = A.train.make('diff_acrobat').unwrapped.articulator
 dataset=Dataset('/dataset/acrobat2', device='cuda:0')
 
-from robot.model.arm.acrobat.phys_model import ArmModel
+from robot.model.arm.exp.phys_model import ArmModel
 from robot import tr
 class InverseDynamicsModel(ArmModel):
     def __init__(self, dim, dtype):

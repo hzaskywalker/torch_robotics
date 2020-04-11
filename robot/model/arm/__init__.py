@@ -1,5 +1,5 @@
-from . import train
+from . import train_utils
 from . import models
-from .train import trainer
+from .train_utils import trainer
 from .frame import Frame, ArmBase
 from . import pets

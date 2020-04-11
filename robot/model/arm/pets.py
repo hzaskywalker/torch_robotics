@@ -202,7 +202,7 @@ class online_trainer(trainer):
     def set_policy(self):
         self.set_rollout_model()
         args = self.args
-        from .train import RolloutCEM
+        from .train_utils import RolloutCEM
         env = self.env
         self.controller = RolloutCEM(self.rollout_predictor, env.action_space, iter_num=5, horizon=30,
                                      num_mutation=500, num_elite=50, device=args.device, alpha=0.1, trunc_norm=True,

@@ -89,7 +89,7 @@ def extract_state(obs):
 def test_model_by_gt():
     from robot import A, U
 
-    env = A.train.make('diff_acrobat')
+    env = A.train_utils.make('diff_acrobat')
     mm = env.unwrapped.articulator
 
     model = ArmModel(2).cuda()
@@ -112,7 +112,7 @@ def test_model_by_gt():
 def test_model_by_training():
     from robot import A, U
 
-    dataset = A.train.Dataset('/dataset/diff_acrobat')
+    dataset = A.train_utils.Dataset('/dataset/diff_acrobat')
     model = ArmModel(2).cuda()
 
     optim = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -121,7 +121,7 @@ def test_model_by_training():
 
     #model.assign()
 
-    mm = A.train.make('diff_acrobat').unwrapped.articulator
+    mm = A.train_utils.make('diff_acrobat').unwrapped.articulator
     #model.M.data = mm.M.detach() + torch.randn_like(mm.M)
     #model.A.data = mm.A.detach() + torch.randn_like(mm.A)
 

@@ -19,7 +19,7 @@ class DatasetWrapper:
         self.cls = cls
 
     def sample(self, mode):
-        obs, action = self.dataset.sample(mode=mode, batch_size=self.batch_size, timestep=self.timestep, use_geom=False)
+        obs, action = self.dataset.sample(mode=mode, batch_size=self.batch_size, timestep=self.timestep)
         frames = self.cls.from_observation(obs)
         return frames[..., 0, :], action, frames[..., 1:, :]
 
@@ -80,7 +80,7 @@ class Renderer:
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env_name", type=str, default='arm', choices=['arm', 'acrobat2', 'plane', 'cheetah'])
+    parser.add_argument("--env_name", type=str, default=None, choices=['arm', 'acrobat2', 'plane', 'cheetah'])
     parser.add_argument("--batchnorm", type=int, default=0)
     parser.add_argument("--model", type=str, default='mlp')
     parser.add_argument("--batch_size", type=int, default=256)
