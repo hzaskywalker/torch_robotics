@@ -41,6 +41,21 @@ def compute_external(agent, q, dq):
     agent.set_qvel(dq)
     return agent.compute_passive_force(external=True, gravity=False, coriolisAndCentrifugal=False)
 
+def compute_qacc(env, agent, q, dq, torque):
+    assert env.dt < 1e-4
+    agent.set_qpos(q)
+    agent.set_qvel(dq)
+    env.step(torque/50)
+    return agent.get_qacc()
+
+def compute_forward(env, agent, q, dq, qf, timestep):
+    k = timestep/env.timestep
+    agent.set_qpos(q)
+    agent.set_qvel(dq)
+    for i in range(int(np.round(k))):
+        env.step(qf/50)
+    return agent.get_qpos(), agent.get_qvel(), agent.get_qacc()
+
 def sample():
     env = A.envs.acrobat.GoalAcrobat(timestep=0.025, damping=0)
     for i in range(10):
@@ -50,8 +65,8 @@ def sample():
     print(o[:2], o[2:4], a, env.agent.get_qacc())
 
 
-def get_env_agent():
-    env = A.envs.acrobat.GoalAcrobat(timestep=0.00001, damping=0, clip_action=False)
+def get_env_agent(timestep=0.00001, damping=0):
+    env = A.envs.acrobat.GoalAcrobat(timestep=timestep, damping=damping, clip_action=False)
     seed = 2
     np.random.seed(seed)
     env.seed(seed)
@@ -80,7 +95,7 @@ def test_compute_all():
     env, agent = get_env_agent()
 
     q, dq = np.array([-2.148633, 2.129848]), np.array([-2.0222425, 6.676592])
-    torque = [5.5375643, 28.926117]
+    torque = np.array([5.5375643, 28.926117])
     ddq = np.array([25.347101, 207.08884])
 
     M = compute_mass_matrix(agent, q)
@@ -90,6 +105,9 @@ def test_compute_all():
     model: ArmModel = build_diff_model(env)
     q_torch = U.togpu(q, dtype=torch.float64)[None,:]
     dq_torch = U.togpu(dq, dtype=torch.float64)[None,:]
+    ddq_torch = U.togpu(ddq, dtype=torch.float64)[None,:]
+    torque_torch = U.togpu(torque, dtype=torch.float64)[None,:]
+
     model_M = U.tocpu(model.compute_mass_matrix(q_torch)[0])
     print("DIFF BETWEEN TWO MASS", M - model_M)
 
@@ -104,8 +122,37 @@ def test_compute_all():
 
     print('external', compute_external(agent, q, dq))
 
+    print('sapien inverse', inverse_dynamics(agent, q, dq, ddq))
+    print('torch inverse', model.inverse_dynamics(q_torch, dq_torch, ddq_torch)) # /50
+
+    print('sapien qacc', compute_qacc(env, agent, q, dq, torque))
+    print('torch qacc', model.qacc(q_torch, dq_torch, torque_torch/50))
+
+
+def test_integral():
+
+    env, agent = get_env_agent(timestep=0.0001)
+    from robot.model.arm.exp.qacc import build_diff_model
+    from robot.model.arm.exp.phys_model import ArmModel
+    model: ArmModel = build_diff_model(env, timestep=0.01)
+
+    q, dq = np.array([-2.148633, 2.129848]), np.array([-2.0222425, 6.676592])
+    torque = np.array([5.5375643, 28.926117])
+
+    q1, dq1, qacc1 = compute_forward(env, agent, q, dq, torque, 0.01)
+    print(q1, dq1)
+
+    state = U.togpu(np.concatenate((q, dq), axis=-1), dtype=torch.float64)[None,:]
+    torque_torch = U.togpu(torque, dtype=torch.float64)[None,:]
+    print(torque_torch.shape, state.shape)
+    state1 = U.tocpu(model.forward(state, torque_torch/50)[0])
+    print(state1)
+
+
+
 
 if __name__ == '__main__':
     #sample()
     #test_inverse_dynamics()
-    test_compute_all()
+    #test_compute_all()
+    test_integral()

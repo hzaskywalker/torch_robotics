@@ -69,6 +69,9 @@ class ArmModel(nn.Module):
     def compute_coriolis_centripetal(self, q, dq):
         return tr.compute_coriolis_centripetal(q, dq, *self.get_parameters(q)[-3:])
 
+    def inverse_dynamics(self, q, dq, ddq):
+        return tr.inverse_dynamics(q, dq, ddq, *self.get_parameters(q))
+
     @property
     def M(self):
         out = torch.zeros_like(self._M)
@@ -108,9 +111,9 @@ class ArmModel(nn.Module):
         torque = action * self.action_range
         return tr.forward_dynamics(qpos, qvel, torque, *self.get_parameters(qpos))
 
-    def forward(self, state, torque):
+    def forward(self, state, action):
         # return the
-        torque *= self.action_range
+        torque = action * self.action_range
 
         params = list(self.get_parameters(state))
         M, A = params[-3], params[-1]

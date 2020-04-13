@@ -3,8 +3,8 @@ import numpy as np
 from robot.model.arm.exp.phys_model import ArmModel
 from robot import A, U, tr
 
-def build_diff_model(env):
-    model = ArmModel(2, max_velocity=100, timestep=0.01).cuda()
+def build_diff_model(env, timestep=0.01):
+    model = ArmModel(2, max_velocity=100, timestep=timestep).cuda()
 
     model._M.data = torch.tensor(
         np.array(
