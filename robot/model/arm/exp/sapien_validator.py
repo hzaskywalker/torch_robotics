@@ -131,33 +131,37 @@ def test_compute_all():
 
 
 def test_integral():
+    #damping=0.5
+    damping = 0.5
 
-    #total = 0.01
-    total = 0.01
-    model_dt = 0.01
-    sapien_dt = 0.0001
+    #total = 0.5
+    total = 0.1
+    model_dt = 0.005
+    sapien_dt = 0.005
 
-    env, agent = get_env_agent(timestep=sapien_dt)
+    env, agent = get_env_agent(timestep=sapien_dt, damping=damping)
     from robot.model.arm.exp.qacc import build_diff_model
     from robot.model.arm.exp.phys_model import ArmModel
 
     model: ArmModel = build_diff_model(env, timestep=model_dt, max_velocity=np.inf)
 
-    q, dq = np.array([-2.148633, 2.129848]), np.array([-2.0222425, 6.676592]) * 5
-    torque = np.array([5.5375643, 28.926117]) * 5
+    q, dq = np.array([-2.148633, 1.129848]), np.array([-10.0222425, 6.676592])
+    print('initial q, dq', q, dq)
+    #torque = np.array([10.5375643, 28.926117]) * 5
+    torque = np.array([20.5375643, 20.926117])
 
     q1, dq1, qacc1 = compute_forward(env, agent, q, dq, torque, total)
-    print(q1, dq1, qacc1)
+    print((q1+np.pi)%(np.pi*2)-np.pi, dq1, qacc1)
 
     state = U.togpu(np.concatenate((q, dq), axis=-1), dtype=torch.float64)[None,:]
     torque_torch = U.togpu(torque, dtype=torch.float64)[None,:]
 
     for i in range(int(np.round(total/model_dt))):
-        state = model.forward(state, torque_torch/50)[0]
+        f = torque_torch - damping * state[...,2:4] # damping
+        state = model.forward(state, f/50)[0]
 
     state1 = U.tocpu(state[0])
     print(state1, model.qacc(state[...,:2], state[...,2:], torque_torch/50)[0])
-
 
 
 
