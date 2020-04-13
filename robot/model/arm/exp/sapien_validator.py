@@ -143,7 +143,7 @@ def test_integral():
     from robot.model.arm.exp.qacc import build_diff_model
     from robot.model.arm.exp.phys_model import ArmModel
 
-    model: ArmModel = build_diff_model(env, timestep=model_dt, max_velocity=np.inf)
+    model: ArmModel = build_diff_model(env, timestep=model_dt, max_velocity=np.inf, damping=damping)
 
     q, dq = np.array([-2.148633, 1.129848]), np.array([-10.0222425, 6.676592])
     print('initial q, dq', q, dq)
@@ -157,7 +157,8 @@ def test_integral():
     torque_torch = U.togpu(torque, dtype=torch.float64)[None,:]
 
     for i in range(int(np.round(total/model_dt))):
-        f = torque_torch - damping * state[...,2:4] # damping
+        #f = torque_torch - damping * state[:,2:4]
+        f = torque_torch
         state = model.forward(state, f/50)[0]
 
     state1 = U.tocpu(state[0])

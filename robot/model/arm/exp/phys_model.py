@@ -12,12 +12,13 @@ class AngleLoss(nn.Module):
 class ArmModel(nn.Module):
     # possible variants: constrained parameter space
     # possible if we use the dynamics to optimize the geometry
-    def __init__(self, dof, dtype=torch.float64, max_velocity=20, action_range=50, timestep=0.1):
+    def __init__(self, dof, dtype=torch.float64, max_velocity=20, action_range=50, timestep=0.1, damping=0.):
         super(ArmModel, self).__init__()
 
         self.dof = dof
         self.max_velocity = max_velocity
         self.action_range = action_range
+        self.damping = damping
         self._M = nn.Parameter(torch.tensor(np.array([
             [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]] for _ in range(dof+1)]), dtype=dtype),
                               requires_grad=True)
@@ -125,6 +126,7 @@ class ArmModel(nn.Module):
             qpos = state[..., :self.dof]
             qvel = state[..., self.dof:self.dof*2]
             qf = state[..., self.dof*2:self.dof*3]
+            qf = qf - self.damping * qvel
             qacc = tr.forward_dynamics(qpos, qvel, qf, *params)
             #print(qpos, qvel, qacc, torque)
             out = torch.cat((qvel, qacc, qf*0), dim=-1)
