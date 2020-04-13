@@ -31,7 +31,7 @@ def rmat(a: torch.Tensor, row=3):
     b1 = norm(a1)
     b2 = norm(a2 - (a2 * b1).sum(dim=-1, keepdim=True) * b1)
     if row == 3:
-        b3 = torch.cross(b1, b2)
+        b3 = torch.cross(b1, b2, dim=-1)
         return torch.stack((b1, b2, b3), dim=-1)
     else:
         return torch.stack((b1, b2), dim=-1)

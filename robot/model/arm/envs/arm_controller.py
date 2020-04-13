@@ -35,7 +35,10 @@ class Controller:
         q_delta[1:8] = delta  # private attribute...
         qacc = (q_delta - qvel)/self.env.dt
 
+        #qacc = self.env.agent.get_qacc() # HACK
         qf = self.env.agent.compute_inverse_dynamics(qacc)[1:8]
+        #print(qf, self.env.agent.get_qf()[1:8]) #  HACK
+        #exit(0)
         self.env.load_state_vector(state_vector)
         return qf/50  # again, private attribute...
 

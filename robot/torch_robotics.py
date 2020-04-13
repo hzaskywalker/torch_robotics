@@ -43,7 +43,7 @@ def NearZero(z):
     :param z: A scalar input to check
     :return: True if z is close to zero, false otherwise
     """
-    return z.abs() < 1e-6
+    return z.abs() < 1e-10
 
 
 def make_matrix(arrays):
@@ -259,12 +259,9 @@ def fk_in_space(theta, M, A):
     :return:
     """
     n = theta.shape[1]
-    #Mi = eyes_like(M[..., 0, :, :], 4)
     T = eyes_like(M[..., 0, :, :], 4)
     outputs = []
     for i in range(n):
-        #Mi = dot(Mi, M[:, i])
-        #Ai = dot(Adjoint(inv_trans(Mi)), S[:, i])
         Ai = A[:, i]
         Ti = dot(M[:, i], expse3(vec_to_se3(Ai * theta[:, i, None])))
         T = dot(T, Ti)

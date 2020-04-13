@@ -7,8 +7,10 @@ import numpy as np
 class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
     def __init__(self, eps=0.05,
                  length=np.array([0.5, 0.5]),
-                 reward_type='dense'):
+                 reward_type='dense',
+                 timestep=0.025, damping=0.5, clip_action=True):
 
+        self.damping=damping
         self._actuator_dof = {'agent': np.arange(len(length))}
         self.actuator_range_val = 50
         self._actuator_range = {'agent': np.array([[-self.actuator_range_val, self.actuator_range_val]
@@ -23,11 +25,12 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
                          high=np.array([self.total_length, self.total_length]))
         self._goal = goal_space.sample()
         self._timestep = 0
+        self.clip_action = clip_action
 
         self._length = length
 
         #sapien_env.SapienEnv.__init__(self, 4, timestep=0.025)
-        sapien_env.SapienEnv.__init__(self, 1, timestep=0.025)
+        sapien_env.SapienEnv.__init__(self, 1, timestep=timestep)
         utils.EzPickle.__init__(self)
 
         # The goal is to stablize at one location.
@@ -70,7 +73,8 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         return self._get_obs()
 
     def step(self, a):
-        a = a.clip(-1, 1)
+        if self.clip_action:
+            a = a.clip(-1, 1)
         self.do_simulation(a * self.actuator_range_val, self.frame_skip)
         ob = self._get_obs()
 
@@ -81,7 +85,6 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
             is_success = reward > -0.5
 
         done = False
-        #print('finish')
         return ob, reward, done, {'is_success': is_success}
 
 
@@ -112,9 +115,10 @@ class GoalAcrobat(sapien_env.SapienEnv, utils.EzPickle):
         base = self.add_link(None, Pose(np.array([0, 0, 0]), PxIdentity), "rail")
         tmp = base
         for idx, l in enumerate(self._length):
+            # Notice that the coordinate is set at the end of the link..
             tmp = self.my_add_link(tmp, ((0, 0, 0), x2y), ((0, 0, l), x2y),
                                    f'link{idx}', f'joint{idx}', range=[-np.inf, np.inf],
-                                   damping=0.5, father_pose_type='sapien')
+                                   damping=self.damping, father_pose_type='sapien')
             self.fromto(tmp, f"0 0 0 0 0 {l}", size=0.03, rgb=np.array([0., 0.7, 0.7]), name='cpole')
 
         wrapper = builder.build(True)
