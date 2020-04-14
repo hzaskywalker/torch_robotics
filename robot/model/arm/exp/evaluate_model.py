@@ -10,7 +10,8 @@ class Agent(A.train_utils.RolloutAgent):
         predict, _ = self.rollout(state, actions, None)
         losses = predict.calc_loss(future)
         if 'gt_ee_loss' in self.loss_weights:
-            predict.ee = self.model.fk(future.q.reshape(-1, future.q.shape[-1])).reshape(predict.ee.shape)
+            predict.ee = self.model.fk(future.q.reshape(-1, future.q.shape[-1]), dim=2
+                                       ).reshape(predict.ee.shape)
             losses['gt_ee_loss']  = predict.calc_loss(future)['ee_loss']
         return predict, losses
 

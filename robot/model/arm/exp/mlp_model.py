@@ -16,7 +16,7 @@ class MLP_ACROBAT(nn.Module):
         # the wrapper is the information of the neural network
         return torch.cat((torch.sin(q), torch.cos(q)), dim=-1)
 
-    def fk(self, q):
+    def fk(self, q, *args, **kwargs):
         return self.mlp2(self.wrap(q))
 
     def forward(self, state, action):

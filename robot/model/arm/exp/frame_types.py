@@ -9,6 +9,9 @@ class AngleLoss(nn.Module):
         diff = torch.abs(predict - label)
         return (torch.min(diff, 2 * np.pi - diff) ** 2).mean()
 
+def relative_l2(a, b):
+    return (((a-b)/(b + (b.abs() < 1e-2).float())).abs()).mean()
+
 
 class AcrobatFrame(A.ArmBase):
     dim = 2
@@ -56,7 +59,7 @@ class AcrobatFrame(A.ArmBase):
         assert self.ee.shape == label.ee.shape
         return {
             'q_loss': self.angle_loss(self.q, label.q),
-            'dq_loss': self.loss(self.dq, label.dq),
+            'dq_loss': relative_l2(self.dq, label.dq),
             'ee_loss': self.loss(self.ee, label.ee)
         }
 
@@ -71,17 +74,6 @@ class SapienAcrobat2Frame(AcrobatFrame):
         if self.ee is not None:
             q[-self.d_ee:] = U.tocpu(self.ee)
         return {'observation': q}
-
-    def calc_loss(self, label):
-        # label are also type a frame..
-        assert self.q.shape == label.q.shape
-        assert self.dq.shape == label.dq.shape
-        assert self.ee.shape == label.ee.shape
-        return {
-            'q_loss': self.angle_loss(self.q, label.q),
-            'dq_loss': self.loss(self.dq, label.dq),
-            'ee_loss': self.loss(self.ee, label.ee)
-        }
 
 
 FRAMETYPES={

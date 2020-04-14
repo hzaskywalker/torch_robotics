@@ -110,10 +110,10 @@ class ArmModel(nn.Module):
         A = self.A[None,:].expand(b, -1, -1)
         return gravity, ftip, M, G, A
 
-    def fk(self, q):
+    def fk(self, q, dim=3):
         params = self.get_parameters(q)
         ee = tr.fk_in_space(q, params[-3], params[-1])
-        return ee[:, -1, :3, 3]
+        return ee[:, -1, :dim, 3]
 
     def qacc(self, qpos, qvel, action):
         torque = action * self.action_range

@@ -165,21 +165,18 @@ def trainQACC(model, dataset_path, env=None, torque_norm=50, learn_ee=0.):
 
 def learnG():
 
-    #env = A.train_utils.make('acrobat2')
     env = A.exp.sapien_validator.get_env_agent()[0]
     model: ArmModel = build_diff_model(env, timestep=0.025, max_velocity=np.inf, damping=0.5)
     dof = 2
-    #model = ArmModel(dof=dof, timestep=0.025, max_velocity=np.inf, damping=0.5, dtype=torch.float64).cuda()
-    #model, env = None, None
+
     optimize_A = True
     optimize_M = True
     optimize_G = True
 
     dtype= model._G.dtype
     if optimize_A:
-        model._A.requires_grad = True # but I choose to not optimize model._A
-        #model.A.data[:] = torch.tensor([0, 0, 1, 0.25, 0, 0], dtype=torch.float64, device='cuda:0')
-        model._A.data[:] = torch.tensor([0, 0.5, 0.5, 0.0, 0, 0], dtype=dtype, device='cuda:0')
+        model._A.requires_grad = True
+        model._A.data[:] = torch.tensor([0.5, 0.5, 0.5, 0.0, 0, 0], dtype=dtype, device='cuda:0')
     else:
         model._A.requires_grad = False
 
