@@ -74,16 +74,55 @@ def train(model, dataset):
             averages = []
 
 
-def trainQACC(model, dataset_path):
+l2 = nn.MSELoss()
+
+def qacc_loss(data, model, torque_norm=50):
+    s = data[0][:, :4].double()
+    qpos, qvel = s[:, :2], s[:, 2:4]
+    a = data[1].double()
+    qacc = data[2].double()
+
+    predict_qacc = model.qacc(qpos, qvel, a)
+
+    loss = l2(predict_qacc / torque_norm, qacc / torque_norm)
+    return loss
+
+
+def cemQACC_G(model, dataset_path, env=None, torque_norm=50):
+    # try to understand the optimization difficulties
     dataset = QACCDataset(dataset_path)
 
-    optim = torch.optim.Adam(model.parameters(), lr=0.001)
+    mean = U.tocpu(model._G.data)
+    std = mean * 0 + 1.
+    #mean[...,3]=1
 
-    l2 = nn.MSELoss()
+    for i in range(40):
+        population = np.random.normal(size=(500, *mean.shape)) *std[None, :] + mean[None, :] # batch_size = 500
+        values = []
+        for i in population:
+            data = dataset.sample('train', 1024)
+            model._G.data = torch.tensor(i, dtype=torch.float64, device=model._G.device)
 
-    for epoch in range(100):
+            values.append(U.tocpu(qacc_loss(data, model, torque_norm)))
+
+        values = np.array(values)
+        elite_id = values.argsort()[:10]
+        elites = population[elite_id]
+        _mean, _std = elites.mean(axis=0), elites.std(axis=0)
+        #mean = mean * 0.5 + _mean * 0.5
+        #std = std * 0.5 + _std * 0.5
+        mean, std = _mean, _std
+        print(mean, values[elite_id].mean())
+
+
+def trainQACC(model, dataset_path, env=None, torque_norm=50):
+    dataset = QACCDataset(dataset_path)
+
+    optim = torch.optim.Adam(model.parameters(), lr=0.01)
+
+    for epoch in range(1000):
         for phase in ['train', 'valid']:
-            num_iter = 100 if epoch == 'train' else 20
+            num_iter = 1000 if phase == 'train' else 200
             outputs = []
             for i in tqdm.trange(num_iter):
                 if phase == 'train':
@@ -91,39 +130,39 @@ def trainQACC(model, dataset_path):
                 else:
                     model.eval()
 
-                data = dataset.sample(phase, 256)
-                s = data[0][:, :4].double()
-                qpos, qvel = s[:, :2], s[:, 2:4]
-                a = data[1].double()
-                qacc = data[2].double()
-
-                # we assume that we don't train ee
-                predict_qacc = model.qacc(qpos, qvel, a)
-                loss = l2(predict_qacc, qacc)
+                data = dataset.sample(phase, 1024)
+                loss = qacc_loss(data, model, torque_norm)
                 outputs.append(U.tocpu(loss))
                 if phase == 'train':
                     optim.zero_grad()
                     loss.backward()
                     optim.step()
+
+            if phase == 'valid':
+                print("learned G:", model.G)
+            else:
+                print('grad', model._G.grad)
             print(f'{phase} loss: ', np.mean(outputs))
-
-
 
 
 def learnG():
 
-    env = A.train_utils.make('acrobat2')
+    #env = A.train_utils.make('acrobat2')
+    env = A.exp.sapien_validator.get_env_agent()[0]
     model: ArmModel = build_diff_model(env, timestep=0.025, max_velocity=np.inf, damping=0.5)
+    #model, env = None, None
 
     model.A.requires_grad = False
     model._M.requires_grad = False
 
-    #dtype= model._G.dtype
-    #dof = 2
-    #G = [torch.rand((4,), dtype=dtype, device=model._G.device) for _ in range(dof)]  # G should be positive...
-    #model._G.data = torch.stack(G)
+    dtype= model._G.dtype
+    dof = 2
 
-    trainQACC(model, '/dataset/acrobat2')
+    G = [torch.rand((4,), dtype=dtype, device=model._G.device) for _ in range(dof)]  # G should be positive...
+    model._G.data = torch.stack(G)
+
+    #trainQACC(model, '/dataset/acrobat2', env)
+    cemQACC_G(model, '/dataset/acrobat2')
 
 
 if __name__ == "__main__":

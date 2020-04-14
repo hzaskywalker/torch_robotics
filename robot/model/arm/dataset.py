@@ -136,8 +136,14 @@ class Dataset:
         files = glob.glob(os.path.join(path, '*.pkl'))
         observations = []
         actions = []
+        idx = []
         for i in files:
             b = int(i.split('/')[-1].split('.')[0])
+            idx.append(b)
+        idx = sorted(idx)
+        for i in idx:
+            i = f'{i}.pkl'
+            print('load Dataset', i)
             with open(os.path.join(path, i), 'rb') as f:
                 data = pickle.load(f)
                 observations.append(data[0])
@@ -148,16 +154,16 @@ class Dataset:
         self.action = np.concatenate(actions).clip(-1, 1)
         self.device = device
 
-        not_inf_mask = (1-(np.isnan(self.obs).sum(axis=(-1, -2)) > 0)) > 0.5
-        self.obs = self.obs[not_inf_mask]
-        self.action = self.action[not_inf_mask]
+        self.not_inf_mask = (1-(np.isnan(self.obs).sum(axis=(-1, -2)) > 0)) > 0.5
+        self.obs = self.obs[self.not_inf_mask]
+        self.action = self.action[self.not_inf_mask]
 
         idx = np.arange(len(self.obs))
 
         np.random.seed(0)
-        idx = np.random.permutation(idx)
-        self.obs = self.obs[idx]
-        self.action = self.action[idx]
+        self._rand_idx = np.random.permutation(idx)
+        self.obs = self.obs[self._rand_idx]
+        self.action = self.action[self._rand_idx]
 
         self.num_train = int(len(self.obs) * (1-valid_ratio))
         print("num train", self.num_train)

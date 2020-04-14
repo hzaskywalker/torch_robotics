@@ -44,10 +44,10 @@ class ArmModel(nn.Module):
 
     @property
     def G(self):
-        out = self._G.new_zeros((self.dof, 6, 6))
-        for idx, i in enumerate(self._G):
-            out[idx, :3,:3] = i[:3].diag()
-            out[idx, 3,3] = out[idx, 4, 4] = out[idx, 5, 5] = i[3]
+        out = self._G.new_zeros((*self._G.shape[:-2], self.dof, 6, 6))
+        for idx in range(self._G.shape[-2]):
+            out[..., idx, :3, :3] = self._G[..., idx, :3].diag()
+            out[..., idx, 3, 3] = out[..., idx, 4, 4] = out[..., idx, 5, 5] = self._G[..., idx, 3]
         return out
 
     """
@@ -93,7 +93,11 @@ class ArmModel(nn.Module):
         gravity = self.gravity[None,:].expand(b, -1)
         ftip = self.ftip[None,:].expand(b, -1)
         M = self.M[None,:].expand(b, -1, -1, -1)
-        G = self.G[None,:].expand(b, -1, -1, -1)
+
+        G = self.G # support batched G
+        if G.dim() == 3:
+            G = G[None,:].expand(b, -1, -1, -1)
+
         A = self.A[None,:].expand(b, -1, -1)
         return gravity, ftip, M, G, A
 

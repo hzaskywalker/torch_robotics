@@ -20,8 +20,8 @@ def collect(file_name):
         ran = tqdm.trange
     for i in ran(len(obs)):
         for o, a in zip(obs[i], actions[i]):
-             qacc.append(compute_qacc(env, agent, o[:2], o[2:4], a * 50))
-    return np.array(qacc).reshape(len(obs), -1, 2)
+             qacc.append(compute_qacc(env, agent, o[:2], o[2:4], a.clip(-1, 1) * 50))
+    return np.array(qacc).reshape(-1, actions.shape[1], 2), file_name
 
 class QACCDataset:
     def __init__(self, dataset_path, valid_ratio=0.2):
@@ -29,7 +29,6 @@ class QACCDataset:
         self.path = os.path.join(dataset_path, 'qacc')
         if not os.path.exists(self.path):
             dataset = self.create()
-            print(dataset.shape)
             with open(self.path, 'wb') as f:
                 pickle.dump(dataset, f)
         else:
@@ -41,13 +40,15 @@ class QACCDataset:
         self.device = dd.device
         self.obs, self.action = dd.obs, dd.action
         self.num_train = int(len(self.qacc) * (1-valid_ratio))
+        self.qacc = self.qacc[dd.not_inf_mask][dd._rand_idx]
         print(self.obs.shape, self.action.shape, self.qacc.shape)
 
     def create(self):
         from multiprocessing import Pool
         p = Pool(20)
         qaccs = []
-        for qacc in p.map(collect, [os.path.join(self.dataset_path, f'{i}.pkl') for i in range(20)]):
+        for qacc, f in p.map(collect, [os.path.join(self.dataset_path, f'{i}.pkl') for i in range(20)]):
+            print(f)
             qaccs.append(qacc)
         return np.concatenate(qaccs)
 

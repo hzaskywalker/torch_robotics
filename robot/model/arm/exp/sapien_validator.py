@@ -182,6 +182,6 @@ def test_integral():
 
 if __name__ == '__main__':
     #sample()
-    #test_inverse_dynamics()
-    #test_compute_all()
-    test_integral()
+    test_inverse_dynamics()
+    test_compute_all()
+    #test_integral()
