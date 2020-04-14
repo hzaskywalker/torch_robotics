@@ -72,6 +72,28 @@ class CheetahFrame(Distribution):
         return -(self.obs_cost_fn(s.state) + self.ac_cost_fn(a))
 
 
+class ArmFrame(Distribution):
+    input_dims = (5, 21, 7)
+    output_dims = (14 + 3, 14)
+
+    def as_input(self, action):
+        s = self.state
+        q, dq = s[..., :7], s[..., 7:14]
+        inp = torch.cat([q.sin(), q.cos(), dq], dim=-1)
+        return inp, action
+
+    def add(self, mean, std):
+        # maybe I need to bound the rotations..?
+        mean = torch.cat([mean[...,:14]+self.state[...,:14], mean[...,14:17]], dim=-1)
+        return self.__class__(None, mean, std)
+
+    def compute_reward(self, s, a, g):
+        while g.dim() < self.state.dim():
+            g = g[None,:]
+        return -((self.state[...,14:17] - g)**2).sum(dim=-1) ** 0.5
+
+
+
 class PlaneFrame(Distribution):
     input_dims = (5, 2, 2)
     output_dims = (2, 2)
@@ -180,9 +202,11 @@ class online_trainer(trainer):
             self.frame_type = CheetahFrame
             timestep = 1000
         elif self.args.env_name == 'plane':
-            self.env, _ = make('plane')
             self.frame_type = PlaneFrame
             timestep = 50
+        elif self.args.env_name == 'arm':
+            self.frame_type = ArmFrame
+            timestep = 100
         else:
             raise NotImplementedError
 
@@ -224,9 +248,12 @@ class online_trainer(trainer):
         for i in trajectories:
             obs = np.array([i['observation'] for i in i[0]])[None, :]
             action = np.array(i[1])[None, :]
-
-            self.agent.update_normalizer([U.togpu(obs), U.togpu(action)])
             self.dataset.store_episode([obs, action])
+
+            obs_inp  = obs[:, :-1].reshape(-1, obs.shape[-1])
+            action_inp  = action.reshape(-1, action.shape[-1])
+            obs_inp, action_inp = self.frame_type.from_observation(U.togpu(obs_inp)).as_input(U.togpu(action_inp))
+            self.agent.update_normalizer([U.togpu(obs_inp), U.togpu(action_inp)])
 
         # train with the dataset
         self.agent.train()

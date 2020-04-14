@@ -98,6 +98,12 @@ def make_dataset(env_name):
         'plane': RandomController
     }[env_name]
 
+    TIMESPTE = {
+        'arm': 100,
+        'acrobat2': 50,
+        'plane': 50,
+    }
+
     from multiprocessing import Process
     workers = []
 
@@ -117,7 +123,8 @@ def make_dataset(env_name):
 
         workers.append(Process(
             target=data_collector,
-            args=(env_name, policy, 5000, 50, os.path.join(path, f"{i}.pkl"), make, i==19, i)
+            args=(env_name, policy, 5000//(TIMESPTE[env_name]//50), TIMESPTE[env_name],
+                  os.path.join(path, f"{i}.pkl"), make, i==0, i)
         ))
 
     for i in workers:
@@ -141,7 +148,8 @@ class Dataset:
             b = int(i.split('/')[-1].split('.')[0])
             idx.append(b)
         idx = sorted(idx)
-        for i in idx:
+        #for i in idx:
+        for i in [19]:
             i = f'{i}.pkl'
             print('load Dataset', i)
             with open(os.path.join(path, i), 'rb') as f:
@@ -186,12 +194,13 @@ class Dataset:
 
 def test():
     from robot.model.arm.envs import make
-    dataset = Dataset('/dataset/diff_acrobat')
+    env_name = 'arm'
+    dataset = Dataset('/dataset/{}'.format(env_name))
     # test acrobat
-    s = dataset.sample(batch_size=1, timestep=50)[0][0].detach().cpu().numpy()
+    s = dataset.sample(batch_size=1, timestep=100)[0][0].detach().cpu().numpy()
     from robot.utils import write_video
 
-    env = make('diff_acrobat')
+    env = make(env_name)
     env.reset()
 
     def make():

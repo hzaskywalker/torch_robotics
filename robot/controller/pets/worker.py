@@ -88,6 +88,7 @@ class Worker:
         self.buffer.store_episode(batch)
 
         # update normalizer
+        raise NotImplementedError, "IN correct here"
         self.model.update_normalizer(batch[0], 'obs')
         self.model.update_normalizer(batch[1], 'action')
 

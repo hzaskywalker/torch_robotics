@@ -8,7 +8,7 @@ def make(env_name):
         return TimeLimit(GoalAcrobat(), 50)
     elif env_name == 'arm':
         from ....envs.hyrule.rl_env import ArmReachWithXYZ
-        return TimeLimit(ArmReachWithXYZ(), 50)
+        return TimeLimit(ArmReachWithXYZ(), 100)
     elif env_name == 'plane':
         from robot.envs.toy.plane import GoalPlane
         return TimeLimit(GoalPlane(), 50)

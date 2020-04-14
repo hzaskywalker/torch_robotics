@@ -76,6 +76,12 @@ class SapienAcrobat2Frame(AcrobatFrame):
         return {'observation': q}
 
 
+class SapienArmFrame(AcrobatFrame):
+    dim = 7
+    d_ee = 3
+    max_dq = 20
+
+
 FRAMETYPES={
     'diff_acrobat2': AcrobatFrame,
     'acrobat2': SapienAcrobat2Frame

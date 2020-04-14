@@ -83,8 +83,8 @@ DICT = {
 def make(env_name):
     if env_name == 'plane':
         return TimeLimit(GoalPlane(), 50), DICT[env_name]
-    elif env_name == 'armreach':
-        return TimeLimit(ArmReachWithXYZ(), 50), DICT[env_name]
+    elif env_name == 'arm':
+        return TimeLimit(ArmReachWithXYZ(), 100), None
     elif env_name == 'cheetah':
         return TimeLimit(GoalHalfCheetahEnv(), 1000), DICT[env_name]
     else:
