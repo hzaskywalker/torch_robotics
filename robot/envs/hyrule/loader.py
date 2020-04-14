@@ -118,8 +118,8 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
             sim._ee_link_idx[name] = idx
             break
 
-    initial_qpos = np.array( params.get('qpos', initial_qpos) )
-    initial_qvel = np.array( params.get('qvel', initial_qvel) )
+    initial_qpos = np.array(params.get('qpos', initial_qpos))
+    initial_qvel = np.array(params.get('qvel', initial_qvel))
 
     agent.set_qpos(initial_qpos)
     agent.set_qvel(initial_qvel)

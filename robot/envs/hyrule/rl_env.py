@@ -6,18 +6,18 @@ from sapien.core import Pose
 from gym.spaces import Box, Dict
 from .simulator import Simulator
 from .loader import load_scene
+from .arm_wrapper import Arm7DOF
 import numpy as np
 from .cost import ArmMove
 
 
+
 class ArmReach(Simulator):
-    def __init__(self, reward_type='dense', eps=0.06, jacobian=False, geom=False, fix_goal=False):
-        Simulator.__init__(self)
+    def __init__(self, reward_type='dense', eps=0.06, fix_goal=False):
+        Simulator.__init__(self, dt=0.0025, frameskip=4)
 
         assert reward_type in ['dense', 'sparse']
         self.eps = eps
-        self.jacobian = jacobian
-        self.geom = geom
 
         params = OrderedDict(
             ground=0,
@@ -38,7 +38,9 @@ class ArmReach(Simulator):
             ),
         )
         load_scene(self, params)
-        self.agent = self.objects['agent']
+        self.agent = Arm7DOF(self.objects['agent'], self._actuator_dof['agent'], self._ee_link_idx['agent'])
+        del self._actuator_dof
+        del self._ee_link_idx
 
         if not fix_goal:
             self.goal_space = Box(low=np.array([0.5, -0.4, 0.3]), high=np.array([1., 0.4, 1]))
@@ -58,7 +60,8 @@ class ArmReach(Simulator):
             achieved_goal=self.goal_space,
         )
 
-        self.action_space = Box(-1., 1., self._actuator_joint['agent'].shape)
+        self.action_range = 50
+        self.action_space = Box(-1., 1., self.agent.dofs.shape)
         self.build_goal_vis()
         self.reset()
 
@@ -80,34 +83,11 @@ class ArmReach(Simulator):
         return obs
 
     def get_jacobian(self):
-        name = 'agent'
-        ee_idx = self._ee_link_idx[name]
-        jac = self.agent.compute_jacobian()[ee_idx*6:ee_idx*6+6] # in joint space
-        actuator_idx = self._actuator_dof[name]
-        jac = jac[:, actuator_idx]
-
-        qf = self.agent.compute_passive_force()[self._actuator_dof['agent']]
-        return jac, qf
+        return self.agent.compute_jacobian()
 
     def get_geom(self):
-        joints = self.agent.get_joints()
-        joints = [joints[i] for i in self._actuator_joint['agent']]
-        # we ignore the mass, because it's fixed parameters ...
-
-        links = []
-        for i in joints:
-            links.append(i.get_parent_link())
-        links.append(joints[-1].get_child_link())
-        geom_array = np.zeros((len(links), 3 + 4 + 3 + 3))
-        for idx, i in enumerate(links):
-            pose = i.get_pose()
-            geom_array[idx, :3] = pose.p
-            geom_array[idx, 3:3+4] = pose.q
-            geom_array[idx, 7:10] = i.get_velocity()
-            geom_array[idx, 10:13] = i.get_angular_velocity()
-        return np.array(geom_array).reshape(-1)
-
-
+        # removed at 2020/4/14 15:35, see previous commits for better understanding.
+        raise NotImplementedError
 
 
     def step(self, action):
@@ -115,10 +95,7 @@ class ArmReach(Simulator):
         assert self._reset
 
         action = np.array(action).clip(-1, 1)
-        if len(self._actuator_dof['agent']) > 0:
-            qf = np.zeros(self.agent.dof)
-            qf[self._actuator_dof['agent']] = action * self._actuator_range['agent'][:, 1]
-            self.agent.set_qf(qf)
+        self.agent.set_qf(action * self.action_range)
 
         for i in range(self.frameskip):
             self.do_simulation()
@@ -132,12 +109,6 @@ class ArmReach(Simulator):
 
         info = {'is_success': is_success}
 
-        if self.jacobian:
-            # return the current jacobian in info
-            jac, qf = self.get_jacobian()
-            info['jacobian'] = jac
-            info['passive'] = qf
-
         return obs, reward, False, info
 
     def state_vector(self):
@@ -148,11 +119,10 @@ class ArmReach(Simulator):
         super(ArmReach, self).load_state_vector(state[:-3])
 
     def _get_obs(self):
-        # pass
-        observation = np.concatenate([self.agent.get_qpos(), self.agent.get_qvel(), self.agent.get_qacc()])
+        # I don't store the qacc as it's not accurate
+        observation = np.concatenate([self.agent.get_qpos(), self.agent.get_qvel()])
 
-        ee_idx = self._ee_link_idx['agent']
-        achieved_goal = self.agent.get_links()[ee_idx].pose.p
+        achieved_goal = self.agent.get_ee_links().pose.p
         desired_goal = self._goal.copy()
 
 
@@ -161,9 +131,6 @@ class ArmReach(Simulator):
             'achieved_goal': achieved_goal,
             'desired_goal': desired_goal
         }
-        if self.geom:
-            obs['geom'] = self.get_geom()
-
         return obs
 
 

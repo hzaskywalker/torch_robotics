@@ -1,4 +1,5 @@
 # this controller is used to sample the best policy
+import torch
 import numpy as np
 from robot.envs.hyrule.rl_env import ArmReachWithXYZ
 
@@ -16,29 +17,21 @@ class Controller:
             return self.env.action_space.sample()
 
         state_vector = self.env.state_vector()
-
         state, goal = state['observation'], state['desired_goal']
 
-#         assert len(state) == 29
-        qpos = state[:13]
-        qvel = state[13:26]
-        achieved = state[-3:]
+        qpos = state[:7]
+        qvel = state[7:14]
+        achieved = state[14:17]
 
         self.env.agent.set_qpos(qpos)
         self.env.agent.set_qvel(qvel)
 
-        jac = self.env.get_jacobian()[0]
+        jac = self.env.get_jacobian()
 
-        delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] * 10 # desired_velocity
-        q_delta = qvel.copy() * 0
-#         q_delta[self.env._actuator_dof['agent']] = delta
-        q_delta[1:8] = delta  # private attribute...
+        q_delta = np.linalg.lstsq(jac[:3], goal-achieved)[0] * 3 # desired_velocity
         qacc = (q_delta - qvel)/self.env.dt
 
-        #qacc = self.env.agent.get_qacc() # HACK
-        qf = self.env.agent.compute_inverse_dynamics(qacc)[1:8]
-        #print(qf, self.env.agent.get_qf()[1:8]) #  HACK
-        #exit(0)
+        qf = self.env.agent.compute_inverse_dynamics(qacc) + self.env.agent.compute_passive_force()
         self.env.load_state_vector(state_vector)
         return qf/50  # again, private attribute...
 
@@ -55,4 +48,4 @@ if __name__ == '__main__':
     policy = Controller(env, p=0.0)
     from robot.utils.rl_utils import eval_policy
 
-    eval_policy(policy, env, save_video=0, progress_episode=True, timestep=50)
+    eval_policy(policy, env, save_video=0, progress_episode=True, timestep=100)
