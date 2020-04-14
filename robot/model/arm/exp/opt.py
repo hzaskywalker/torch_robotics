@@ -75,6 +75,8 @@ def train(model, dataset):
 
 
 l2 = nn.MSELoss()
+def relative_l2(a, b):
+    return (((a-b)/(b + (b.abs() < 1e-2).float())).abs()).mean()
 
 def qacc_loss(data, model, torque_norm=50):
     s = data[0][:, :4].double()
@@ -84,7 +86,13 @@ def qacc_loss(data, model, torque_norm=50):
 
     predict_qacc = model.qacc(qpos, qvel, a)
 
-    loss = l2(predict_qacc / torque_norm, qacc / torque_norm)
+    loss = relative_l2(predict_qacc / torque_norm, qacc / torque_norm)
+    return loss
+
+def ee_loss(data, model):
+    s = data[0][:, :2].double()
+    predict_ee = model.fk(s)
+    loss = l2(predict_ee[:, :2], data[0][:, -2:].double()) * 2 + (predict_ee[..., 2] ** 2).mean()
     return loss
 
 
@@ -97,16 +105,15 @@ def cemQACC_G(model, dataset_path, env=None, torque_norm=50):
     #mean[...,3]=1
 
     for i in range(40):
-        population = np.random.normal(size=(500, *mean.shape)) *std[None, :] + mean[None, :] # batch_size = 500
+        population = np.random.normal(size=(1000, *mean.shape)) *std[None, :] + mean[None, :] # batch_size = 500
         values = []
+        data = dataset.sample('train', 1024)
         for i in population:
-            data = dataset.sample('train', 1024)
             model._G.data = torch.tensor(i, dtype=torch.float64, device=model._G.device)
-
             values.append(U.tocpu(qacc_loss(data, model, torque_norm)))
 
         values = np.array(values)
-        elite_id = values.argsort()[:10]
+        elite_id = values.argsort()[:20]
         elites = population[elite_id]
         _mean, _std = elites.mean(axis=0), elites.std(axis=0)
         #mean = mean * 0.5 + _mean * 0.5
@@ -115,24 +122,29 @@ def cemQACC_G(model, dataset_path, env=None, torque_norm=50):
         print(mean, values[elite_id].mean())
 
 
-def trainQACC(model, dataset_path, env=None, torque_norm=50):
+def trainQACC(model, dataset_path, env=None, torque_norm=50, learn_ee=0.):
     dataset = QACCDataset(dataset_path)
 
-    optim = torch.optim.Adam(model.parameters(), lr=0.01)
+    optim = torch.optim.Adam(model.parameters(), lr=0.001)
 
     for epoch in range(1000):
         for phase in ['train', 'valid']:
             num_iter = 1000 if phase == 'train' else 200
             outputs = []
+            ee_losses = []
             for i in tqdm.trange(num_iter):
                 if phase == 'train':
                     model.train()
                 else:
                     model.eval()
 
-                data = dataset.sample(phase, 1024)
+                data = dataset.sample(phase, 256)
                 loss = qacc_loss(data, model, torque_norm)
                 outputs.append(U.tocpu(loss))
+                if learn_ee > 0:
+                    ee = ee_loss(data, model)
+                    loss += ee * learn_ee
+                    ee_losses.append(U.tocpu(ee))
                 if phase == 'train':
                     optim.zero_grad()
                     loss.backward()
@@ -140,9 +152,15 @@ def trainQACC(model, dataset_path, env=None, torque_norm=50):
 
             if phase == 'valid':
                 print("learned G:", model.G)
+                print("learned M:", model.M)
+                print("learned A:", model.A)
             else:
-                print('grad', model._G.grad)
+                print('grad G', model._G.grad)
+                print('grad M', model._M.grad)
+                print('grad A', model.A.grad)
             print(f'{phase} loss: ', np.mean(outputs))
+            if len(ee_losses) > 0:
+                print(f'{phase} ee loss: ', np.mean(ee_losses))
 
 
 def learnG():
@@ -150,22 +168,40 @@ def learnG():
     #env = A.train_utils.make('acrobat2')
     env = A.exp.sapien_validator.get_env_agent()[0]
     model: ArmModel = build_diff_model(env, timestep=0.025, max_velocity=np.inf, damping=0.5)
+    dof = 2
+    #model = ArmModel(dof=dof, timestep=0.025, max_velocity=np.inf, damping=0.5, dtype=torch.float64).cuda()
     #model, env = None, None
-
-    model.A.requires_grad = False
-    model._M.requires_grad = False
+    optimize_A = True
+    optimize_M = True
+    optimize_G = True
 
     dtype= model._G.dtype
-    dof = 2
+    if optimize_A:
+        model._A.requires_grad = True # but I choose to not optimize model._A
+        #model.A.data[:] = torch.tensor([0, 0, 1, 0.25, 0, 0], dtype=torch.float64, device='cuda:0')
+        model._A.data[:] = torch.tensor([0, 0.5, 0.5, 0.0, 0, 0], dtype=dtype, device='cuda:0')
+    else:
+        model._A.requires_grad = False
 
-    G = [torch.rand((4,), dtype=dtype, device=model._G.device) for _ in range(dof)]  # G should be positive...
-    model._G.data = torch.stack(G)
+    if optimize_M:
+        model._M.requires_grad = True
+        model._M.data = torch.tensor(np.array([
+                [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]] for _ in range(dof+1)]),
+            dtype=dtype, device=model._M.device)
+    else:
+        model._M.requires_grad = False
 
-    #trainQACC(model, '/dataset/acrobat2', env)
-    cemQACC_G(model, '/dataset/acrobat2')
+    if optimize_G:
+        model._G.requires_grad = True
+        G = [torch.rand((4,), dtype=dtype, device=model._G.device) for _ in range(dof)]  # G should be positive...
+        model._G.data = torch.stack(G)
+    else:
+        model._G.requires_grad = False
+
+    trainQACC(model, '/dataset/acrobat2', env, learn_ee=1.)
+    #cemQACC_G(model, '/dataset/acrobat2')
 
 
 if __name__ == "__main__":
-    #main()
     learnG()
 

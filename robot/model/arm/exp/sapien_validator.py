@@ -10,7 +10,7 @@ from robot.model.arm.exp.phys_model import ArmModel
 def build_diff_model(env, timestep=0.01, max_velocity=100, damping=0., dtype=torch.float64):
     model = ArmModel(2, max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype).cuda()
 
-    model._M.data = torch.tensor(
+    M = torch.tensor(
         np.array(
             [[[1, 0, 0, 0],[0, 1, 0, -0.25], [0, 0, 1, 0], [0, 0, 0, 1]],
              [[1, 0, 0, 0], [0, 1, 0, -0.5], [0, 0, 1, 0], [0, 0, 0, 1]],
@@ -19,9 +19,19 @@ def build_diff_model(env, timestep=0.01, max_velocity=100, damping=0., dtype=tor
 
     w, q = [0, 0, 1], [0, 0.25, 0]
     screw1 = w + (-np.cross(w, q)).tolist()
-    model.A.data = torch.tensor([screw1, screw1], dtype=dtype, device='cuda:0')
+    A = torch.tensor([screw1, screw1], dtype=dtype, device='cuda:0')
+    G = []
     for idx, i in enumerate(env.unwrapped.model.get_links()[1:]):
-        model._G.data[idx] = torch.tensor([i.inertia[0], i.inertia[2], i.inertia[1], i.get_mass()], dtype=dtype, device='cuda:0')
+        out = np.zeros((6, 6))
+        out[0, 0] = i.inertia[0]
+        out[1, 1] = i.inertia[2]
+        out[2, 2] = i.inertia[1]
+        out[3, 3] = i.get_mass()
+        out[4, 4] = i.get_mass()
+        out[5, 5] = i.get_mass()
+        G.append(torch.tensor(out, dtype=dtype, device='cuda:0'))
+    G = torch.stack(G)
+    model.assign(A, M, G)
     return model
 
 def inverse_dynamics(agent, q, dq, ddq, with_passive=True, external=False):

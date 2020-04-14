@@ -25,7 +25,7 @@ class ArmModel(nn.Module):
         #                      requires_grad=True)
 
         # NOTE: A should be greater than 0
-        self.A = nn.Parameter(torch.rand((dof, 6), dtype=dtype), requires_grad=True)
+        self._A = nn.Parameter(torch.rand((dof, 6), dtype=dtype), requires_grad=True)
 
         #G = [torch.rand((6), dtype=dtype).diag() for _ in range(dof)] # G should be positive...
 
@@ -48,7 +48,14 @@ class ArmModel(nn.Module):
         for idx in range(self._G.shape[-2]):
             out[..., idx, :3, :3] = self._G[..., idx, :3].diag()
             out[..., idx, 3, 3] = out[..., idx, 4, 4] = out[..., idx, 5, 5] = self._G[..., idx, 3]
-        return out
+        return out.abs() # project into positive M
+
+    @property
+    def A(self):
+        # there must be a rotation ...
+        A1, A2 = self._A[...,:3], self._A[..., 3:]
+        A1 = tr.normalize(A1)
+        return torch.cat((A1, A2), dim=-1)
 
     """
     @property
@@ -70,21 +77,23 @@ class ArmModel(nn.Module):
 
     @property
     def M(self):
+        # project the parameter into a matrix
         out = torch.zeros_like(self._M)
-        out[:,:3] = self._M[:,:3]
-        out[:,3,:] = 0
-        out[:,3,3] = 1
-        return out
+        #out[:,:3] = self._M[:,:3]
+        #out[:,3,:] = 0
+        #out[:,3,3] = 1
+        #return out
 
-        rot = self.M_rot
-        out = rot.new_zeros((rot.shape[0], 4, 4))
-        a1, a2 = rot[:,:,0], rot[:, :, 1]
+        #rot = self.M_rot
+        #out = rot.new_zeros((rot.shape[0], 4, 4))
+        a1, a2 = self._M[:, :3, 0], self._M[:, :3, 1]
+        assert a1.norm(dim=-1).min() > 1e-15, "check init norm"
 
         b1 = tr.normalize(a1)
         b2 = tr.normalize(a2 - (a2 * b1).sum(dim=-1, keepdim=True) * b1)
         b3 = torch.cross(b1, b2, dim=-1)
         out[:, :3, 0], out[:,:3,1], out[:, :3, 2] = b1, b2, b3
-        out[:, :3, 3] = self.M_trans
+        out[:, :3, 3] = self._M[:, :3, 3]
         out[:, 3, 3] = 1
         return out
 
@@ -104,7 +113,7 @@ class ArmModel(nn.Module):
     def fk(self, q):
         params = self.get_parameters(q)
         ee = tr.fk_in_space(q, params[-3], params[-1])
-        return ee[:, -1, :2, 3]
+        return ee[:, -1, :3, 3]
 
     def qacc(self, qpos, qvel, action):
         torque = action * self.action_range
@@ -140,13 +149,17 @@ class ArmModel(nn.Module):
         ee = tr.fk_in_space(q, M, A)
         return torch.cat((q, dq), -1), ee[:, -1, :2, 3]
 
-    def assign(self, mm):
+    def assign(self, A, M, G):
         #self.M.data = mm.M.detach()
-        self.A.data = mm.A.detach()
-        self.M_rot.data = mm.M[:,:3,:2]
-        self.M_trans.data = mm.M[:,:3,3]
+        #self.A.data = mm.A.detach()
+        #self.M_rot.data = mm.M[:,:3,:2]
+        #self.M_trans.data = mm.M[:,:3,3]
         #self.G.data = mm.G.detach()
-        self.L.data = torch.stack([torch.cholesky(g) for g in mm.G.detach()])
+        #self.L.data = torch.stack([torch.cholesky(g) for g in mm.G.detach()])
+
+        self._A.data = A.detach()
+        self._M.data = M.detach()
+        self._G.data = G[..., torch.arange(4), torch.arange(4)].detach()
         return self
 
 

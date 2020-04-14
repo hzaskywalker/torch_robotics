@@ -35,7 +35,7 @@ def normalize(V):
     :param V: A vector
     :return: A unit vector pointing in the same direction as z
     """
-    return V / torch.norm(V, dim=-1)
+    return V / torch.norm(V, dim=-1, keepdim=True)
 
 
 def NearZero(z):
