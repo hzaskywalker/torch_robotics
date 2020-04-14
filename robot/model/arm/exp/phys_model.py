@@ -4,11 +4,6 @@ from torch import nn
 from robot import tr
 
 
-class AngleLoss(nn.Module):
-    def forward(self, predict, label):
-        diff = torch.abs(predict - label)
-        return (torch.min(diff, 2 * np.pi - diff) ** 2).mean()
-
 class ArmModel(nn.Module):
     # possible variants: constrained parameter space
     # possible if we use the dynamics to optimize the geometry
@@ -104,9 +99,8 @@ class ArmModel(nn.Module):
 
     def fk(self, q):
         params = self.get_parameters(q)
-        print(params[-1].shape)
         ee = tr.fk_in_space(q, params[-3], params[-1])
-        return ee[:, -1, :3, 3]
+        return ee[:, -1, :2, 3]
 
     def qacc(self, qpos, qvel, action):
         torque = action * self.action_range
@@ -140,7 +134,7 @@ class ArmModel(nn.Module):
         dq = new_state[..., self.dof:].clamp(-self.max_velocity, self.max_velocity)
 
         ee = tr.fk_in_space(q, M, A)
-        return torch.cat((q, dq), -1), ee[:, -1, :3, 3]
+        return torch.cat((q, dq), -1), ee[:, -1, :2, 3]
 
     def assign(self, mm):
         #self.M.data = mm.M.detach()
@@ -177,64 +171,18 @@ def test_model_by_gt():
                                  U.togpu(torque, torch.float64)[None,:])[0])[0]
         print(((predict - t) ** 2).mean(), predict, t)
 
-def train(model, dataset):
-    #model.assign(mm)
-    from robot import U
+def mod(x):
+    return (x + np.pi) % (2*np.pi) - np.pi
 
-    optim = torch.optim.Adam(model.parameters(), lr=0.01)
-    loss_fn = nn.MSELoss()
-    loss_fn2 = AngleLoss()
-
-    def eval_predict(output, t):
-        predict, ee = output
-        dq_loss = loss_fn(predict[..., 2:], t[..., 2:4])
-        q_loss = loss_fn2(predict[..., :2], t[..., :2])
-        ee_loss = loss_fn(ee[..., :2], t[..., -2:]) + (ee[...,2] **2).mean()
-        #print('q', q_loss, 'ee', ee_loss, 'dq', dq_loss)
-        return dq_loss + q_loss + ee_loss
-
-    def validate(num_iter=20):
-        model.eval()
-        total = 0
-        for i in range(num_iter):
-            data = dataset.sample('valid', 256, timestep=2)
-            s = data[0][:, 0, :4].double()
-            t = data[0][:, 1].double()
-
-            a = data[1][:, 0].double()
-            print(data[0][0, 0, -2:])
-            total += eval_predict(model(s[:, :], a), t)  # action_range = 50
-        model.train()
-        return U.tocpu(total/num_iter)
-
-    import tqdm
-    for i in tqdm.trange(10000):
-        data = dataset.sample('train', 256, timestep=2)
-        s = data[0][:, 0, :4].double()
-        t = data[0][:, 1].double()
-        a = data[1][:, 0].double()
-
-        optim.zero_grad()
-        predict, ee = model(s, a)
-        loss = eval_predict((predict, ee), t)  # action_range = 50
-        loss.backward()
-        optim.step()
-
-        if i % 100 == 0:
-            print("learned G:", model.G)
-            print("learned M:", model.M)
-            print("learned A:", model.A)
-            #print("env G:", mm.G[1])
-            print('mse loss', U.tocpu(loss), predict[0], t[0])
-            print('valid mse loss', validate(5))
 
 def test_model_by_training():
     from robot import A, U
 
-    dataset = A.train_utils.Dataset('/dataset/diff_acrobat')
-    model = ArmModel(2).cuda()
-    #dataset = A.train_utils.Dataset('/dataset/acrobat2')
-    #model = ArmModel(2, max_velocity=100, timestep=0.025).cuda()
+    #dataset = A.train_utils.Dataset('/dataset/diff_acrobat')
+    #model = ArmModel(2).cuda()
+    from robot.model.arm.exp.opt import train
+    dataset = A.train_utils.Dataset('/dataset/acrobat2')
+    model = ArmModel(2, max_velocity=200, timestep=0.025, damping=0.5).cuda()
 
     #model.assign()
 

@@ -96,7 +96,7 @@ def get_args():
     parser.add_argument("--device", type=str, default='cuda:0')
 
     parser.add_argument("--weight_q", type=float, default=1.)
-    parser.add_argument("--weight_dq", type=float, default=1.)
+    parser.add_argument("--weight_dq", type=float, default=1)
     parser.add_argument("--weight_ee", type=float, default=1.)
     parser.add_argument("--resume", type=int, default=0)
     args = parser.parse_args()

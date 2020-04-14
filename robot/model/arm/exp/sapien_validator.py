@@ -5,6 +5,24 @@
 import numpy as np
 import torch
 from robot import A, U, tr
+from robot.model.arm.exp.phys_model import ArmModel
+
+def build_diff_model(env, timestep=0.01, max_velocity=100, damping=0., dtype=torch.float64):
+    model = ArmModel(2, max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype).cuda()
+
+    model._M.data = torch.tensor(
+        np.array(
+            [[[1, 0, 0, 0],[0, 1, 0, -0.25], [0, 0, 1, 0], [0, 0, 0, 1]],
+             [[1, 0, 0, 0], [0, 1, 0, -0.5], [0, 0, 1, 0], [0, 0, 0, 1]],
+             [[1, 0, 0, 0], [0, 1, 0, -0.25], [0, 0, 1, 0], [0, 0, 0, 1]],]
+        ), dtype=dtype, device='cuda:0')
+
+    w, q = [0, 0, 1], [0, 0.25, 0]
+    screw1 = w + (-np.cross(w, q)).tolist()
+    model.A.data = torch.tensor([screw1, screw1], dtype=dtype, device='cuda:0')
+    for idx, i in enumerate(env.unwrapped.model.get_links()[1:]):
+        model._G.data[idx] = torch.tensor([i.inertia[0], i.inertia[2], i.inertia[1], i.get_mass()], dtype=dtype, device='cuda:0')
+    return model
 
 def inverse_dynamics(agent, q, dq, ddq, with_passive=True, external=False):
     # NEED to check if we need step for the inverse_dynamcis
@@ -100,8 +118,6 @@ def test_compute_all():
     ddq = np.array([25.347101, 207.08884])
 
     M = compute_mass_matrix(agent, q)
-    from robot.model.arm.exp.qacc import build_diff_model
-    from robot.model.arm.exp.phys_model import ArmModel
 
     model: ArmModel = build_diff_model(env)
     q_torch = U.togpu(q, dtype=torch.float64)[None,:]
@@ -136,12 +152,10 @@ def test_integral():
 
     #total = 0.5
     total = 0.1
-    model_dt = 0.005
-    sapien_dt = 0.005
+    model_dt = 0.025
+    sapien_dt = 0.025
 
     env, agent = get_env_agent(timestep=sapien_dt, damping=damping)
-    from robot.model.arm.exp.qacc import build_diff_model
-    from robot.model.arm.exp.phys_model import ArmModel
 
     model: ArmModel = build_diff_model(env, timestep=model_dt, max_velocity=np.inf, damping=damping)
 

@@ -6,6 +6,7 @@ class RolloutAgent(AgentBase):
         super(RolloutAgent, self).__init__(model, lr)
         self.loss_weights = loss_weights
         self.normalizers = normalizers
+        print('loss weight', self.loss_weights)
 
     def rollout(self, s, a, goal=None):
         # s (inp_dim)

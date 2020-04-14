@@ -79,7 +79,7 @@ class SapienAcrobat2Frame(AcrobatFrame):
         assert self.ee.shape == label.ee.shape
         return {
             'q_loss': self.angle_loss(self.q, label.q),
-            'dq_loss': self.loss(self.dq, label.dq) * 0.001,
+            'dq_loss': self.loss(self.dq, label.dq),
             'ee_loss': self.loss(self.ee, label.ee)
         }
 

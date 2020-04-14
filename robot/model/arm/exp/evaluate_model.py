@@ -87,10 +87,15 @@ def evaluate_model(env_name, model, **kwargs):
     if model == 'mlp':
         model = MLP_ACROBAT(frame_type.input_dims, frame_type.output_dims,
                                  4, 256, batchnorm=args.batchnorm)
+    elif model == 'phys_gt':
+        from robot.model.arm.exp.qacc import build_diff_model
+        #model = build_diff_model()
+        model = torch.load('model_gt.pkl')
     elif model == 'phys':
         max_velocity = 20 if args.env_name == 'diff_acrobat2' else 100
         timestep = 0.1 if args.env_name == 'diff_acrobat2' else 0.025
-        model = ArmModel(2, dtype=torch.float, max_velocity=max_velocity, timestep=timestep)
+        damping = 0. if args.env_name == 'diff_acrobat2' else 0.5
+        model = ArmModel(2, dtype=torch.float, max_velocity=max_velocity, timestep=timestep, damping=damping)
     else:
         raise NotImplementedError
 
