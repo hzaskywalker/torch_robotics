@@ -7,7 +7,8 @@ from robot import tr
 class ArmModel(nn.Module):
     # possible variants: constrained parameter space
     # possible if we use the dynamics to optimize the geometry
-    def __init__(self, dof, dtype=torch.float64, max_velocity=20, action_range=50, timestep=0.1, damping=0.):
+    def __init__(self, dof, dtype=torch.float64, max_velocity=20, action_range=50, timestep=0.1, damping=0.,
+                 gravity=(0., -9.8, 0.)):
         super(ArmModel, self).__init__()
 
         self.dof = dof
@@ -38,7 +39,7 @@ class ArmModel(nn.Module):
         #L = [torch.randn((6, 6), dtype=dtype) for _ in range(dof)]
         #self.L = nn.Parameter(torch.stack(L), requires_grad=True)
 
-        self.gravity = nn.Parameter(torch.tensor([0., -9.8, 0.], dtype=dtype), requires_grad=False)
+        self.gravity = nn.Parameter(torch.tensor(gravity, dtype=dtype), requires_grad=False)
         self.ftip = nn.Parameter(torch.zeros(6, dtype=dtype), requires_grad=False)
         self.timestep = nn.Parameter(torch.tensor(timestep, dtype=dtype), requires_grad=False)
 

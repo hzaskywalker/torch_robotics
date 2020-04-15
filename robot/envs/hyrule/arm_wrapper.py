@@ -1,9 +1,10 @@
 class Arm7DOF:
     # a wrapper to the robot arm so that we only need to consider 7 dof
-    def __init__(self, agent, dofs, ee_idx):
+    def __init__(self, agent, dofs, ee_idx, joints_id):
         self.dofs = dofs
         self.agent = agent
         self.ee_link_idx = ee_idx
+        self.joints_id = joints_id
 
     def get_qpos(self):
         return self.agent.get_qpos()[self.dofs]
@@ -45,3 +46,18 @@ class Arm7DOF:
 
     def get_ee_links(self):
         return self.agent.get_links()[self.ee_link_idx]
+
+    def get_joints(self):
+        joints = self.agent.get_joints()
+        return [joints[i] for i in self.joints_id]
+
+    def get_links(self):
+        # return dof+1 links
+        joints = self.agent.get_joints()
+        joints = [joints[i] for i in self.joints_id]
+        links = []
+        for i in joints:
+            links.append(i.get_parent_link())
+        links.append(joints[-1].get_child_link())
+        return links
+

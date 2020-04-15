@@ -13,8 +13,8 @@ from .cost import ArmMove
 
 
 class ArmReach(Simulator):
-    def __init__(self, reward_type='dense', eps=0.06, fix_goal=False):
-        Simulator.__init__(self, dt=0.0025, frameskip=4)
+    def __init__(self, reward_type='dense', eps=0.06, fix_goal=False, timestep=0.0025, frameskip=4):
+        Simulator.__init__(self, dt=timestep, frameskip=frameskip)
 
         assert reward_type in ['dense', 'sparse']
         self.eps = eps
@@ -38,7 +38,8 @@ class ArmReach(Simulator):
             ),
         )
         load_scene(self, params)
-        self.agent = Arm7DOF(self.objects['agent'], self._actuator_dof['agent'], self._ee_link_idx['agent'])
+        self.agent = Arm7DOF(self.objects['agent'], self._actuator_dof['agent'],
+                             self._ee_link_idx['agent'], self._actuator_joint['agent'])
         del self._actuator_dof
         del self._ee_link_idx
 

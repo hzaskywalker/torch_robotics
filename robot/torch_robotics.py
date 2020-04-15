@@ -126,6 +126,18 @@ def expso3(so3mat):
 def trace(R):
     return (R * eyes_like(R)).sum(dim=(-1, -2))
 
+def projectSO3(R):
+    # project a matrix into SO3, by 6d pose methods..
+    out = torch.zeros_like(R)
+    a1, a2 = R[..., 0], R[..., 1]
+    assert a1.norm(dim=-1).min() > 1e-15, "check init norm"
+
+    b1 = normalize(a1)
+    b2 = normalize(a2 - (a2 * b1).sum(dim=-1, keepdim=True) * b1)
+    b3 = torch.cross(b1, b2, dim=-1)
+    out[..., 0], out[..., 1], out[..., 2] = b1, b2, b3
+    return out
+
 
 def logSO3(R):
     acosinput = (trace(R) - 1)/2
