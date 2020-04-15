@@ -165,6 +165,8 @@ class Dataset:
         self.not_inf_mask = (1-(np.isnan(self.obs).sum(axis=(-1, -2)) > 0)) > 0.5
         self.obs = self.obs[self.not_inf_mask]
         self.action = self.action[self.not_inf_mask]
+        print('obs max:', np.abs(self.obs).max(axis=(0,1)))
+        print('action max:', np.abs(self.action).max(axis=(0,1)))
 
         idx = np.arange(len(self.obs))
 

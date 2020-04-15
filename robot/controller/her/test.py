@@ -2,7 +2,7 @@ import gym
 from robot.controller.her.ddpg_agent import DDPGAgent
 from robot.utils.rl_utils import RLRecorder
 
-def main():
+def FetchPush():
     #env = gym.make()
     make =gym.make
     timestep = 50
@@ -22,5 +22,6 @@ def main():
         device='cuda:0', recorder=recorder,
     ) # 50
 
+
 if __name__== '__main__':
-    main()
+    FetchPush()

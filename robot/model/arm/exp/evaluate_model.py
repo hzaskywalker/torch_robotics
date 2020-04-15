@@ -18,8 +18,6 @@ class Agent(A.train_utils.RolloutAgent):
 
 class AcrobatTrainer(A.trainer):
     def __init__(self, dataset, frame_type, model, args):
-        if args.env_name != 'acrobat2':
-            args.env_name = 'diff_acrobat'
         self.dataset = dataset
         self.frame_type = frame_type
         self.model = model
@@ -48,7 +46,7 @@ class AcrobatTrainer(A.trainer):
         self.set_rollout_model()
         self.controller = A.train_utils.RolloutCEM(self.rollout_predictor,
                                                    self.env.action_space, iter_num=5,
-                                                   horizon=4, num_mutation=500,
+                                                   horizon=15, num_mutation=500,
                                                    num_elite=20, device=self.args.device)
 
 DatasetConfigs = {
@@ -77,7 +75,7 @@ def evaluate_model(env_name, model, **kwargs):
     assign_args(args, kwargs)
 
     # ------------------------ dataset -----------------------------------
-    assert env_name in ['diff_acrobat2', 'acrobat2']
+    assert env_name in ['diff_acrobat2', 'acrobat2', 'arm']
     dataset_path = os.path.join('/dataset/', env_name)
     dataset = A.train_utils.Dataset(dataset_path, device=args.device)
 

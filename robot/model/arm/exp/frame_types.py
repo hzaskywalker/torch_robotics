@@ -81,8 +81,21 @@ class SapienArmFrame(AcrobatFrame):
     d_ee = 3
     max_dq = 20
 
+    input_dims = (dim, dim, dim)
+    output_dims = d_ee # output the ddq and the position of the end-effectors..
+
+    # action factor, the observed_action * action_norm <= max_a
+    action_norm = 1
+    max_a = 1
+
+    def add(self, new_state, ee):
+        q = (new_state[...,:self.dim] + np.pi) % (2 * np.pi) - np.pi# we don't clip the q as we will use sin/cos as the input
+        dq = new_state[..., self.dim:self.dim * 2].clamp(-self.max_dq, self.max_dq)
+        return self.__class__(q, dq, ee)
+
 
 FRAMETYPES={
     'diff_acrobat2': AcrobatFrame,
-    'acrobat2': SapienAcrobat2Frame
+    'acrobat2': SapienAcrobat2Frame,
+    'arm': SapienArmFrame
 }
