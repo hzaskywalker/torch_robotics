@@ -94,11 +94,10 @@ class ArmReach(Simulator):
     def step(self, action):
         # do_simulation
         assert self._reset
-
-        action = np.array(action).clip(-1, 1)
-        self.agent.set_qf(action * self.action_range)
+        qf = np.array(action).clip(-1, 1) * self.action_range
 
         for i in range(self.frameskip):
+            self.agent.set_qf(qf)
             self.do_simulation()
 
         obs = self._get_obs()

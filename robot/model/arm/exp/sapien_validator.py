@@ -57,22 +57,26 @@ def compute_mass_matrix(agent, q):
 def compute_coriolis_centripetal(agent, q, dq):
     agent.set_qpos(q)
     agent.set_qvel(dq)
+    agent.set_qf(agent.get_qf()*0)
     return agent.compute_passive_force(external=False, gravity=False, coriolisAndCentrifugal=True)
 
 def compute_gravity(agent, q, dq):
     agent.set_qpos(q)
     agent.set_qvel(dq)
+    agent.set_qf(agent.get_qf()*0)
     return agent.compute_passive_force(external=False, gravity=True, coriolisAndCentrifugal=False)
 
 def compute_external(agent, q, dq):
     agent.set_qpos(q)
     agent.set_qvel(dq)
+    agent.set_qf(agent.get_qf()*0)
     return agent.compute_passive_force(external=True, gravity=False, coriolisAndCentrifugal=False)
 
 def compute_qacc(env, agent, q, dq, torque):
-    assert env.dt < 1e-4
+    assert env.dt < 1e-3
     agent.set_qpos(q)
     agent.set_qvel(dq)
+    agent.set_qf(agent.get_qf()*0)
     env.step(torque/50)
     return agent.get_qacc()
 

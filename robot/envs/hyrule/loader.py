@@ -93,7 +93,8 @@ def load_robot(sim: Simulator, name, params: OrderedDict):
                 if _name == qname: lock_id = idx
             _lock_dof[lock_id] = dof_count
             _lock_value[lock_id] = lock_value[lock_id]
-            joint.set_limits([[lock_value[lock_id], lock_value[lock_id]+1e-5]])
+            joint.set_limits([[lock_value[lock_id]-1e-16, lock_value[lock_id]+1e-16]])
+
 
         if qname in actuator:
             for idx, _name in enumerate(actuator):

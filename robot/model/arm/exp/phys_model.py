@@ -114,10 +114,15 @@ class ArmModel(nn.Module):
     def fk(self, q, dim=3):
         params = self.get_parameters(q)
         ee = tr.fk_in_space(q, params[-3], params[-1])
-        return ee[:, -1, :dim, 3]
+        if dim > 0:
+            return ee[:, -1, :dim, 3]
+        else:
+            return ee[:, -1]
 
-    def qacc(self, qpos, qvel, action):
+    def qacc(self, qpos, qvel, action, damping=False):
         torque = action * self.action_range
+        if damping:
+            torque -= self.damping * qvel
         return tr.forward_dynamics(qpos, qvel, torque, *self.get_parameters(qpos))
 
     def forward(self, state, action):

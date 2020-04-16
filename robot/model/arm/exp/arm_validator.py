@@ -5,14 +5,19 @@ import transforms3d
 from robot.envs.hyrule.rl_env import ArmReachWithXYZ
 import torch
 from robot import tr, U
-from robot.model.arm.exp.sapien_validator import ArmModel
+import robot.model.arm.exp.sapien_validator as sapien_validator
 
-def togpu(x):
-    return U.togpu(x, dtype=torch.float64)
+def check(a, b, m="", eps=1e-6):
+    diff = np.abs(a - b).max()
+    assert diff < eps, f"{m} {a}, {b}          max diff: {diff}"
+
+def relative_check(a, b, m="", eps=1e-6):
+    diff = (np.abs(a - b)/np.abs(b).clip(1, np.inf)).max()
+    assert diff < eps, f"{m} {a}, {b}          max relative diff: {diff}"
 
 
-def get_env_agent(timestep=0.00001):
-    env = ArmReachWithXYZ(timestep=timestep)
+def get_env_agent(timestep=0.00005):
+    env = ArmReachWithXYZ(timestep=timestep, frameskip=1)
     seed = 2
     np.random.seed(seed)
     env.seed(seed)
@@ -21,22 +26,11 @@ def get_env_agent(timestep=0.00001):
     return env, env.agent
 
 
-def pose2SE3(pose):
-    p = pose.p
-    q = pose.q
-    mat = transforms3d.quaternions.quat2mat(q)
-
-    out = np.zeros((4, 4))
-    out[3, 3] = 1
-    out[:3, :3] = mat
-    out[:3, 3] = p
-    return out
-
 def solveJoint(agent, M):
     def calc(a, b):
-        out = togpu(np.eye(4))[None,:]
+        out = tr.togpu(np.eye(4))[None,:]
         for j in range(a, b):
-            out = tr.dot(out, togpu(M[j])[None, :])
+            out = tr.dot(out, tr.togpu(M[j])[None, :])
         return out
 
     outs = []
@@ -55,7 +49,7 @@ def solveJoint(agent, M):
             qpos[i] = theta
             agent.set_qpos(qpos)
 
-            ee_T = togpu(pose2SE3(agent.get_ee_links().pose))[None, :]
+            ee_T = tr.togpu(tr.pose2SE3(agent.get_ee_links().pose))[None, :]
             # A @ X @ B = ee_T
             X = tr.dot(tr.dot(tr.inv_trans(A), ee_T), tr.inv_trans(B))
             X[:, :3, :3] = tr.projectSO3(X[:, :3, :3])
@@ -67,8 +61,8 @@ def solveJoint(agent, M):
     return torch.stack(outs)
 
 
-def build_diff_model(env, timestep=0.0025, max_velocity=20, damping=0., dtype=torch.float64):
-    model = ArmModel(7, gravity=[0, 0, -9.8],
+def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=torch.float64):
+    model = sapien_validator.ArmModel(7, gravity=[0, 0, -9.8],
                      max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype).cuda()
     M = []
     A = []
@@ -78,78 +72,112 @@ def build_diff_model(env, timestep=0.0025, max_velocity=20, damping=0., dtype=to
     agent = env.agent
 
     agent.set_qpos(agent.get_qpos()*0)
-    def get_name(a):
-        if a is None: return None
-        return a.name
 
-    """
-    right_base_link
-    right_shoulder_link
-    right_arm_half_1_link
-    right_arm_half_2_link
-    right_forearm_link
-    right_wrist_spherical_1_link
-    right_wrist_spherical_2_link
-    right_wrist_3_link
-    right_ee_link
-    """
-
-    S = [] # location of cmass, execpt the first one, and the end-effector
+    S, G = [], [] # location of cmass, execpt the first one, and the end-effector
     for i in agent.get_links()[1:]:
         cmass_pose = i.get_pose() * i.cmass_local_pose
-        S.append(pose2SE3(cmass_pose))
-    S.append(pose2SE3(agent.get_ee_links().get_pose()))
+        S.append(tr.pose2SE3(cmass_pose))
 
-    S_prev = togpu(np.eye(4))[None,:]
-    for s in S:
-        s = togpu(s[None,:])
-        M.append(tr.dot(tr.inv_trans(S_prev), s))
-        S_prev = s
-    M = torch.cat(M)
-
-    G = []
-    for i in agent.get_links()[1:]:
         out = np.zeros((6, 6))
         out[0, 0] = i.inertia[0]
-        out[1, 1] = i.inertia[2]
-        out[2, 2] = i.inertia[1]
+        out[1, 1] = i.inertia[1]
+        out[2, 2] = i.inertia[2]
         out[3, 3] = i.get_mass()
         out[4, 4] = i.get_mass()
         out[5, 5] = i.get_mass()
-        G.append(togpu(out))
+        G.append(tr.togpu(out))
     G = torch.stack(G)
+
+    S.append(tr.pose2SE3(agent.get_ee_links().get_pose()))
+
+    S_prev = tr.togpu(np.eye(4))[None,:]
+    for s in S:
+        s = tr.togpu(s[None,:])
+        M.append(tr.dot(tr.inv_trans(S_prev), s))
+        S_prev = s
+    M = torch.cat(M)
 
 
     #w, q = [0, 0, 1], [0, 0.25, 0]
     #screw1 = w + (-np.cross(w, q)).tolist()
     #A = torch.tensor([screw1, screw1], dtype=dtype, device='cuda:0')
     A = []
-    for i in agent.get_joints():
+    for i, l in zip(agent.get_joints(), agent.get_links()[1:]):
         # T_p x = T_c y => y=inv(T_c) @ T_p @ x
-        l = i.get_child_link()
-        q = i.get_pose_in_child_frame().q
         pose = l.cmass_local_pose.inv() * i.get_pose_in_child_frame()
 
-        #w, q = [0, 0, 1], [0, 0.25, 0]
         w = transforms3d.quaternions.rotate_vector([1, 0, 0], pose.q)
         w /= np.linalg.norm(w)
         q = pose.p
         screw = np.concatenate((w, (-np.cross(w, q))))
         A.append(screw)
-    A = togpu(A)
-    #print(A)
-    #A2 = solveJoint(agent, M)
-    #print(A2)
-
+    A = tr.togpu(A)
     model.assign(A, M, G)
     return model
 
 
-def test_env_model():
+def test_fk():
     env, agent = get_env_agent()
     model = build_diff_model(env)
 
+    for i in range(10):
+        q = np.random.random(size=(7,)) * np.pi * 2 - np.pi
+        agent.set_qpos(q)
+        ee_label = tr.pose2SE3(agent.get_ee_links().pose)
+        predict_ee = U.tocpu(model.fk(tr.togpu(q)[None, :], dim=0)[0])
+        check(ee_label, predict_ee, "test_fk")
+    print("passed fk test")
+
+def test_inverse_dynamics():
+    env, agent = get_env_agent()
+
+    model = build_diff_model(env)
+
+    #q, dq = [-2.148633, 2.129848], [-2.0222425, 6.676592 ]
+    np.random.seed(1)
+    q = np.random.random(size=(7,)) * np.pi/3 * 2 - np.pi/3
+    dq = np.random.random(size=(7,)) * 10 - 5
+
+    torque = np.random.random(size=(7,)) * 10 - 5
+
+    q_torch = tr.togpu(q)[None,:]
+    dq_torch = tr.togpu(dq)[None,:]
+    torque_torch = tr.togpu(torque)[None,:]
+
+    M = sapien_validator.compute_mass_matrix(agent, q)
+    M2 = U.tocpu(model.compute_mass_matrix(q_torch)[0])
+    check(M, M2, "compute mass")
+
+    N_ = sapien_validator.compute_gravity(agent, q, dq)
+    qacc = sapien_validator.compute_qacc(env, agent, q, dq, torque)
+    N = sapien_validator.compute_gravity(agent, q, dq)
+    img = env.render(mode='rgb_array')
+    import cv2
+    cv2.imwrite('x.jpg', img)
+    check(N, N_, 'gravity')
+
+    N2 = U.tocpu(model.compute_gravity(q_torch)[0])
+    check(N, N2, "compute graivty", eps=1e-5)
+
+    C = sapien_validator.compute_coriolis_centripetal(agent, q, dq)
+    C2 = U.tocpu(model.compute_coriolis_centripetal(q_torch, dq_torch)[0])
+    check(C, C2, "compute coriolis", eps=1e-5)
+
+    qacc_torch = tr.togpu(qacc)[None, :]
+
+    I = sapien_validator.inverse_dynamics(agent, q, dq, qacc, with_passive=True, external=True)
+    I2 = U.tocpu(model.inverse_dynamics(q_torch, dq_torch, qacc_torch))
+    check(I, I2, "inverse dynamics", eps=1e-4)
+    print('inversed', I)
+    # ----------------------------- QACC ----------------------------------
+
+
+    qacc = sapien_validator.compute_qacc(env, agent, q, dq, torque)
+    predict_qacc = U.tocpu(model.qacc(q_torch, dq_torch, torque_torch/50, damping=False)[0])
+
+    check(qacc, predict_qacc, "qacc", eps=1e-5)
 
 
 if __name__ == '__main__':
-    test_env_model()
+    #test_fk()
+    test_inverse_dynamics()
