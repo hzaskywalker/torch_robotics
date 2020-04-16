@@ -144,16 +144,20 @@ class Simulator(Env):
         """
         print('step...')
         try:
-            print(self.agent.agent.get_qacc())
-            print(self.agent.get_qf())
+            self.agent.agent
+            print('qpos', self.agent.agent.get_qpos())
+            print('qf', self.agent.get_qf())
+            print('qacc', self.agent.agent.get_qacc())
         except AttributeError:
             pass
             """
         self.scene.step()
         """
         try:
-            print(self.agent.agent.get_qacc())
-            print(self.agent.get_qf())
+            self.agent.agent
+            print('qpos', self.agent.agent.get_qpos())
+            print('qf', self.agent.get_qf())
+            print('qacc', self.agent.agent.get_qacc())
         except AttributeError:
             pass
             """

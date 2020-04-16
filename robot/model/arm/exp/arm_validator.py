@@ -1,6 +1,7 @@
 # the same to sapien validator
 # However, I am going to find the mathematical model for the robot arm
 import numpy as np
+import tqdm
 import transforms3d
 from robot.envs.hyrule.rl_env import ArmReachWithXYZ
 import torch
@@ -18,7 +19,7 @@ def relative_check(a, b, m="", eps=1e-6):
 
 def get_env_agent(timestep=0.00001):
     # timestep =0.00001 is very important
-    env = ArmReachWithXYZ(timestep=timestep, frameskip=1)
+    env = ArmReachWithXYZ(timestep=timestep, frameskip=2)
     seed = 2
     np.random.seed(seed)
     env.seed(seed)
@@ -130,6 +131,7 @@ def test_fk():
         check(ee_label, predict_ee, "test_fk")
     print("passed fk test")
 
+
 def test_inverse_dynamics():
     env, agent = get_env_agent()
 
@@ -137,58 +139,64 @@ def test_inverse_dynamics():
 
     #q, dq = [-2.148633, 2.129848], [-2.0222425, 6.676592 ]
     np.random.seed(1)
-    q = np.random.random(size=(7,)) * np.pi/3 * 2 - np.pi/3
-    dq = np.random.random(size=(7,)) * 10 - 5
+    for i in tqdm.trange(100):
+        q = np.random.random(size=(7,)) * np.pi/3 * 2 - np.pi/3
+        dq = np.random.random(size=(7,)) * 20 - 10
 
-    torque = np.random.random(size=(7,)) * 10 - 5
+        torque = np.random.random(size=(7,)) * 20 - 10
 
-    q_torch = tr.togpu(q)[None,:]
-    dq_torch = tr.togpu(dq)[None,:]
-    torque_torch = tr.togpu(torque)[None,:]
+        q_torch = tr.togpu(q)[None,:]
+        dq_torch = tr.togpu(dq)[None,:]
+        torque_torch = tr.togpu(torque)[None,:]
 
-    M = sapien_validator.compute_mass_matrix(agent, q)
-    M2 = U.tocpu(model.compute_mass_matrix(q_torch)[0])
-    check(M, M2, "compute mass")
+        qacc = sapien_validator.compute_qacc(env, agent, q, dq, torque)
+        predict_qacc = U.tocpu(model.qacc(q_torch, dq_torch, torque_torch/50, damping=True)[0])
 
-    N_ = sapien_validator.compute_gravity(agent, q, dq)
-    qacc = sapien_validator.compute_qacc(env, agent, q, dq, torque)
-    N = sapien_validator.compute_gravity(agent, q, dq)
-    img = env.render(mode='rgb_array')
-    import cv2
-    cv2.imwrite('x.jpg', img)
-    check(N, N_, 'gravity')
+        if qacc.max() > 1e5:
+            print('qq', q)
+            print(qacc, predict_qacc)
 
-    N2 = U.tocpu(model.compute_gravity(q_torch)[0])
-    check(N, N2, "compute graivty", eps=1e-5)
+            img = env.render(mode='rgb_array')
+            import cv2
+            cv2.imwrite('x.jpg', img)
+            #print(env.scene.get_contacts())
+            continue
 
-    C = sapien_validator.compute_coriolis_centripetal(agent, q, dq)
-    C2 = U.tocpu(model.compute_coriolis_centripetal(q_torch, dq_torch)[0])
-    check(C, C2, "compute coriolis", eps=1e-5)
+        relative_check(qacc, predict_qacc, "qacc", eps=0.2)
 
-    qacc_torch = tr.togpu(qacc)[None, :]
+        M = sapien_validator.compute_mass_matrix(agent, q)
+        M2 = U.tocpu(model.compute_mass_matrix(q_torch)[0])
+        check(M, M2, "compute mass")
 
-    I = sapien_validator.inverse_dynamics(agent, q, dq, qacc, with_passive=True, external=True)
-    I2 = U.tocpu(model.inverse_dynamics(q_torch, dq_torch, qacc_torch))
-    check(I, I2, "inverse dynamics", eps=1e-3)
-    print('inversed', I)
-    # ----------------------------- QACC ----------------------------------
+        N_ = sapien_validator.compute_gravity(agent, q, dq)
+        N = sapien_validator.compute_gravity(agent, q, dq)
+        check(N, N_, 'gravity')
 
+        N2 = U.tocpu(model.compute_gravity(q_torch)[0])
+        check(N, N2, "compute graivty", eps=2e-5)
 
-    #print(agent.get_qacc())
-    #qacc = sapien_validator.compute_qacc(env, agent, q, dq, torque)
+        C = sapien_validator.compute_coriolis_centripetal(agent, q, dq)
+        C2 = U.tocpu(model.compute_coriolis_centripetal(q_torch, dq_torch)[0])
+        check(C, C2, "compute coriolis", eps=1e-4)
+
+        qacc_torch = tr.togpu(qacc)[None, :]
+
+        I = sapien_validator.inverse_dynamics(agent, q, dq, qacc, with_passive=True, external=True)
+        I2 = U.tocpu(model.inverse_dynamics(q_torch, dq_torch, qacc_torch))
+        check(I, I2, "inverse dynamics", eps=2e-3)
+
+    """
     agent.set_qpos(q)
     agent.set_qvel(dq)
     p = agent.agent.get_qf() * 0
-    f = agent.compute_passive_force()
+    #f = agent.compute_passive_force()
     #p[agent.dofs] = torque - f
-    p = agent.agent.compute_passive_force()
-    p[agent.dofs] += torque
-    qacc = env.agent.agent.compute_forward_dynamics(p)
-    print(qacc)
-    qacc = qacc[agent.dofs]
-    predict_qacc = U.tocpu(model.qacc(q_torch, dq_torch, torque_torch/50, damping=False)[0])
-
-    check(qacc, predict_qacc, "qacc", eps=1e-5)
+    #p = agent.agent.compute_passive_force()
+    p[agent.dofs] = torque - agent.compute_passive_force()
+    qacc2 = env.agent.agent.compute_forward_dynamics(p)
+    qacc2 = qacc2[agent.dofs]
+    relative_check(qacc2, predict_qacc, "sapien forward_dynamics", eps=0.1)
+    """
 
 
 if __name__ == '__main__':

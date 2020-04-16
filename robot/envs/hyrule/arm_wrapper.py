@@ -58,8 +58,18 @@ class Arm7DOF:
         self.joints_id = joints_id
         #self.get_links()
         links = self.agent.get_links()
+
+        self.zero_qpos = self.agent.get_qpos()
+        idx = 0
+        for i in self.agent.get_joints():
+            if i.get_dof() > 0:
+                self.zero_qpos[idx] = (i.get_limits()[0][0] + i.get_limits()[0][1])/2
+                idx += 1
+        self.zero_qpos[self.dofs] = 0
+
         self.set_qpos(self.get_qpos()*0)
         self.last_link = LinkGroup([links[i] for i in range(13, 22)])
+        self.zero_qpos = self.agent.get_qpos()
 
 
     def get_qpos(self):
@@ -75,7 +85,8 @@ class Arm7DOF:
         return self.agent.get_qacc()[self.dofs]
 
     def set_qpos(self, qpos):
-        q = self.agent.get_qpos() * 0
+        #q = self.agent.get_qpos() * 0
+        q = self.zero_qpos.copy()
         q[self.dofs] = qpos
         self.agent.set_qpos(q)
 
