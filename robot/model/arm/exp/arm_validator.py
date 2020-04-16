@@ -16,7 +16,8 @@ def relative_check(a, b, m="", eps=1e-6):
     assert diff < eps, f"{m} {a}, {b}          max relative diff: {diff}"
 
 
-def get_env_agent(timestep=0.00005):
+def get_env_agent(timestep=0.00001):
+    # timestep =0.00001 is very important
     env = ArmReachWithXYZ(timestep=timestep, frameskip=1)
     seed = 2
     np.random.seed(seed)
@@ -104,6 +105,7 @@ def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=
     A = []
     for i, l in zip(agent.get_joints(), agent.get_links()[1:]):
         # T_p x = T_c y => y=inv(T_c) @ T_p @ x
+        print(i.friction, i.damping, i.stiffness, i.force_limit)
         pose = l.cmass_local_pose.inv() * i.get_pose_in_child_frame()
 
         w = transforms3d.quaternions.rotate_vector([1, 0, 0], pose.q)
@@ -131,7 +133,7 @@ def test_fk():
 def test_inverse_dynamics():
     env, agent = get_env_agent()
 
-    model = build_diff_model(env)
+    model = build_diff_model(env, damping=0.01)
 
     #q, dq = [-2.148633, 2.129848], [-2.0222425, 6.676592 ]
     np.random.seed(1)
@@ -167,12 +169,23 @@ def test_inverse_dynamics():
 
     I = sapien_validator.inverse_dynamics(agent, q, dq, qacc, with_passive=True, external=True)
     I2 = U.tocpu(model.inverse_dynamics(q_torch, dq_torch, qacc_torch))
-    check(I, I2, "inverse dynamics", eps=1e-4)
+    check(I, I2, "inverse dynamics", eps=1e-3)
     print('inversed', I)
     # ----------------------------- QACC ----------------------------------
 
 
-    qacc = sapien_validator.compute_qacc(env, agent, q, dq, torque)
+    #print(agent.get_qacc())
+    #qacc = sapien_validator.compute_qacc(env, agent, q, dq, torque)
+    agent.set_qpos(q)
+    agent.set_qvel(dq)
+    p = agent.agent.get_qf() * 0
+    f = agent.compute_passive_force()
+    #p[agent.dofs] = torque - f
+    p = agent.agent.compute_passive_force()
+    p[agent.dofs] += torque
+    qacc = env.agent.agent.compute_forward_dynamics(p)
+    print(qacc)
+    qacc = qacc[agent.dofs]
     predict_qacc = U.tocpu(model.qacc(q_torch, dq_torch, torque_torch/50, damping=False)[0])
 
     check(qacc, predict_qacc, "qacc", eps=1e-5)

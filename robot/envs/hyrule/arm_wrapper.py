@@ -59,13 +59,6 @@ class Arm7DOF:
         #self.get_links()
         links = self.agent.get_links()
         self.set_qpos(self.get_qpos()*0)
-        """
-        for idx, i in enumerate(self.agent.get_links()):
-            print(idx, i.name)
-        for i in range(13, 22):
-            print(links[i].name)
-        exit(0)
-        """
         self.last_link = LinkGroup([links[i] for i in range(13, 22)])
 
 

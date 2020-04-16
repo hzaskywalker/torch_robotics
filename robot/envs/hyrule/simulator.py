@@ -141,7 +141,22 @@ class Simulator(Env):
             l = r
 
     def do_simulation(self):
+        """
+        print('step...')
+        try:
+            print(self.agent.agent.get_qacc())
+            print(self.agent.get_qf())
+        except AttributeError:
+            pass
+            """
         self.scene.step()
+        """
+        try:
+            print(self.agent.agent.get_qacc())
+            print(self.agent.get_qf())
+        except AttributeError:
+            pass
+            """
         self.timestep += 1
 
 

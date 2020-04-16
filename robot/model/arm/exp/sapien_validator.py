@@ -77,6 +77,7 @@ def compute_qacc(env, agent, q, dq, torque):
     agent.set_qpos(q)
     agent.set_qvel(dq)
     agent.set_qf(agent.get_qf()*0)
+    #print('step')
     env.step(torque/50)
     return agent.get_qacc()
 
