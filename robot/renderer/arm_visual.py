@@ -1,4 +1,3 @@
-import xml.etree.ElementTree as ET
 from .. import torch_robotics as tr
 
 

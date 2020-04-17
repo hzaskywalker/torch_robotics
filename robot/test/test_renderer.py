@@ -1,4 +1,5 @@
 import tqdm
+import sys
 import numpy as np
 import trimesh
 import pickle
@@ -12,10 +13,9 @@ def test_sphere():
     r.add_point_light((0, 5, 0), color=(255, 0, 0))
     r.set_camera_position(-10, 0, 0)
 
-    for i in tqdm.trange(1000):
-        pos = np.random.random((3,))
-        sphere.set_center(pos)
-        img = r.render()
+    pos = np.random.random((3,))
+    sphere.set_center(pos)
+    img = r.render(mode='human')
 
 
 def test_arm():
@@ -25,7 +25,11 @@ def test_arm():
     np.random.seed(3)
 
     from robot import renderer, tr
-    r = renderer.Renderer()
+    if len(sys.argv) > 1:
+        mode = sys.argv[1]
+    else:
+        mode = 'rgb_array'
+    r = renderer.Renderer(mode=mode)
     arm = r.make_arm(model.M, model.A)
 
     q = agent.get_qpos()
@@ -66,8 +70,22 @@ def test_arm():
     r.add_point_light([2, 2, 2], [255, 255, 255])
     r.add_point_light([2, -2, 2], [255, 255, 255])
     r.add_point_light([-2, 0, 2], [255, 255, 255])
+
     r.set_camera_position(1.2, -0.5, 1.2)
     r.set_camera_rotation(-3.14 - 0.5, -0.2)
+
+
+    q = np.random.random((7,)) * np.pi * 2
+    q = np.random.random((7,)) * np.pi * 2
+    arm.set_pose(q)
+    img = r.render(mode)
+    #with open('xxx.pkl', 'wb') as f:
+    #    pickle.dump(arm.scene, f)
+    r.save('xxx.pkl')
+
+    cv2.imshow('x', img)
+    cv2.waitKey(0)
+    exit(0)
 
     def work():
         for i in range(24):
@@ -100,7 +118,15 @@ def test_two_renders():
     img = np.concatenate((img, img2), axis=1)
     cv2.imwrite('x.jpg', img)
 
+def test_load_render():
+    from robot.renderer import Renderer
+    r = Renderer.load('xxx.pkl')
+    img = r.render()
+    cv2.imshow('x', img)
+    cv2.waitKey(0)
+
 if __name__:
     #test_sphere()
-    test_arm()
+    #test_arm()
     #test_two_renders()
+    test_load_render()

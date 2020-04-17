@@ -8,16 +8,11 @@
 # just like in a physical simulator, we want to represent the system in generalized coordinates
 
 import os
-try:
-    os.environ['PYOPENGL_PLATFORM'] = 'osmesa' # remove this for human mode ..
-    import pyrender
-except ImportError:
-    del os.environ['PYOPENGL_PLATFORM']
-    import pyrender
-
-import time
+import pyrender
 import trimesh
 import numpy as np
+import pickle
+
 import transforms3d
 from collections import OrderedDict
 from .arm_visual import Arm
@@ -27,6 +22,9 @@ class RigidBody:
     def __init__(self, scene, tm, material=None, pose=np.eye(4)):
         # tm: trimesh.mesh
         smooth = tm.visual.face_colors is None # xjb hack
+        self.tm = tm # we preserve tm for load and save
+        self.material = material
+        self.kwargs = {'tm': self.tm, 'material': self.material}
 
         mesh = pyrender.Mesh.from_trimesh(tm, smooth=smooth)
         self.scene = scene
@@ -44,6 +42,9 @@ class RigidBody:
 class Sphere(RigidBody):
     # we can visit the scene
     def __init__(self, scene, center, radius, color, material=None, subdivisions=2):
+        self.kwargs ={
+            'radius': radius, 'color': color, 'material': material, 'subdivisions': subdivisions
+        }
         mesh = trimesh.primitives.Sphere(radius=radius,
                                          center=(0, 0, 0),
                                          subdivisions=subdivisions)
@@ -53,9 +54,6 @@ class Sphere(RigidBody):
         pose[:3, 3] = center
         super(Sphere, self).__init__(scene, mesh, material, pose)
 
-    def set_center(self, pos):
-        t = np.eye(4);t[:3,3] = pos
-        self.set_pose(t)
 
 class Compose:
     def __init__(self):
@@ -77,9 +75,12 @@ class Renderer:
     # e.g., the renderer doesn't use a dict to maintain all objects in the scene
     #    because it has already be maintained by the pyrender.Scene already
 
-    def __init__(self, camera_pose=np.eye(4), ambient_light=(0.02, 0.02, 0.02), bg_color=(32, 32, 32)):
-        self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
+    def __init__(self, camera_pose=np.eye(4), ambient_light=(0.02, 0.02, 0.02),
+                 bg_color=(32, 32, 32), mode='rgb_array'):
+        if mode == 'rgb_array':
+            os.environ['PYOPENGL_PLATFORM'] = 'osmesa'  # remove this for human mode ..
 
+        self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
         self._viewers = OrderedDict()
 
         #camera = pyrender.PerspectiveCamera(yfov=1.1, aspectRatio=1)
@@ -153,7 +154,13 @@ class Renderer:
             if mode == 'human':
                 _viewer = pyrender.Viewer(self.scene) # , run_in_thread=True
             elif mode == 'rgb_array':
-                _viewer = pyrender.OffscreenRenderer(width, height)
+                try:
+                    os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
+                    import importlib
+                    importlib.reload(pyrender)
+                    _viewer = pyrender.OffscreenRenderer(width, height)
+                except AttributeError:
+                    raise Exception("export PYOPENGL_PLATFORM=osmesa for off-screen render!!!!")
             else:
                 raise NotImplementedError(f"viewer mode {mode} is not implemented")
 
@@ -190,3 +197,18 @@ class Renderer:
     def make_arm(self, M, A):
         return Arm(self.scene, M, A)
 
+
+    def save(self, path):
+        for k in self._viewers.values():
+            # destroy _viewers for pickle
+            k.delete()
+
+        self._viewers = OrderedDict()
+        print('save...')
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(self, path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
