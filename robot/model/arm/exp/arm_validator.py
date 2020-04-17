@@ -64,15 +64,10 @@ def solveJoint(agent, M):
 
 
 def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=torch.float64):
-    model = sapien_validator.ArmModel(7, gravity=[0, 0, -9.8],
-                     max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype).cuda()
-    M = []
-    A = []
-    G = []
-
     # seven dof
     agent = env.agent
 
+    M, A, G = [], [], []
     agent.set_qpos(agent.get_qpos()*0)
 
     S, G = [], [] # location of cmass, execpt the first one, and the end-effector
@@ -81,12 +76,8 @@ def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=
         S.append(tr.pose2SE3(cmass_pose))
 
         out = np.zeros((6, 6))
-        out[0, 0] = i.inertia[0]
-        out[1, 1] = i.inertia[1]
-        out[2, 2] = i.inertia[2]
-        out[3, 3] = i.get_mass()
-        out[4, 4] = i.get_mass()
-        out[5, 5] = i.get_mass()
+        out[[0, 1, 2], [0, 1, 2]] = i.inertia
+        out[[3, 4, 5], [3, 4, 5]] = i.get_mass()
         G.append(tr.togpu(out))
     G = torch.stack(G)
 
@@ -115,6 +106,9 @@ def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=
         screw = np.concatenate((w, (-np.cross(w, q))))
         A.append(screw)
     A = tr.togpu(A)
+
+    model = sapien_validator.ArmModel(7, gravity=[0, 0, -9.8],
+                                      max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype).cuda()
     model.assign(A, M, G)
     return model
 

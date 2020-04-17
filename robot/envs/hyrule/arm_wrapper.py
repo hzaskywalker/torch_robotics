@@ -47,6 +47,9 @@ class LinkGroup:
         p = cmass_local[:3,3]
         return Pose(p, q)
 
+    @property
+    def name(self):
+        return self.links[0].name
 
 
 class Arm7DOF:
@@ -122,7 +125,6 @@ class Arm7DOF:
         links = []
         for i in joints:
             links.append(i.get_parent_link())
-        #links.append(joints[-1].get_child_link())
         links.append(self.last_link)
         return links
 
