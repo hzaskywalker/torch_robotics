@@ -677,6 +677,10 @@ def togpu(x):
     from robot import U
     return U.togpu(x, dtype=torch.float64)
 
+def totensor(x):
+    from robot import U
+    return torch.tensor(x, dtype=torch.float64)
+
 def tocpu(x):
     from robot import U
     return U.tocpu(x)

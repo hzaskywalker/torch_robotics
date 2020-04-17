@@ -8,7 +8,6 @@
 # just like in a physical simulator, we want to represent the system in generalized coordinates
 
 import os
-import pyrender
 import trimesh
 import numpy as np
 import pickle
@@ -26,6 +25,7 @@ class RigidBody:
         self.material = material
         self.kwargs = {'tm': self.tm, 'material': self.material}
 
+        import pyrender
         mesh = pyrender.Mesh.from_trimesh(tm, smooth=smooth)
         self.scene = scene
         self.node = pyrender.Node(mesh=mesh, matrix=pose)
@@ -76,10 +76,8 @@ class Renderer:
     #    because it has already be maintained by the pyrender.Scene already
 
     def __init__(self, camera_pose=np.eye(4), ambient_light=(0.02, 0.02, 0.02),
-                 bg_color=(32, 32, 32), mode='rgb_array'):
-        if mode == 'rgb_array':
-            os.environ['PYOPENGL_PLATFORM'] = 'osmesa'  # remove this for human mode ..
-
+                 bg_color=(32, 32, 32)):
+        import pyrender
         self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
         self._viewers = OrderedDict()
 
@@ -89,7 +87,10 @@ class Renderer:
         self.scene.add_node(self.camera_node)
         self._set_camera_pose(camera_pose)
 
+        self._objects = {}
+
     def set_pose(self, a, pose):
+        import pyrender
         if isinstance(a, pyrender.Node):
             self.scene.set_pose(a, pose)
         else:
@@ -143,12 +144,15 @@ class Renderer:
         self._set_camera_pose(t)
 
     def add_point_light(self, position, color):
+        import pyrender
+
         light = pyrender.PointLight(color=color, intensity=18.0)
         t = np.eye(4)
         t[:3,3] = position
         self.scene.add(light, pose=t)
 
     def _get_viewer(self, mode, width=500, height=500):
+        import pyrender
         _viewer = self._viewers.get(mode)
         if _viewer is None:
             if mode == 'human':
@@ -185,18 +189,23 @@ class Renderer:
             #_viewer.render_lock.acquire()
             return None
 
-    def make_mesh(self, mesh, pose=np.eye(4)):
-        return RigidBody(self.scene, mesh, pose)
+    def register(self, obj, name):
+        if name is None:
+            name = f'obj{len(self._objects)}'
+        self._objects[name] = obj
+        return obj
 
-    def make_sphere(self, center, r, color, material=None):
-        return Sphere(self.scene, center, r, color, material)
+    def make_mesh(self, mesh, pose=np.eye(4), name=None):
+        return self.register(RigidBody(self.scene, mesh, pose), name)
 
-    def make_compose(self):
-        return Compose()
+    def make_sphere(self, center, r, color, material=None, name=None):
+        return self.register(Sphere(self.scene, center, r, color, material), name)
 
-    def make_arm(self, M, A):
-        return Arm(self.scene, M, A)
+    def make_compose(self, name=None):
+        return self.register(Compose(), name)
 
+    def make_arm(self, M, A, name=None):
+        return self.register(Arm(self.scene, M, A), name)
 
     def save(self, path):
         for k in self._viewers.values():
@@ -212,3 +221,6 @@ class Renderer:
     def load(self, path):
         with open(path, 'rb') as f:
             return pickle.load(f)
+
+    def get(self, name):
+        return self._objects[name]
