@@ -109,6 +109,8 @@ class Simulator(Env):
                 self._renderer = sapien_core.OptifuserController(self._optifuser)
             elif mode == 'rgb_array':
                 self._renderer = CameraRender(self.scene, mode, width=500, height=500)
+            else:
+                raise NotImplementedError(f"viewer mode {mode} is not implemented")
 
             self.viewer_setup()
             if mode == 'human':
