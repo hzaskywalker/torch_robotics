@@ -10,7 +10,7 @@ def test_sphere():
 
     sphere = r.make_sphere((0, 0, 0), 3, (255, 255, 255))
     r.add_point_light((0, 5, 0), color=(255, 0, 0))
-    r.set_camera_position(0, 0, 10)
+    r.set_camera_position(-10, 0, 0)
 
     for i in tqdm.trange(1000):
         pos = np.random.random((3,))
@@ -23,16 +23,12 @@ def test_arm():
     env, agent = get_env_agent()
     model = build_diff_model(env)
     np.random.seed(3)
-    q = np.random.random((7,))* np.pi * 2
-    agent.set_qpos(q)
-    for i in agent.get_links():
-        print(i.get_pose())
-    img2 = env.render(mode='rgb_array')
 
     from robot import renderer, tr
     r = renderer.Renderer()
     arm = r.make_arm(model.M, model.A)
 
+    q = agent.get_qpos()
     agent.set_qpos(q * 0)
     def get_mesh(i):
         shape = i.get_collision_shapes()
@@ -66,7 +62,6 @@ def test_arm():
     #exit(0)
     ee_sphere = r.make_sphere((0, 0, 0), 0.01, color=(255, 0, 0))
     arm.add_shapes(ee_sphere, local_pose=np.eye(4))
-    arm.set_pose(q)
 
     r.add_point_light([2, 2, 2], [255, 255, 255])
     r.add_point_light([2, -2, 2], [255, 255, 255])
@@ -74,9 +69,38 @@ def test_arm():
     r.set_camera_position(1.2, -0.5, 1.2)
     r.set_camera_rotation(-3.14 - 0.5, -0.2)
 
+    def work():
+        for i in range(24):
+            q = np.random.random((7,))* np.pi * 2
+            arm.set_pose(q)
+            img = r.render()
+
+            agent.set_qpos(q)
+            img2 = env.render(mode='rgb_array')
+            yield np.concatenate((img, img2), axis=1)
+    from robot import U
+    U.write_video(work(), 'video0.avi')
+
+def test_two_renders():
+    from robot import renderer
+    r = renderer.Renderer()
+    #r2 = renderer.Renderer()
+
+    sphere = r.make_sphere((0, 0, 0), 3, (255, 255, 255))
+    r.add_point_light((0, 5, 0), color=(255, 0, 0))
+    r.set_camera_position(-10, 0, 0)
+
+    #sphere = r2.make_sphere((0, 0, 0), 3, (255, 255, 255))
+    #r2.add_point_light((0, 5, 0), color=(255, 0, 0))
+    #r2.set_camera_position(-10, 0, 0)
+
     img = r.render()
-    cv2.imwrite('x.jpg', np.concatenate((img, img2), axis=1))
+    #img2 = r2.render()
+    img2 = img
+    img = np.concatenate((img, img2), axis=1)
+    cv2.imwrite('x.jpg', img)
 
 if __name__:
     #test_sphere()
     test_arm()
+    #test_two_renders()
