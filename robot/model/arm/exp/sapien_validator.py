@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from robot import A, U, tr
 from robot.model.arm.exp.phys_model import ArmModel
+from robot.model.arm.envs.acrobat import GoalAcrobat
 
 def build_diff_model(env, timestep=0.01, max_velocity=100, damping=0., dtype=torch.float64):
     model = ArmModel(2, max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype).cuda()
@@ -90,17 +91,9 @@ def compute_forward(env, agent, q, dq, qf, timestep):
         env.step(qf/50)
     return agent.get_qpos(), agent.get_qvel(), agent.get_qacc()
 
-def sample():
-    env = A.envs.acrobat.GoalAcrobat(timestep=0.025, damping=0)
-    for i in range(10):
-        a = env.action_space.sample()
-        obs = env.step(a)[0]
-    o = obs['observation']
-    print(o[:2], o[2:4], a, env.agent.get_qacc())
-
 
 def get_env_agent(timestep=0.00001, damping=0):
-    env = A.envs.acrobat.GoalAcrobat(timestep=timestep, damping=damping, clip_action=False)
+    env = GoalAcrobat(timestep=timestep, damping=damping, clip_action=False)
     seed = 2
     np.random.seed(seed)
     env.seed(seed)
@@ -196,7 +189,6 @@ def test_integral():
 
 
 if __name__ == '__main__':
-    #sample()
     test_inverse_dynamics()
     test_compute_all()
     #test_integral()

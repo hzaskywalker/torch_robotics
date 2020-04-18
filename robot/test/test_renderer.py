@@ -19,7 +19,7 @@ def test_sphere():
 
 
 def test_arm():
-    from robot.renderer.examples.arm_reach_render import ArmreachRenderer
+    from robot.renderer.examples.armreach import ArmreachRenderer
 
     r = ArmreachRenderer('/dataset/armrender')
     arm = r.get('arm')
@@ -60,8 +60,22 @@ def test_load_render():
     cv2.imshow('x', img)
     cv2.waitKey(0)
 
+def test_acrobat2_render():
+    from robot.renderer.examples.acrobat2 import Acrobat2Render
+    mode = 'rgb_array'
+    r = Acrobat2Render('/dataset/acrobatrenderer', mode)
+
+    for i in range(100):
+        q = np.random.random((2,)) * np.pi * 2
+        r.get('arm').set_pose(q)
+        img = r.render(mode)
+        cv2.imshow('x', img)
+        cv2.waitKey(0)
+
+
 if __name__:
     #test_sphere()
-    test_arm()
+    #test_arm()
     #test_two_renders()
     #test_load_render()
+    test_acrobat2_render()

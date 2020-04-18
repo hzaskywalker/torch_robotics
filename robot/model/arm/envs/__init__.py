@@ -2,7 +2,6 @@ from gym.wrappers import TimeLimit
 
 
 def make(env_name):
-    from . import acrobat
     if env_name == 'acrobat2':
         from .acrobat import GoalAcrobat
         return TimeLimit(GoalAcrobat(), 50)

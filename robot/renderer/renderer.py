@@ -23,7 +23,6 @@ class RigidBody:
         smooth = tm.visual.face_colors is None # xjb hack
         self.tm = tm # we preserve tm for load and save
         self.material = material
-        self.kwargs = {'tm': self.tm, 'material': self.material}
 
         import pyrender
         mesh = pyrender.Mesh.from_trimesh(tm, smooth=smooth)
@@ -42,9 +41,6 @@ class RigidBody:
 class Sphere(RigidBody):
     # we can visit the scene
     def __init__(self, scene, center, radius, color, material=None, subdivisions=2):
-        self.kwargs ={
-            'radius': radius, 'color': color, 'material': material, 'subdivisions': subdivisions
-        }
         mesh = trimesh.primitives.Sphere(radius=radius,
                                          center=(0, 0, 0),
                                          subdivisions=subdivisions)
@@ -53,6 +49,13 @@ class Sphere(RigidBody):
         pose = np.eye(4)
         pose[:3, 3] = center
         super(Sphere, self).__init__(scene, mesh, material, pose)
+
+
+class Capsule(RigidBody):
+    def __init__(self, scene, height, radius, color, pose=np.eye(4), sections=32):
+        mesh = trimesh.primitives.Capsule(height=height, radius=radius, count=sections)
+        mesh.visual.face_colors = color
+        super(Capsule, self).__init__(scene, mesh, None, pose)
 
 
 class Compose:
@@ -81,7 +84,8 @@ class Renderer:
         self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
         self._viewers = OrderedDict()
 
-        #camera = pyrender.PerspectiveCamera(yfov=1.1, aspectRatio=1)
+        #camera = pyrender.(yfov=1.1, aspectRatio=1)
+        #camera = pyrender.OrthographicCamera()
         camera = pyrender.PerspectiveCamera(yfov=1.4)#, aspectRatio=1.414)
         self.camera_node = pyrender.Node(camera=camera, matrix=camera_pose)
         self.scene.add_node(self.camera_node)
@@ -200,6 +204,10 @@ class Renderer:
 
     def make_sphere(self, center, r, color, material=None, name=None):
         return self.register(Sphere(self.scene, center, r, color, material), name)
+
+    def make_capsule(self, height, radius, color, pose, name=None):
+        return self.register(
+            Capsule(self.scene, height, radius, color, pose), name)
 
     def make_compose(self, name=None):
         return self.register(Compose(), name)
