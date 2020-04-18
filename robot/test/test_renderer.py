@@ -87,20 +87,28 @@ def test_screw():
     arm = r.get('arm')
     screw = r.screw_arm(arm.M[0].detach().cpu().numpy(), arm.A[0].detach().cpu().numpy(), name='screw')
 
-    if mode == 'human' or mode == 'interactive':
-        for i in range(20):
-            q = np.random.random((7,)) * np.pi * 2
-            arm.set_pose(q)
-            screw.set_pose(q)
-            r.render(mode)
-    else:
-        for i in range(20):
-            q = np.random.random((7,)) * np.pi * 2
-            r.get('arm').set_pose(q)
-            screw.set_pose(q)
-            img = r.render(mode)
-            cv2.imshow('x', img)
-            cv2.waitKey(1)
+    r.set_camera_position(1.5, -0.5, 1.)
+
+    #a = np.random.random((7,)) * np.pi * 2
+    a = np.zeros((7,))
+    #b = np.random.random((7,)) * np.pi * 2
+    for i in range(7):
+        b = a.copy()
+        k = -np.pi / 3
+        a[i] = k
+        #b[3] = np.random.random() * np.pi * 2
+        b[i] = np.pi *2 + k
+
+        for j in range(1):
+            for k in range(100):
+                q = a + (b-a)/100 * k
+                arm.set_pose(q)
+                screw.set_pose(q)
+                img = r.render(mode)
+                if mode == 'rgb_array':
+                    cv2.imshow('x', img)
+                    cv2.waitKey(0)
+        a[i] = np.pi * 2 + k
 
 
 if __name__:

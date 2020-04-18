@@ -163,7 +163,8 @@ class ScrewArm(Arm):
             #inertia, mass = g[[0, 1, 2], [0, 1, 2]], g[3, 3]
 
             cmass = [Box(scene, (scale, scale, scale), (0, 255, 0, 127), np.eye(4)),
-                     Axis(scene, np.eye(4), scale=axis_scale)]
+                     #Axis(scene, np.eye(4), scale=axis_scale)
+                 ]
             # visualize cmass...
 
             # w, q -> screw=(w,-wxq)
@@ -171,16 +172,15 @@ class ScrewArm(Arm):
             w, wxq = screw[:3], -screw[3:]
             #self.screw.append()
             q = np.cross(wxq, w)
-            t = np.array([w, wxq/np.linalg.norm(wxq), q/np.linalg.norm(q)])
+            t = np.array([w, wxq/np.linalg.norm(wxq), q/np.linalg.norm(q)]).T
             pose = np.eye(4)
             pose[:3,:3] = t
             pose[:3, 3] = q
-            """
+
             screw = [
-                Sphere(scene, q, scale, (0, 0, 255, 127)),
-                Axis(scene, pose, axis_scale)
-            ]"""
-            screw = []
+                Sphere(scene, q, scale * 0.7, (255, 0, 255, 255)),
+                Axis(scene, pose, axis_scale*3)
+            ]
             self.links.append(Compose(*cmass, *screw))
 
 
