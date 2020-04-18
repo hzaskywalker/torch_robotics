@@ -21,8 +21,13 @@ def test_sphere():
 def test_arm():
     from robot.renderer.examples.armreach import ArmreachRenderer
 
-    r = ArmreachRenderer('/dataset/armrender')
+    mode = sys.argv[1]
+    r = ArmreachRenderer('/dataset/armrender', mode=mode)
     arm = r.get('arm')
+    q = np.random.random((7,)) * np.pi * 2
+    arm.set_pose(q)
+    r.render(mode=mode)
+    exit(0)
 
     def work():
         for i in range(24):
@@ -64,6 +69,7 @@ def test_acrobat2_render():
     from robot.renderer.examples.acrobat2 import Acrobat2Render
     mode = 'rgb_array'
     r = Acrobat2Render('/dataset/acrobatrenderer', mode)
+    r.render(mode)
 
     for i in range(100):
         q = np.random.random((2,)) * np.pi * 2
@@ -75,7 +81,7 @@ def test_acrobat2_render():
 
 if __name__:
     #test_sphere()
-    #test_arm()
+    test_arm()
     #test_two_renders()
     #test_load_render()
-    test_acrobat2_render()
+    #test_acrobat2_render()

@@ -86,7 +86,7 @@ class Renderer:
 
         #camera = pyrender.(yfov=1.1, aspectRatio=1)
         #camera = pyrender.OrthographicCamera()
-        camera = pyrender.PerspectiveCamera(yfov=1.4)#, aspectRatio=1.414)
+        camera = pyrender.PerspectiveCamera(yfov=1.4, znear=0.005)#, aspectRatio=1.414)
         self.camera_node = pyrender.Node(camera=camera, matrix=camera_pose)
         self.scene.add_node(self.camera_node)
         self._set_camera_pose(camera_pose)
