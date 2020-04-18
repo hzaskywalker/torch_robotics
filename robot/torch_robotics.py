@@ -277,6 +277,7 @@ def fk_in_space(theta, M, A):
     :return:
     """
     n = theta.shape[1]
+    assert n == M.shape[1] - 1
     T = eyes_like(M[..., 0, :, :], 4)
     outputs = []
     for i in range(n):

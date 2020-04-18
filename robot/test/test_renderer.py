@@ -22,7 +22,7 @@ def test_arm():
     from robot.renderer.examples.arm_render import ArmreachRenderer
 
     mode = sys.argv[1]
-    r = ArmreachRenderer('/dataset/armrender', mode=mode)
+    r = ArmreachRenderer('/dataset/armrender')
     arm = r.get('arm')
     q = np.random.random((7,)) * np.pi * 2
     arm.set_pose(q)
@@ -67,7 +67,7 @@ def test_load_render():
 
 def test_acrobat2_render():
     from robot.renderer.examples.acrobat2_render import Acrobat2Render
-    mode = 'rgb_array'
+    mode = sys.argv[1]
     r = Acrobat2Render('/dataset/acrobatrenderer', mode)
     r.render(mode)
 
@@ -79,9 +79,34 @@ def test_acrobat2_render():
         cv2.waitKey(0)
 
 
+def test_screw():
+    from robot.renderer.examples.arm_render import ArmreachRenderer
+    mode = sys.argv[1]
+    r = ArmreachRenderer('/dataset/armreachrenderer')
+
+    arm = r.get('arm')
+    screw = r.screw_arm(arm.M[0].detach().cpu().numpy(), arm.A[0].detach().cpu().numpy(), name='screw')
+
+    if mode == 'human' or mode == 'interactive':
+        for i in range(20):
+            q = np.random.random((7,)) * np.pi * 2
+            arm.set_pose(q)
+            screw.set_pose(q)
+            r.render(mode)
+    else:
+        for i in range(20):
+            q = np.random.random((7,)) * np.pi * 2
+            r.get('arm').set_pose(q)
+            screw.set_pose(q)
+            img = r.render(mode)
+            cv2.imshow('x', img)
+            cv2.waitKey(1)
+
+
 if __name__:
     #test_sphere()
     #test_arm()
     #test_two_renders()
     #test_load_render()
-    test_acrobat2_render()
+    #test_acrobat2_render()
+    test_screw()

@@ -148,8 +148,7 @@ class Dataset:
             b = int(i.split('/')[-1].split('.')[0])
             idx.append(b)
         idx = sorted(idx)
-        #for i in idx:
-        for i in [19]:
+        for i in idx:
             i = f'{i}.pkl'
             print('load Dataset', i)
             with open(os.path.join(path, i), 'rb') as f:

@@ -54,9 +54,9 @@ class Sphere(RigidBody):
 class Capsule(RigidBody):
     def __init__(self, scene, height, radius, color=None, pose=np.eye(4), sections=32):
         mesh = trimesh.primitives.Capsule(height=height, radius=radius, sections=sections, transform=np.array(
-            [[1, 0, 0, 0],
-             [0, 0, 1, -height/2],
+            [[0, 0, 1, -height/2],
              [0, 1, 0, 0],
+             [1, 0, 0, 0],
              [0, 0, 0, 1]]
         ))
         if color is None:
@@ -65,9 +65,18 @@ class Capsule(RigidBody):
         super(Capsule, self).__init__(scene, mesh, pose)
 
 
+class Box(RigidBody):
+    def __init__(self, scene, size, color=None, pose=np.eye(4)):
+        if color is None:
+            color = np.random.randint(0, 255, size=(3,))
+        mesh = trimesh.primitives.Box(extents=size)
+        mesh.visual.vertex_colors = color
+        super(Box, self).__init__(scene, mesh, pose)
+
+
 class Compose:
-    def __init__(self):
-        self.shape = []
+    def __init__(self, *args):
+        self.shape = list(args)
 
     def add_shapes(self, shape):
         # Note the pose is in the local frame
@@ -76,6 +85,44 @@ class Compose:
     def set_pose(self, pose):
         for a in self.shape:
             a.set_pose(pose)
+
+
+def Line(scene, start, end, radius, color):
+    start = np.array(start)
+    end = np.array(end)
+    vec = start - end
+    l = np.linalg.norm(start-end)
+
+    a, b = np.array([1, 0, 0]), vec / l
+    # find quat such that qmult(quat, [1, 0, 0]) = vec
+    import transforms3d
+    if np.linalg.norm(a - b) < 1e-6:
+        pose = np.eye(4)
+    elif np.linalg.norm(a + b) < 1e-6:
+        pose = transforms3d.quaternions.quat2mat(np.array([0, 0, 0, 1]))
+    else:
+        v = np.cross(a, b)  # rotation along v
+        theta = np.arccos(np.dot(a, b))
+        pose = transforms3d.axangles.axangle2mat(v, theta)
+    matrix = np.eye(4)
+    matrix[:3,:3] = pose
+    matrix[:3, 3] = (start+end)/2
+    return Capsule(scene, l, radius, color, pose=matrix)
+
+
+def Axis(scene, pose, scale=1., radius=None, xyz=None):
+    if xyz is None:
+        xyz = (scale, scale, scale)
+    if radius is None:
+        radius = max(xyz) * 0.03
+
+    start = pose[:3, 3]
+    return Compose(
+        Line(scene, start, (pose @ np.array([xyz[0], 0, 0, 1]))[:3], radius, (255, 0, 0)),
+        Line(scene, start, (pose @ np.array([0, xyz[1], 0, 1]))[:3], radius, (0, 255, 0)),
+        Line(scene, start, (pose @ np.array([0, 0, xyz[2], 1]))[:3], radius, (0, 0, 255))
+    )
+
 
 class Arm:
     # currently we only consider the robot arm
@@ -93,7 +140,7 @@ class Arm:
 
     def fk(self, q):
         q = totensor(q)[None,:]
-        return fk_in_space(q, self.M, self.A)[0] # (n+1, 4, 4)
+        return fk_in_space(q, self.M, self.A)[0].detach().cpu().numpy() # (n+1, 4, 4)
 
     def set_pose(self, q):
         # Notice that set pose is different to set qpos
@@ -101,7 +148,47 @@ class Arm:
         for T, shape in zip(Ts, self.shapes):
             if shape is None:
                 continue
-            shape.set_pose(T.detach().cpu().numpy())
+            shape.set_pose(T)
+
+
+class ScrewArm(Arm):
+    def __init__(self, scene, M, A, G=None, scale=0.1, axis_scale=0.1):
+        super(ScrewArm, self).__init__(scene, M, A)
+
+        if G is not None:
+            self.G = totensor(G)[None, :]
+        self.links = []
+
+        for screw in A:
+            #inertia, mass = g[[0, 1, 2], [0, 1, 2]], g[3, 3]
+
+            cmass = [Box(scene, (scale, scale, scale), (0, 255, 0, 127), np.eye(4)),
+                     Axis(scene, np.eye(4), scale=axis_scale)]
+            # visualize cmass...
+
+            # w, q -> screw=(w,-wxq)
+            # q = o - p, where <o-p,w>=90, p=cmass
+            w, wxq = screw[:3], -screw[3:]
+            #self.screw.append()
+            q = np.cross(wxq, w)
+            t = np.array([w, wxq/np.linalg.norm(wxq), q/np.linalg.norm(q)])
+            pose = np.eye(4)
+            pose[:3,:3] = t
+            pose[:3, 3] = q
+            """
+            screw = [
+                Sphere(scene, q, scale, (0, 0, 255, 127)),
+                Axis(scene, pose, axis_scale)
+            ]"""
+            screw = []
+            self.links.append(Compose(*cmass, *screw))
+
+
+    def set_pose(self, q):
+        super(ScrewArm, self).set_pose(q)
+        Ts = self.fk(q)
+        for T, link in zip(Ts, self.links):
+            link.set_pose(T)
 
 
 class Renderer:
@@ -111,6 +198,9 @@ class Renderer:
 
     def __init__(self, camera_pose=np.eye(4), ambient_light=(0.5, 0.5, 0.5),
                  bg_color=(0, 0, 0)):
+        import pyglet
+        pyglet.options['shadow_window'] = False
+
         import pyrender
         self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
         self._viewers = OrderedDict()
@@ -133,23 +223,12 @@ class Renderer:
 
     def _set_camera_pose(self, matrix):
         # pyrender: right angle, look to -z axis, x is the right
-        """
-        print('x', matrix@np.array([1, 0, 0, 1]))
-        print('y', matrix@np.array([0, 1, 0, 1]))
-        print('z', matrix@np.array([0, 0, 1, 1]))
-        """
         t = matrix.copy()
         t[:3,:3] =matrix[:3,:3] @ np.array(
             [[0, 0, -1],
              [-1, 0, 0],
              [0, 1, 0]]
         )
-        """
-        print('x', t@np.array([0, 0, -1, 1]))
-        print('y', t@np.array([-1, 0, 0, 1]))
-        print('z', t@np.array([0, 1, 0, 1]))
-        print("================")
-        """
         self.set_pose(self.camera_node, pose=t)
 
     def _get_camera_pose(self):
@@ -191,12 +270,12 @@ class Renderer:
         _viewer = self._viewers.get(mode)
         if _viewer is None:
             if mode == 'human':
-                _viewer = pyrender.Viewer(self.scene) # , run_in_thread=True
+                _viewer = pyrender.Viewer(self.scene, run_in_thread=True)
+                _viewer.render_lock.acquire()
+            elif mode == 'interactive':
+                _viewer = pyrender.Viewer(self.scene)
             elif mode == 'rgb_array':
                 try:
-                    os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
-                    import importlib
-                    importlib.reload(pyrender)
                     _viewer = pyrender.OffscreenRenderer(width, height)
                 except AttributeError:
                     raise Exception("export PYOPENGL_PLATFORM=osmesa for off-screen render!!!!")
@@ -218,15 +297,19 @@ class Renderer:
                 _viewer = self._get_viewer(mode, width, height)
                 color, depth = _viewer.render(self.scene)
             return color[...,::-1]
+        elif mode=='human':
+            _viewer.render_lock.release()
+            import time
+            time.sleep(1./24) # sleep for 1./24 second for render...
+            _viewer.render_lock.acquire()
         else:
-            #_viewer.render_lock.release()
-            #time.sleep(1./24) # sleep for 1./24 second for render...
-            #_viewer.render_lock.acquire()
-            return None
+            self._viewers[mode] = None
+
 
     def register(self, obj, name):
         if name is None:
             name = f'obj{len(self._objects)}'
+        assert name not in self._objects
         self._objects[name] = obj
         return obj
 
@@ -240,14 +323,26 @@ class Renderer:
         return self.register(
             Capsule(self.scene, height, radius, color, pose=pose), name)
 
+    def box(self, size, color, pose, name=None):
+        return self.register(Box(size, color, pose), name=name)
+
     def compose(self, *args, name=None):
         out = self.register(Compose(), name)
         for i in args:
             out.add_shapes(i)
         return out
 
+    def line(self, start, end, radius, color, name=None):
+        return self.register(Line(self.scene, start, end, radius, color), name=name)
+
+    def axis(self, pose, scale=1, radius=None, xyz=None, name=None):
+        return self.register(Axis(self.scene, pose, scale, radius, xyz), name=name)
+
     def make_arm(self, M, A, name=None):
         return self.register(Arm(self.scene, M, A), name)
+
+    def screw_arm(self, M, A, name=None):
+        return self.register(ScrewArm(self.scene, M, A, None), name)
 
     def save(self, path):
         for k in self._viewers.values():
@@ -266,3 +361,11 @@ class Renderer:
 
     def get(self, name):
         return self._objects[name]
+
+    def __del__(self):
+        if 'human' in self._viewers:
+            v = self._viewers['human']
+            v.render_lock.release()
+            v.close_external()
+            while v.is_active:
+                pass
