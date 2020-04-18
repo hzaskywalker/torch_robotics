@@ -9,7 +9,7 @@ def test_sphere():
     from robot import renderer
     r = renderer.Renderer()
 
-    sphere = r.make_sphere((0, 0, 0), 3, (255, 255, 255))
+    sphere = r.sphere((0, 0, 0), 3, (255, 255, 255))
     r.add_point_light((0, 5, 0), color=(255, 0, 0))
     r.set_camera_position(-10, 0, 0)
 
@@ -19,7 +19,7 @@ def test_sphere():
 
 
 def test_arm():
-    from robot.renderer.examples.armreach import ArmreachRenderer
+    from robot.renderer.examples.arm_render import ArmreachRenderer
 
     mode = sys.argv[1]
     r = ArmreachRenderer('/dataset/armrender', mode=mode)
@@ -44,7 +44,7 @@ def test_two_renders():
     r = renderer.Renderer()
     #r2 = renderer.Renderer()
 
-    sphere = r.make_sphere((0, 0, 0), 3, (255, 255, 255))
+    sphere = r.sphere((0, 0, 0), 3, (255, 255, 255))
     r.add_point_light((0, 5, 0), color=(255, 0, 0))
     r.set_camera_position(-10, 0, 0)
 
@@ -66,7 +66,7 @@ def test_load_render():
     cv2.waitKey(0)
 
 def test_acrobat2_render():
-    from robot.renderer.examples.acrobat2 import Acrobat2Render
+    from robot.renderer.examples.acrobat2_render import Acrobat2Render
     mode = 'rgb_array'
     r = Acrobat2Render('/dataset/acrobatrenderer', mode)
     r.render(mode)
@@ -81,7 +81,7 @@ def test_acrobat2_render():
 
 if __name__:
     #test_sphere()
-    test_arm()
+    #test_arm()
     #test_two_renders()
     #test_load_render()
-    #test_acrobat2_render()
+    test_acrobat2_render()

@@ -14,25 +14,25 @@ import pickle
 
 import transforms3d
 from collections import OrderedDict
-from .arm_visual import Arm
+from ..torch_robotics import totensor, fk_in_space
 
 
 class RigidBody:
-    def __init__(self, scene, tm, material=None, pose=np.eye(4)):
+    def __init__(self, scene, tm, pose=np.eye(4)):
         # tm: trimesh.mesh
         smooth = tm.visual.face_colors is None # xjb hack
         self.tm = tm # we preserve tm for load and save
-        self.material = material
 
         import pyrender
         mesh = pyrender.Mesh.from_trimesh(tm, smooth=smooth)
         self.scene = scene
+        self.local_pose = pose
         self.node = pyrender.Node(mesh=mesh, matrix=pose)
         self.scene.add_node(self.node)
 
     def set_pose(self, pose):
         # the input is a matrix
-        self.scene.set_pose(self.node, pose=pose)
+        self.scene.set_pose(self.node, pose=pose @ self.local_pose)
 
     def get_pose(self):
         return self.node.matrix
@@ -40,37 +40,68 @@ class RigidBody:
 
 class Sphere(RigidBody):
     # we can visit the scene
-    def __init__(self, scene, center, radius, color, material=None, subdivisions=2):
+    def __init__(self, scene, center, radius, color, subdivisions=2):
         mesh = trimesh.primitives.Sphere(radius=radius,
                                          center=(0, 0, 0),
                                          subdivisions=subdivisions)
-        mesh.visual.face_colors = color
+        mesh.visual.vertex_colors = color
 
         pose = np.eye(4)
         pose[:3, 3] = center
-        super(Sphere, self).__init__(scene, mesh, material, pose)
+        super(Sphere, self).__init__(scene, mesh, pose)
 
 
 class Capsule(RigidBody):
-    def __init__(self, scene, height, radius, color, pose=np.eye(4), sections=32):
-        mesh = trimesh.primitives.Capsule(height=height, radius=radius, count=sections)
-        mesh.visual.face_colors = color
-        super(Capsule, self).__init__(scene, mesh, None, pose)
+    def __init__(self, scene, height, radius, color=None, pose=np.eye(4), sections=32):
+        mesh = trimesh.primitives.Capsule(height=height, radius=radius, sections=sections, transform=np.array(
+            [[1, 0, 0, 0],
+             [0, 0, 1, -height/2],
+             [0, 1, 0, 0],
+             [0, 0, 0, 1]]
+        ))
+        if color is None:
+            color = np.random.randint(0, 255, size=(3,))
+        mesh.visual.vertex_colors = color
+        super(Capsule, self).__init__(scene, mesh, pose)
 
 
 class Compose:
     def __init__(self):
         self.shape = []
-        self.local_pose = []
 
-    def add_shapes(self, shape, local_pose):
+    def add_shapes(self, shape):
         # Note the pose is in the local frame
         self.shape.append(shape)
-        self.local_pose.append(local_pose)
 
     def set_pose(self, pose):
-        for a, b in zip(self.shape, self.local_pose):
-            a.set_pose(pose @ b)
+        for a in self.shape:
+            a.set_pose(pose)
+
+class Arm:
+    # currently we only consider the robot arm
+    # we will consider the general articulator later
+
+    def __init__(self, scene, M, A):
+        self.scene = scene
+        self.M = totensor(M)[None,:]
+        self.A = totensor(A)[None,:]
+        self.shapes = []
+
+    def add_shapes(self, shape):
+        # Note the pose is in the local frame
+        self.shapes.append(shape)
+
+    def fk(self, q):
+        q = totensor(q)[None,:]
+        return fk_in_space(q, self.M, self.A)[0] # (n+1, 4, 4)
+
+    def set_pose(self, q):
+        # Notice that set pose is different to set qpos
+        Ts = self.fk(q)
+        for T, shape in zip(Ts, self.shapes):
+            if shape is None:
+                continue
+            shape.set_pose(T.detach().cpu().numpy())
 
 
 class Renderer:
@@ -78,8 +109,8 @@ class Renderer:
     # e.g., the renderer doesn't use a dict to maintain all objects in the scene
     #    because it has already be maintained by the pyrender.Scene already
 
-    def __init__(self, camera_pose=np.eye(4), ambient_light=(0.02, 0.02, 0.02),
-                 bg_color=(32, 32, 32)):
+    def __init__(self, camera_pose=np.eye(4), ambient_light=(0.5, 0.5, 0.5),
+                 bg_color=(0, 0, 0)):
         import pyrender
         self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
         self._viewers = OrderedDict()
@@ -147,10 +178,10 @@ class Renderer:
         t[:3,:3] = mat @ matrix[:3,:3]
         self._set_camera_pose(t)
 
-    def add_point_light(self, position, color):
+    def add_point_light(self, position, color, intensity=18.0):
         import pyrender
 
-        light = pyrender.PointLight(color=color, intensity=18.0)
+        light = pyrender.PointLight(color=color, intensity=intensity)
         t = np.eye(4)
         t[:3,3] = position
         self.scene.add(light, pose=t)
@@ -199,18 +230,21 @@ class Renderer:
         self._objects[name] = obj
         return obj
 
-    def make_mesh(self, mesh, pose=np.eye(4), name=None):
-        return self.register(RigidBody(self.scene, mesh, pose), name)
+    def trimesh(self, mesh, pose=np.eye(4), name=None):
+        return self.register(RigidBody(self.scene, mesh, pose=pose), name)
 
-    def make_sphere(self, center, r, color, material=None, name=None):
-        return self.register(Sphere(self.scene, center, r, color, material), name)
+    def sphere(self, center, r, color, name=None):
+        return self.register(Sphere(self.scene, center, r, color), name)
 
-    def make_capsule(self, height, radius, color, pose, name=None):
+    def capsule(self, height, radius, color, pose, name=None):
         return self.register(
-            Capsule(self.scene, height, radius, color, pose), name)
+            Capsule(self.scene, height, radius, color, pose=pose), name)
 
-    def make_compose(self, name=None):
-        return self.register(Compose(), name)
+    def compose(self, *args, name=None):
+        out = self.register(Compose(), name)
+        for i in args:
+            out.add_shapes(i)
+        return out
 
     def make_arm(self, M, A, name=None):
         return self.register(Arm(self.scene, M, A), name)
