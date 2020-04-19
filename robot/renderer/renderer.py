@@ -334,6 +334,7 @@ class Renderer:
                     _viewer.close_external()
                     while _viewer.is_active:
                         pass
+                self._viewers['human'] = None
 
             if mode == 'human':
                 class DaemonViewer(pyrender.Viewer):
@@ -456,11 +457,6 @@ class Renderer:
             self._viewers[a].close()
             del self._viewers[a]
 
-        #for i in self.scene.nodes:
-        #    if i.mesh is not None:
-        #        for j in i.mesh.primitives:
-        #            j.delete()
-
         self._viewers = OrderedDict()
         print('save...')
         with open(path, 'wb') as f:
@@ -469,7 +465,14 @@ class Renderer:
     @classmethod
     def load(cls, path):
         with open(path, 'rb') as f:
-            return pickle.load(f)
+            r = pickle.load(f)
+
+        for i in r.scene.nodes:
+            if i.mesh is not None:
+                for j in i.mesh.primitives:
+                    j.delete()
+        return r
+
 
     def get(self, name):
         return self._objects[name]
