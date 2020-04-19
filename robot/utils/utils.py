@@ -31,7 +31,7 @@ def batched_index_select(input, dim, index):
     return torch.gather(input, dim, index)
 
 
-def write_video(gen, path=None):
+def write_video(gen, path=None, waitTime=1):
     out = None
     for img in gen:
         if path is not None:
@@ -41,7 +41,7 @@ def write_video(gen, path=None):
             out.write(img)
         else:
             cv2.imshow('x', img)
-            key = cv2.waitKey(1)
+            key = cv2.waitKey(waitTime)
             if key == ord('q'):
                 break
     if out is not None:

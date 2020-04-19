@@ -203,7 +203,7 @@ def test_model_by_training():
 
     #dataset = A.train_utils.Dataset('/dataset/diff_acrobat')
     #model = ArmModel(2).cuda()
-    from robot.model.arm.exp.opt import train
+    from robot.model.arm.exp.learn_acrobat_qacc import train
     dataset = A.train_utils.Dataset('/dataset/acrobat2')
     model = ArmModel(2, max_velocity=200, timestep=0.025, damping=0.5).cuda()
 

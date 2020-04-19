@@ -13,10 +13,20 @@ def test_sphere():
     sphere = r.sphere((0, 0, 0), 3, (255, 255, 255))
     r.add_point_light((0, 5, 0), color=(255, 0, 0))
     r.set_camera_position(-10, 0, 0)
+    from robot import A
+    env = A.train_utils.make('acrobat2')
 
-    pos = np.random.random((3,))
-    sphere.set_center(pos)
-    img = r.render(mode='human')
+    for i in range(20):
+        pos = np.random.random((3,))
+        sphere.set_pose(r.translate(pos))
+        img = r.render(mode='rgb_array')
+
+    r.sphere((3, 0, 0), 1, (255, 255,255))
+
+    for i in range(30):
+        r.render('human')
+    img = r.render(mode='rgb_array')
+    #env.render()
 
 
 def test_arm():
@@ -75,7 +85,7 @@ def test_acrobat2_render():
 
     r.render(mode)
 
-    for i in range(100):
+    for i in range(20):
         q = np.random.random((2,)) * np.pi * 2
         r.get('arm').set_pose(q)
         img = r.render(mode)
@@ -106,8 +116,8 @@ def test_screw():
         b[i] = np.pi *2 + k
 
         for j in range(1):
-            for k in range(100):
-                q = a + (b-a)/100 * k
+            for k in range(20):
+                q = a + (b-a)/20 * k
                 arm.set_pose(q)
                 screw.set_pose(q)
                 img = r.render(mode)
@@ -115,6 +125,7 @@ def test_screw():
                     cv2.imshow('x', img)
                     cv2.waitKey(0)
         a[i] = np.pi * 2 + k
+    cv2.imwrite('1.jpg', r.render(mode='rgb_array'))
 
 
 def test_cylinder():

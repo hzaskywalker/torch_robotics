@@ -100,13 +100,8 @@ class Compose:
         for a in self.shape:
             a.set_pose(pose)
 
-
-def Line(scene, start, end, radius, color):
-    start = np.array(start)
-    end = np.array(end)
-    vec = start - end
-    l = np.linalg.norm(start-end)
-
+def vec2pose(vec):
+    l = np.linalg.norm(vec)
     a, b = np.array([1, 0, 0]), vec / l
     # find quat such that qmult(quat, [1, 0, 0]) = vec
     import transforms3d
@@ -118,8 +113,15 @@ def Line(scene, start, end, radius, color):
         v = np.cross(a, b)  # rotation along v
         theta = np.arccos(np.dot(a, b))
         pose = transforms3d.axangles.axangle2mat(v, theta)
+    return pose
+
+def Line(scene, start, end, radius, color):
+    start = np.array(start)
+    end = np.array(end)
+    vec = start - end
+    l = np.linalg.norm(start-end)
     matrix = np.eye(4)
-    matrix[:3,:3] = pose
+    matrix[:3,:3] = vec2pose(vec)
     matrix[:3, 3] = (start+end)/2
     return Capsule(scene, l, radius, color, pose=matrix)
 
@@ -138,6 +140,7 @@ def Axis(scene, pose, scale=1., radius=None, xyz=None):
     )
 
 
+
 class Arm:
     # currently we only consider the robot arm
     # we will consider the general articulator later
@@ -147,6 +150,7 @@ class Arm:
         self.M = totensor(M)[None,:]
         self.A = totensor(A)[None,:]
         self.shapes = []
+        self.set_q = None
 
     def add_shapes(self, shape):
         # Note the pose is in the local frame
@@ -164,6 +168,29 @@ class Arm:
                 continue
             shape.set_pose(T)
 
+    def update(self, M, A):
+        self.M = totensor(M)[None, :]
+        self.A = totensor(A)[None, :]
+
+
+    def loop(self, K=20, start=-np.pi/3):
+        dof = self.A.shape[1]
+        a = np.zeros((dof,))
+        #b = np.random.random((7,)) * np.pi * 2
+        for i in range(dof):
+            b = a.copy()
+            kk = -start
+
+            a[i] = kk
+            b[i] = np.pi *2 + kk
+
+            for j in range(1):
+                for k in range(K):
+                    q = a + (b-a)/K * k
+                    self.set_pose(q)
+                    yield q
+            a[i] = np.pi * 2 + kk
+
 
 class ScrewArm(Arm):
     def __init__(self, scene, M, A, G=None, scale=0.1, axis_scale=0.1):
@@ -176,27 +203,35 @@ class ScrewArm(Arm):
         for screw in A:
             #inertia, mass = g[[0, 1, 2], [0, 1, 2]], g[3, 3]
 
-            cmass = [Box(scene, (scale * 0.7, scale * 0.7, scale * 0.7), (0, 255, 0, 255), np.eye(4)),
-                     Axis(scene, np.eye(4), scale=axis_scale)
-                 ]
+            cmass_box = Box(scene, (scale * 0.7, scale * 0.7, scale * 0.7), (0, 255, 0, 255), np.eye(4))
+            cmass_axis = Axis(scene, np.eye(4), scale=axis_scale)
             # visualize cmass...
 
-            # w, q -> screw=(w,-wxq)
-            # q = o - p, where <o-p,w>=90, p=cmass
-            w, wxq = screw[:3], -screw[3:]
-            #self.screw.append()
-            q = np.cross(wxq, w)
-            t = np.array([w, wxq/np.linalg.norm(wxq), q/np.linalg.norm(q)]).T
-            pose = np.eye(4)
-            pose[:3,:3] = t
-            pose[:3, 3] = q
+            pose = self.screw_pose(screw)
+            screw = Cylinder(scene, height=scale * 1.5, radius=scale * 0.3, color=(255, 0, 0, 255), pose=pose)
+            self.links.append(Compose(cmass_box, cmass_axis, screw))
 
-            screw = [
-                #Sphere(scene, q, scale * 0.7, (255, 0, 255, 255)),
-                #Axis(scene, pose, axis_scale*3)
-                Cylinder(scene, height=scale * 1.5, radius=scale*0.3, color=(255, 0, 0, 255), pose=pose)
-            ]
-            self.links.append(Compose(*cmass, *screw))
+    def screw_pose(self, screw):
+        # w, q -> screw=(w,-wxq)
+        # q = o - p, where <o-p,w>=90, p=cmass
+        w, wxq = screw[:3], -screw[3:]
+        # self.screw.append()
+        q = np.cross(wxq, w)
+        if np.linalg.norm(wxq) > 1e-16:
+            t = np.array([w, wxq / np.linalg.norm(wxq), q / np.linalg.norm(q)]).T
+        else:
+            t, q = vec2pose(w), np.zeros((3,))
+        pose = np.eye(4)
+        pose[:3, :3] = t
+        pose[:3, 3] = q
+        return pose
+
+    def update(self, M, A):
+        super(ScrewArm, self).update(M, A)
+        import logging
+        for link, a in zip(self.links, A):
+            assert isinstance(link.shape[-1], Cylinder)
+            link.shape[-1].local_pose = self.screw_pose(a)
 
     def set_pose(self, q):
         super(ScrewArm, self).set_pose(q)
@@ -212,8 +247,9 @@ class Renderer:
 
     def __init__(self, camera_pose=np.eye(4), ambient_light=(0.5, 0.5, 0.5),
                  bg_color=(0, 0, 0)):
-        import pyglet
-        pyglet.options['shadow_window'] = False
+        #This is not necessasry for Teamviewer of dummy x videos..
+        #import pyglet
+        #pyglet.options['shadow_window'] = False
 
         import pyrender
         self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
@@ -278,20 +314,50 @@ class Renderer:
         t[:3,3] = position
         self.scene.add(light, pose=t)
 
+    def delete_rgb_viewer(self):
+        _viewer = self._viewers.get('rgb_array')
+        if _viewer is not None:
+            # 我能怎么办啊。。我也很绝望啊。。。
+            _viewer.delete()
+            self._viewers['rgb_array'] = None
+
     def _get_viewer(self, mode, width=500, height=500):
         import pyrender
         _viewer = self._viewers.get(mode)
         if _viewer is None:
+            if mode == 'human' or mode == 'interactive':
+                self.delete_rgb_viewer()
+
+            if mode == 'rgb_array':
+                _viewer = self._viewers.get('human')
+                if _viewer is not None:
+                    _viewer.close_external()
+                    while _viewer.is_active:
+                        pass
+
             if mode == 'human':
-                _viewer = pyrender.Viewer(self.scene, run_in_thread=True)
+                class DaemonViewer(pyrender.Viewer):
+                    def __init__(self, *args, **kwargs):
+                        super(DaemonViewer, self).__init__(*args, **kwargs, run_in_thread=False)
+
+                        from threading import Thread
+                        self._thread = Thread(target=self._init_and_start_app2)
+                        self._thread.daemon = True # some times it will block.. very strange
+                        # I should never try to solve all opengl problems because they are tooooooo stupid....
+                        self._thread.start()
+
+                    def _init_and_start_app(self):
+                        pass
+
+                    def _init_and_start_app2(self):
+                        super(DaemonViewer, self)._init_and_start_app()
+
+                _viewer = DaemonViewer(self.scene)
                 _viewer.render_lock.acquire()
             elif mode == 'interactive':
                 _viewer = pyrender.Viewer(self.scene)
             elif mode == 'rgb_array':
-                try:
-                    _viewer = pyrender.OffscreenRenderer(width, height)
-                except AttributeError:
-                    raise Exception("export PYOPENGL_PLATFORM=osmesa for off-screen render!!!!")
+                _viewer = pyrender.OffscreenRenderer(width, height)
             else:
                 raise NotImplementedError(f"viewer mode {mode} is not implemented")
 
@@ -301,14 +367,7 @@ class Renderer:
     def render(self, mode='rgb_array', width=500, height=500):
         _viewer = self._get_viewer(mode, width, height)
         if mode == 'rgb_array':
-            try:
-                color, depth = _viewer.render(self.scene)
-            except:
-                # TODO: try twice.. very ugly hack as I found I can't use sapien and pyrender together
-                _viewer.delete()
-                self._viewers[mode] = None
-                _viewer = self._get_viewer(mode, width, height)
-                color, depth = _viewer.render(self.scene)
+            color, depth = _viewer.render(self.scene)
             return color[...,::-1]
         elif mode=='human':
             _viewer.render_lock.release()
@@ -357,17 +416,17 @@ class Renderer:
     def make_arm(self, M, A, name=None):
         return self.register(Arm(self.scene, M, A), name)
 
-    def screw_arm(self, M, A, name=None):
-        return self.register(ScrewArm(self.scene, M, A, None), name)
+    def screw_arm(self, M, A, scale=0.1, name=None):
+        return self.register(ScrewArm(self.scene, M, A, None, scale=scale), name)
+
+    def identity(self):
+        return np.eye(4)
 
     def x2y(self):
         return np.array([[0, 1, 0, 0],
                          [1, 0, 0, 0],
                          [0, 0, 1, 0],
                          [0, 0, 0, 1],], dtype=np.float32)
-
-    def identity(self):
-        return np.eye(4)
 
     def x2z(self):
         return np.array([[0, 0, 1, 0],
@@ -383,13 +442,24 @@ class Renderer:
 
     def translate(self, p):
         pose = np.eye(4)
-        pose[:3,3] = pose
+        pose[:3,3] = p
         return pose
 
     def save(self, path):
-        for k in self._viewers.values():
+        #for k in self._viewers.values():
             # destroy _viewers for pickle
-            k.delete()
+        if 'rgb_array' in self._viewers:
+            self._viewers['rgb_array'].delete()
+            del self._viewers['rgb_array']
+        # remove all viewer for saving
+        for a in self._viewers:
+            self._viewers[a].close()
+            del self._viewers[a]
+
+        #for i in self.scene.nodes:
+        #    if i.mesh is not None:
+        #        for j in i.mesh.primitives:
+        #            j.delete()
 
         self._viewers = OrderedDict()
         print('save...')
@@ -397,17 +467,9 @@ class Renderer:
             pickle.dump(self, f)
 
     @classmethod
-    def load(self, path):
+    def load(cls, path):
         with open(path, 'rb') as f:
             return pickle.load(f)
 
     def get(self, name):
         return self._objects[name]
-
-    def __del__(self):
-        if 'human' in self._viewers:
-            v = self._viewers['human']
-            v.render_lock.release()
-            v.close_external()
-            while v.is_active:
-                pass

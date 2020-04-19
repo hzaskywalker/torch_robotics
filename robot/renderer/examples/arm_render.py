@@ -3,15 +3,15 @@ import os
 import trimesh
 
 def ArmreachRenderer(path=None, model=None, env=None, agent=None):
-    from ..renderer import Renderer
-
     if path is not None and os.path.exists(path):
+        from ..renderer import Renderer
         return Renderer.load(path)
 
     if env is None:
         from robot.model.arm.exp.arm_validator import get_env_agent, build_diff_model
         env, agent = get_env_agent()
         model = build_diff_model(env)
+
 
     from robot import renderer, tr
     r = renderer.Renderer()
@@ -56,6 +56,21 @@ def ArmreachRenderer(path=None, model=None, env=None, agent=None):
 
     r.set_camera_position(1.2, -0.5, 1.2)
     r.set_camera_rotation(-3.14 - 0.5, -0.2)
+
+
+    def work():
+        for i in range(10):
+            q = np.random.random((7,)) * np.pi * 2
+            arm.set_pose(q)
+            agent.set_qpos(q)
+
+            #img2 = env.render(mode='rgb_array')
+            img1 = r.render(mode='rgb_array')
+            yield img1
+            #yield np.concatenate((img1, img2), axis=1)
+
+    #from robot import U
+    #U.write_video(work(), waitTime=0)
 
     if path is not None:
         r.save(path)
