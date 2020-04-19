@@ -453,9 +453,11 @@ class Renderer:
             self._viewers['rgb_array'].delete()
             del self._viewers['rgb_array']
         # remove all viewer for saving
-        for a in self._viewers:
-            self._viewers[a].close()
-            del self._viewers[a]
+        a = self._viewers.get('human')
+        if a is not None:
+            a.close_external()
+            while a.is_active:
+                pass
 
         self._viewers = OrderedDict()
         print('save...')
