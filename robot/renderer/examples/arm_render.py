@@ -27,7 +27,7 @@ def ArmreachRenderer(path=None, model=None, env=None, agent=None):
         mesh = shape.convex_mesh_geometry
         # local_pose = np.eye(4) # TODO: change it to the local of the first link instead of the CMASS of the gripper.
         tm = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.indices.reshape(-1, 3),
-                             face_colors=list(np.random.randint(255 - 32, size=(3,)) + 32)+[32])
+                             face_colors=list(np.random.randint(255 - 32, size=(3,)) + 32)+[48])
         return tm, shape.pose
 
     for idx, i in enumerate(agent.get_links()[1:8]):

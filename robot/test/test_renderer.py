@@ -1,6 +1,7 @@
 import tqdm
 import sys
 import numpy as np
+from robot.renderer import Renderer
 import trimesh
 import pickle
 import cv2
@@ -68,21 +69,26 @@ def test_load_render():
 def test_acrobat2_render():
     from robot.renderer.examples.acrobat2_render import Acrobat2Render
     mode = sys.argv[1]
-    r = Acrobat2Render('/dataset/acrobatrenderer', mode)
+    r = Acrobat2Render('/dataset/acrobatrenderer')
+    r.axis(np.eye(4), scale=1.)
+    r.set_camera_rotation(1.57, -1.57)
+
     r.render(mode)
 
     for i in range(100):
         q = np.random.random((2,)) * np.pi * 2
         r.get('arm').set_pose(q)
         img = r.render(mode)
-        cv2.imshow('x', img)
-        cv2.waitKey(0)
+        if mode == 'rgb_array':
+            cv2.imshow('x', img)
+            cv2.waitKey(0)
 
 
 def test_screw():
     from robot.renderer.examples.arm_render import ArmreachRenderer
     mode = sys.argv[1]
-    r = ArmreachRenderer('/dataset/armreachrenderer')
+    #r = ArmreachRenderer('/dataset/armreachrenderer')
+    r = ArmreachRenderer(path=None)
 
     arm = r.get('arm')
     screw = r.screw_arm(arm.M[0].detach().cpu().numpy(), arm.A[0].detach().cpu().numpy(), name='screw')
@@ -111,6 +117,15 @@ def test_screw():
         a[i] = np.pi * 2 + k
 
 
+def test_cylinder():
+    r = Renderer()
+    r.set_camera_position(-4, 0, 0,)
+    r.axis(r.identity(), scale=2.)
+
+    r.cylinder(1., 0.3, (255, 255, 255), r.identity())
+    r.render('interactive')
+
+
 if __name__:
     #test_sphere()
     #test_arm()
@@ -118,3 +133,4 @@ if __name__:
     #test_load_render()
     #test_acrobat2_render()
     test_screw()
+    #test_cylinder()

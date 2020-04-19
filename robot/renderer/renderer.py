@@ -51,6 +51,20 @@ class Sphere(RigidBody):
         super(Sphere, self).__init__(scene, mesh, pose)
 
 
+class Cylinder(RigidBody):
+    def __init__(self, scene, height, radius, color, pose, sections=30):
+        x2z = np.array([[0, 0, 1, 0],
+         [0, 1, 0, 0],
+         [1, 0, 0, 0],
+         [0, 0, 0, 1]])
+        mesh = trimesh.primitives.Cylinder(height=height,
+                                         radius=radius,
+                                         sections=sections,
+                                         transform=x2z)
+        mesh.visual.vertex_colors = color
+        super(Cylinder, self).__init__(scene, mesh, pose)
+
+
 class Capsule(RigidBody):
     def __init__(self, scene, height, radius, color=None, pose=np.eye(4), sections=32):
         mesh = trimesh.primitives.Capsule(height=height, radius=radius, sections=sections, transform=np.array(
@@ -162,8 +176,8 @@ class ScrewArm(Arm):
         for screw in A:
             #inertia, mass = g[[0, 1, 2], [0, 1, 2]], g[3, 3]
 
-            cmass = [Box(scene, (scale, scale, scale), (0, 255, 0, 127), np.eye(4)),
-                     #Axis(scene, np.eye(4), scale=axis_scale)
+            cmass = [Box(scene, (scale * 0.7, scale * 0.7, scale * 0.7), (0, 255, 0, 255), np.eye(4)),
+                     Axis(scene, np.eye(4), scale=axis_scale)
                  ]
             # visualize cmass...
 
@@ -178,11 +192,11 @@ class ScrewArm(Arm):
             pose[:3, 3] = q
 
             screw = [
-                Sphere(scene, q, scale * 0.7, (255, 0, 255, 255)),
-                Axis(scene, pose, axis_scale*3)
+                #Sphere(scene, q, scale * 0.7, (255, 0, 255, 255)),
+                #Axis(scene, pose, axis_scale*3)
+                Cylinder(scene, height=scale * 1.5, radius=scale*0.3, color=(255, 0, 0, 255), pose=pose)
             ]
             self.links.append(Compose(*cmass, *screw))
-
 
     def set_pose(self, q):
         super(ScrewArm, self).set_pose(q)
@@ -241,20 +255,19 @@ class Renderer:
         return matrix
 
     def set_camera_position(self, x, y, z):
-        #pose = self.actor.pose
-        #pose = Pose(np.array([x, y, z]), pose.q)
         matrix = self._get_camera_pose()
         matrix[:3,3] = np.array([x, y, z])
         self._set_camera_pose(matrix)
 
     def set_camera_rotation(self, yaw, pitch):
-        #yaw += 1.57 * 4
+        # so basically, first rotate pitch about y (up: positive, down: negative)
+        # then rotate yaw about the z (right: positive, left: negative)
         mat = transforms3d.euler.euler2mat(0, -pitch, yaw)
         matrix = self._get_camera_pose()
 
         t = np.eye(4)
         t[:3,3] = matrix[:3,3]
-        t[:3,:3] = mat @ matrix[:3,:3]
+        t[:3,:3] = mat
         self._set_camera_pose(t)
 
     def add_point_light(self, position, color, intensity=18.0):
@@ -324,7 +337,10 @@ class Renderer:
             Capsule(self.scene, height, radius, color, pose=pose), name)
 
     def box(self, size, color, pose, name=None):
-        return self.register(Box(size, color, pose), name=name)
+        return self.register(Box(self.scene, size, color, pose), name=name)
+
+    def cylinder(self, height, radius, color, pose, name=None):
+        return self.register(Cylinder(self.scene, height, radius, color, pose), name=name)
 
     def compose(self, *args, name=None):
         out = self.register(Compose(), name)
@@ -343,6 +359,32 @@ class Renderer:
 
     def screw_arm(self, M, A, name=None):
         return self.register(ScrewArm(self.scene, M, A, None), name)
+
+    def x2y(self):
+        return np.array([[0, 1, 0, 0],
+                         [1, 0, 0, 0],
+                         [0, 0, 1, 0],
+                         [0, 0, 0, 1],], dtype=np.float32)
+
+    def identity(self):
+        return np.eye(4)
+
+    def x2z(self):
+        return np.array([[0, 0, 1, 0],
+                         [0, 1, 0, 0],
+                         [1, 0, 0, 0],
+                         [0, 0, 0, 1],], dtype=np.float32)
+
+    def y2z(self):
+        return np.array([[1, 0, 0, 0],
+                         [0, 0, 1, 0],
+                         [0, 1, 0, 0],
+                         [0, 0, 0, 1],], dtype=np.float32)
+
+    def translate(self, p):
+        pose = np.eye(4)
+        pose[:3,3] = pose
+        return pose
 
     def save(self, path):
         for k in self._viewers.values():

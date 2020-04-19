@@ -19,13 +19,7 @@ def Acrobat2Render(path=None, model=None, env=None, agent=None):
 
     for i in range(len(model.M)-1):
         length = abs(model.A[i].detach().cpu().numpy()[3]) * 2
-        capsule = r.capsule(length, 0.1, (255, 255, 255, 127), np.array(
-            [[0, 1, 0, 0],
-             [1, 0, 0, 0],
-             [0, 0, 1, 0],
-             [0, 0, 0, 1],
-             ]
-        ))
+        capsule = r.capsule(length, 0.1, (255, 255, 255, 127), r.x2y())
         arm.add_shapes(r.compose(capsule, r.axis(np.eye(4), scale=0.2),
                                  r.sphere((0, -length/2, 0), 0.1, (255, 0, 0))))
 
