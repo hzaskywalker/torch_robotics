@@ -5,13 +5,19 @@ import pickle
 import os
 import numpy as np
 from robot import A, U, tr
-from robot.model.arm.exp.sapien_validator import build_diff_model, ArmModel, get_env_agent, compute_qacc
+from robot.model.arm.exp.sapien_validator import compute_qacc
 
 def collect(file_name):
     import pickle
     with open(file_name, 'rb') as f:
         obs, actions, _ = pickle.load(f)
-    env, agent = get_env_agent()
+    dof = actions.shape[-1]
+    if 'arm' in file_name:
+        from robot.model.arm.exp.arm_validator import get_env_agent
+        env, agent = get_env_agent()
+    else:
+        from robot.model.arm.exp.sapien_validator import get_env_agent
+        env, agent = get_env_agent()
     assert env.dt < 1e-3
     qacc = []
     #for obs, action in zip(obs, actions):
@@ -20,8 +26,8 @@ def collect(file_name):
         ran = tqdm.trange
     for i in ran(len(obs)):
         for o, a in zip(obs[i], actions[i]):
-             qacc.append(compute_qacc(env, agent, o[:2], o[2:4], a.clip(-1, 1) * 50))
-    return np.array(qacc).reshape(-1, actions.shape[1], 2), file_name
+            qacc.append(compute_qacc(env, agent, o[:dof], o[dof:dof*2], a.clip(-1, 1) * 50))
+    return np.array(qacc).reshape(-1, actions.shape[1], dof), file_name
 
 class QACCDataset:
     def __init__(self, dataset_path, valid_ratio=0.2):

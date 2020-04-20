@@ -218,7 +218,17 @@ def test_model_by_training():
     train(model, dataset)
 
 
+def test_A_grad():
+    model = ArmModel(2).cuda()
+
+    inp = torch.zeros((2,), dtype=torch.float64, device='cuda:0')[None,:]
+    cc = model.fk(inp)
+    cc.mean().backward()
+    print(model._A.grad)
+
+
 
 if __name__ == '__main__':
     #test_model_by_gt()
-    test_model_by_training()
+    #test_model_by_training()
+    test_A_grad()

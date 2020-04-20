@@ -230,8 +230,14 @@ def test_logSE3():
     check(tr.logSE3(togpu(SE3List)), togpu([mr.MatrixLog6(i) for i in SE3List]))
     print("passed")
 
+def test_expse3_grad():
+    a = torch.tensor([[0, 0, 0, 0, 0, 0]], requires_grad=True, dtype=torch.float64)
+    out = tr.expse3(tr.vec_to_se3(a)) **2
+    out.sum().backward()
+    check(a.grad, a)
 
 if __name__ == '__main__':
+    test_expse3_grad()
     test_logSE3()
     test_logSO3()
     test_inv_trans()

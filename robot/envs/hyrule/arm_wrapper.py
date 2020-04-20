@@ -4,14 +4,14 @@ def link2body(link):
     import numpy as np
     cmass_pose = link.get_pose() * link.cmass_local_pose
     cmass = tr.pose2SE3(cmass_pose)
-    cmass = tr.togpu(cmass)
+    cmass = tr.totensor(cmass)
 
     inertia = np.zeros((3, 3), dtype=np.float64)
     inertia[0, 0] = link.inertia[0]
     inertia[1, 1] = link.inertia[1]
     inertia[2, 2] = link.inertia[2]
-    inertia = tr.togpu(inertia)
-    m = tr.togpu(link.get_mass())
+    inertia = tr.totensor(inertia)
+    m = tr.totensor(link.get_mass())
     return tr.RigidBody(cmass, inertia, m)
 
 class LinkGroup:

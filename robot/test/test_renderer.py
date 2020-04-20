@@ -121,6 +121,10 @@ def test_screw():
                 arm.set_pose(q)
                 screw.set_pose(q)
                 img = r.render(mode)
+                if k % 2 == 1:
+                    screw.off()
+                else:
+                    screw.on()
                 if mode == 'rgb_array':
                     cv2.imshow('x', img)
                     cv2.waitKey(0)
@@ -137,11 +141,59 @@ def test_cylinder():
     r.render('interactive')
 
 
+def test_remove():
+    from robot import renderer
+    r = renderer.Renderer()
+
+    sphere = r.sphere((0, 0, 0), 3, (255, 255, 255))
+    r.axis(r.identity(), scale=6)
+    r.add_point_light((0, 5, 0), color=(255, 0, 0))
+    r.set_camera_position(-10, 0, 0)
+
+    """
+    for i in range(24):
+        r.render('human')
+    sphere.off()
+    for i in range(24):
+        r.render('human')
+
+    import cv2
+    r.scene.add_node(sphere.node)
+    img = r.render('rgb_array')
+    cv2.imshow('x', img)
+    sphere.off()
+    img = r.render('rgb_array')
+    cv2.imshow('y', img)
+    cv2.waitKey(0)
+    """
+
+    sphere2 = r.sphere((0,5,0), 2, (255, 255, 255))
+    cc = r.compose(sphere, sphere2)
+    r.render('interactive')
+    cc.off()
+    r.render('interactive')
+    cc.on()
+    img = r.render('rgb_array')
+    cv2.imshow('x', img)
+    cv2.waitKey(0)
+    cc.off()
+    img = r.render('rgb_array')
+    cv2.imshow('x', img)
+    cv2.waitKey(0)
+    cc.on()
+    r.render('interactive')
+    sphere2.off()
+    r.render('interactive')
+    cc.on()
+    r.render('interactive')
+
+
 if __name__:
     #test_sphere()
     #test_arm()
     #test_two_renders()
     #test_load_render()
     #test_acrobat2_render()
-    test_screw()
+    #test_screw()
     #test_cylinder()
+    test_remove()

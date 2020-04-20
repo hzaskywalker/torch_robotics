@@ -16,8 +16,15 @@ import transforms3d
 from collections import OrderedDict
 from ..torch_robotics import totensor, fk_in_space
 
+class Shape:
+    def set_pose(self, pose):
+        raise NotImplementedError
 
-class RigidBody:
+    def off(self):
+        raise NotImplementedError
+
+
+class RigidBody(Shape):
     def __init__(self, scene, tm, pose=np.eye(4)):
         # tm: trimesh.mesh
         smooth = tm.visual.face_colors is None # xjb hack
@@ -28,14 +35,30 @@ class RigidBody:
         self.scene = scene
         self.local_pose = pose
         self.node = pyrender.Node(mesh=mesh, matrix=pose)
-        self.scene.add_node(self.node)
+        self._last_pose = None
+        self.on()
 
     def set_pose(self, pose):
         # the input is a matrix
-        self.scene.set_pose(self.node, pose=pose @ self.local_pose)
+        if self.scene.has_node(self.node):
+            self.scene.set_pose(self.node, pose=pose @ self.local_pose)
+            self._last_pose = None
+        else:
+            self._last_pose = pose
 
     def get_pose(self):
         return self.node.matrix
+
+    def on(self):
+        if not self.scene.has_node(self.node):
+            self.scene.add_node(self.node)
+            if self._last_pose is not None:
+                self.scene.set_pose(self.node, pose=self._last_pose @ self.local_pose)
+                self._last_pose = None
+
+    def off(self):
+        if self.scene.has_node(self.node):
+            self.scene.remove_node(self.node)
 
 
 class Sphere(RigidBody):
@@ -88,7 +111,7 @@ class Box(RigidBody):
         super(Box, self).__init__(scene, mesh, pose)
 
 
-class Compose:
+class Compose(Shape):
     def __init__(self, *args):
         self.shape = list(args)
 
@@ -99,6 +122,14 @@ class Compose:
     def set_pose(self, pose):
         for a in self.shape:
             a.set_pose(pose)
+
+    def on(self):
+        for a in self.shape:
+            a.on()
+
+    def off(self):
+        for a in self.shape:
+            a.off()
 
 def vec2pose(vec):
     l = np.linalg.norm(vec)
@@ -141,7 +172,7 @@ def Axis(scene, pose, scale=1., radius=None, xyz=None):
 
 
 
-class Arm:
+class Arm(Compose):
     # currently we only consider the robot arm
     # we will consider the general articulator later
 
@@ -149,12 +180,8 @@ class Arm:
         self.scene = scene
         self.M = totensor(M)[None,:]
         self.A = totensor(A)[None,:]
-        self.shapes = []
+        self.shape = []
         self.set_q = None
-
-    def add_shapes(self, shape):
-        # Note the pose is in the local frame
-        self.shapes.append(shape)
 
     def fk(self, q):
         q = totensor(q)[None,:]
@@ -163,7 +190,7 @@ class Arm:
     def set_pose(self, q):
         # Notice that set pose is different to set qpos
         Ts = self.fk(q)
-        for T, shape in zip(Ts, self.shapes):
+        for T, shape in zip(Ts, self.shape):
             if shape is None:
                 continue
             shape.set_pose(T)
@@ -228,7 +255,6 @@ class ScrewArm(Arm):
 
     def update(self, M, A):
         super(ScrewArm, self).update(M, A)
-        import logging
         for link, a in zip(self.links, A):
             assert isinstance(link.shape[-1], Cylinder)
             link.shape[-1].local_pose = self.screw_pose(a)
@@ -238,6 +264,16 @@ class ScrewArm(Arm):
         Ts = self.fk(q)
         for T, link in zip(Ts, self.links):
             link.set_pose(T)
+
+    def on(self):
+        super(ScrewArm, self).on()
+        for a in self.links:
+            a.on()
+
+    def off(self):
+        super(ScrewArm, self).off()
+        for a in self.links:
+            a.off()
 
 
 class Renderer:
@@ -345,6 +381,7 @@ class Renderer:
                         self._thread = Thread(target=self._init_and_start_app2)
                         self._thread.daemon = True # some times it will block.. very strange
                         # I should never try to solve all opengl problems because they are tooooooo stupid....
+                        self._run_in_thread = True
                         self._thread.start()
 
                     def _init_and_start_app(self):
@@ -449,20 +486,14 @@ class Renderer:
     def save(self, path):
         #for k in self._viewers.values():
             # destroy _viewers for pickle
-        if 'rgb_array' in self._viewers:
-            self._viewers['rgb_array'].delete()
-            del self._viewers['rgb_array']
-        # remove all viewer for saving
-        a = self._viewers.get('human')
-        if a is not None:
-            a.close_external()
-            while a.is_active:
-                pass
+        tmp = self._viewers
 
         self._viewers = OrderedDict()
         print('save...')
         with open(path, 'wb') as f:
             pickle.dump(self, f)
+
+        self._viewers = tmp
 
     @classmethod
     def load(cls, path):

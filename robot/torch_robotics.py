@@ -187,9 +187,9 @@ def expse3(se3mat):
     page 105 on the book
     """
     a, b, c = se3mat[..., 2, 1], se3mat[..., 0, 2], se3mat[..., 1, 0]
-    theta = (a**2+b**2+c**2)**0.5
-    is_translation = NearZero(theta).float()
+    theta = torch.stack([a, b, c]).norm(dim=0)
 
+    is_translation = NearZero(theta).float()
     eye = eyes_like(se3mat, 3)
 
     safe_theta = theta + is_translation * 1e-14 # make sure it's not zero

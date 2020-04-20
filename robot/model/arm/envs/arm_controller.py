@@ -48,4 +48,4 @@ if __name__ == '__main__':
     policy = Controller(env, p=0.0)
     from robot.utils.rl_utils import eval_policy
 
-    eval_policy(policy, env, save_video=0, progress_episode=True, timestep=100)
+    eval_policy(policy, env, save_video=0, progress_episode=True, timestep=100, eval_episodes=100)
