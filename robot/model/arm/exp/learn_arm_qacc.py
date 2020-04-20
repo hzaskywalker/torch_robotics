@@ -59,20 +59,17 @@ def learnG():
     dtype= model._G.dtype
     if optimize_A:
         model._A.requires_grad = True
-        model._A.data[1:] = torch.tensor([0., 0., 1., 0.0, 0, 0], dtype=dtype, device='cuda:0')
+        model._A.data[:] = torch.tensor([0., 0., 1., 0.0, 0, 0], dtype=dtype, device='cuda:0')
         #model._A.data += torch.randn_like(model._A.data) * 0.5
     else:
-        #TODO: hack here
-        model._A.data[1:] = torch.tensor([0, 0, 1., 0.0, 0, 0], dtype=dtype, device='cuda:0')
-        #model._A.data[1:] = torch.tensor([0.5, 0.5, 0.5, 0.0, 0, 0], dtype=dtype, device='cuda:0')
         model._A.requires_grad = False
 
     if optimize_M:
         model._M.requires_grad = True
-        model._M.data[1:] = torch.tensor(np.array([
-            [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]] for _ in range(dof)]),
+        cc = model._M.data[0].clone()
+        model._M.data[:] = torch.tensor(np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]),
             dtype=dtype, device=model._M.device)
-        #model._M.data += torch.randn_like(model._M.data) * 0.5
+        model._M.data[0] = cc + torch.randn_like(cc) # xjb hack
     else:
         model._M.requires_grad = False
 
