@@ -84,7 +84,8 @@ def qacc_loss(data, model, torque_norm=50):
     a = data[1].double()
     qacc = data[2].double()
 
-    predict_qacc = model.qacc(qpos, qvel, a)
+    # we always open damping option for computing the qacc
+    predict_qacc = model.qacc(qpos, qvel, a, damping=True)
 
     loss = relative_l2(predict_qacc / torque_norm, qacc / torque_norm)
     return loss
@@ -102,7 +103,10 @@ def ee_loss(data, model):
 
 def cemQACC_G(model, dataset_path, env=None, torque_norm=50):
     # try to understand the optimization difficulties
-    dataset = QACCDataset(dataset_path)
+    if isinstance(dataset_path, str):
+        dataset = QACCDataset(dataset_path)
+    else:
+        dataset = dataset_path
 
     mean = U.tocpu(model._G.data)
     std = mean * 0 + 1.
@@ -153,7 +157,8 @@ class Viewer:
 
 
 def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
-              learn_ee=0., learn_qacc=1., optim_method='adam', epoch_num=1000, loss_threshold=1e-10, lr=0.001):
+              learn_ee=0., learn_qacc=1., optim_method='adam', epoch_num=1000,
+              loss_threshold=1e-10, lr=0.001, num_train=1000, num_valid=200, batch_size=256):
 
     if isinstance(dataset_path, str):
         dataset = QACCDataset(dataset_path)
@@ -168,7 +173,7 @@ def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
     some_param = next(model.parameters())
     for epoch in range(epoch_num):
         for phase in ['train', 'valid']:
-            num_iter = 1000 if phase == 'train' else 200
+            num_iter = num_train if phase == 'train' else num_valid
             outputs = []
             ee_losses = []
             for i in tqdm.trange(num_iter):
@@ -180,7 +185,7 @@ def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
                 def closure():
                     if phase == 'train':
                         optim.zero_grad()
-                    data = dataset.sample(phase, 256)
+                    data = dataset.sample(phase, batch_size)
 
                     if learn_qacc > 0:
                         loss = qacc_loss(data, model, torque_norm) * learn_qacc
@@ -205,7 +210,7 @@ def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
                     loss = optim.step(closure)
                 outputs.append(U.tocpu(loss))
             mean_loss = np.mean(outputs)
-            print(model._G)
+            print(model._G.data)
 
             print(f'{phase} loss: ', mean_loss)
             if len(ee_losses) > 0:
