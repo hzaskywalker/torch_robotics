@@ -387,7 +387,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <origin rpy="0 3.14159265 0" xyz="0 0 0.0625"/>
     <axis xyz="0 0 1"/>
     <limit effort="18000.0" lower="-3.14159265" upper="3.14159265" stepSize="0.691150384"/>
-    <dynamics damping="0.01" friction="0.0"/>
+    <dynamics damping="3.0" friction="0.0"/>
   </joint>
   <link name="right_shoulder_link">
     <visual>
@@ -421,7 +421,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <origin rpy="1.570796325 0 0" xyz="0 0 -0.11875"/>
     <axis xyz="0 0 1"/>
     <limit effort="30000.5" lower="-2.238" upper="2.238" stepSize="0.691150384"/>
-    <dynamics damping="0.01" friction="0.0"/>
+    <dynamics damping="3.0" friction="0.0"/>
   </joint>
   <link name="right_arm_half_1_link">
     <visual>
@@ -455,7 +455,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <origin rpy="-1.570796325 0 0" xyz="0 -0.205 0"/>
     <axis xyz="0 0 1"/>
     <limit effort="30000.5" lower="-3.14159265" upper="3.14159265" stepSize="0.691150384"/>
-    <dynamics damping="0.01" friction="0.0"/>
+    <dynamics damping="3.0" friction="0.0"/>
   </joint>
   <link name="right_arm_half_2_link">
     <visual>
@@ -489,7 +489,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <origin rpy="-1.570796325 0 0" xyz="0 0 -0.205"/>
     <axis xyz="0 0 1"/>
     <limit effort="18000.0" lower="-2.809" upper="2.809" stepSize="0.691150384"/>
-    <dynamics damping="0.01" friction="0.0"/>
+    <dynamics damping="3.0" friction="0.0"/>
   </joint>
   <link name="right_forearm_link">
     <visual>
@@ -515,7 +515,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <origin rpy="1.570796325 3.14159265 0" xyz="0 0.2073 -0.0114"/>
     <axis xyz="0 0 1"/>
     <limit effort="60000.8" lower="-3.14159265" upper="3.14159265" stepSize="0.921533845"/>
-    <dynamics damping="0.01" friction="0.0"/>
+    <dynamics damping="3.0" friction="0.0"/>
   </joint>
   <link name="right_wrist_spherical_1_link">
     <visual>
@@ -549,7 +549,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <origin rpy="-1.570796325 0 0" xyz="0 0 -0.10375 "/>
     <axis xyz="0 0 1"/>
     <limit effort="60000.8" lower="-2.78" upper="2.78" stepSize="0.921533845"/>
-    <dynamics damping="0.01" friction="0.0"/>
+    <dynamics damping="3.0" friction="0.0"/>
   </joint>
   <link name="right_wrist_spherical_2_link">
     <visual>
@@ -583,7 +583,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <origin rpy="1.570796325 3.14159265 0" xyz="0 0.10375 0"/>
     <axis xyz="0 0 1"/>
     <limit effort="60000.8" lower="-3.14159265" upper="3.14159265" stepSize="0.921533845"/>
-    <dynamics damping="0.01" friction="0.0"/>
+    <dynamics damping="3.0" friction="0.0"/>
   </joint>
   <link name="right_wrist_3_link">
     <inertial>

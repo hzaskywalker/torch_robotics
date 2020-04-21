@@ -45,7 +45,11 @@ class RandomController:
 
 if __name__ == '__main__':
     env = ArmReachWithXYZ()
-    policy = Controller(env, p=0.0)
+    policy = Controller(env, p=0.1)
     from robot.utils.rl_utils import eval_policy
 
-    eval_policy(policy, env, save_video=0, progress_episode=True, timestep=100, eval_episodes=100)
+    trajs = eval_policy(policy, env, save_video=0, progress_episode=True, timestep=100, eval_episodes=10,
+                        return_trajectories=True)[1]
+    for s, a in trajs:
+        j = np.array([i['observation'][7:14] for i in s])
+        print(np.abs(j).max())

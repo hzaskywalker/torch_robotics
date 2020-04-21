@@ -368,6 +368,7 @@ def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, A):
     assert len(batch_shape) == 1
 
     n = theta.shape[-1]
+    assert n == A.shape[1], f"input dof doesn't match the model, the input shape:{n}, the parameter shape:{A.shape}"
     #Mi = torch.eye(4)
 
     A_flat = A.reshape(-1, *A.shape[2:]) # on batch version

@@ -37,7 +37,7 @@ class ArmModel(nn.Module):
         out = self._G.new_zeros((*self._G.shape[:-2], self.dof, 6, 6))
         for idx in range(self._G.shape[-2]):
             out[..., idx, :3, :3] = self._G[..., idx, :3].diag()
-            out[..., idx, 3, 3] = out[..., idx, 4, 4] = out[..., idx, 5, 5] = self._G[..., idx, 3]
+            out[..., idx, [3,4,5], [3,4,5]] = self._G[..., idx, 3]
         return out.abs() # project into positive M
 
     @G.setter
@@ -67,15 +67,15 @@ class ArmModel(nn.Module):
 
         #rot = self.M_rot
         #out = rot.new_zeros((rot.shape[0], 4, 4))
-        a1, a2 = self._M[:, :3, 0], self._M[:, :3, 1]
+        a1, a2 = self._M[..., :, :3, 0], self._M[..., :, :3, 1]
         assert a1.norm(dim=-1).min() > 1e-15, "check init norm"
 
         b1 = tr.normalize(a1)
         b2 = tr.normalize(a2 - (a2 * b1).sum(dim=-1, keepdim=True) * b1)
         b3 = torch.cross(b1, b2, dim=-1)
-        out[:, :3, 0], out[:,:3,1], out[:, :3, 2] = b1, b2, b3
-        out[:, :3, 3] = self._M[:, :3, 3]
-        out[:, 3, 3] = 1
+        out[..., :, :3, 0], out[..., :, :3, 1], out[..., :, :3, 2] = b1, b2, b3
+        out[..., :, :3, 3] = self._M[..., :, :3, 3]
+        out[..., :, 3, 3] = 1
         return out
 
     @M.setter
@@ -95,20 +95,22 @@ class ArmModel(nn.Module):
     def inverse_dynamics(self, q, dq, ddq):
         return tr.inverse_dynamics(q, dq, ddq, *self.get_parameters(q))
 
-    def get_parameters(self, qpos, M=None, G=None, A=None):
+    def get_parameters(self, qpos):
         b = qpos.shape[0]
         gravity = self.gravity[None,:].expand(b, -1)
         ftip = self.ftip[None,:].expand(b, -1)
-        if M is None:
-            M = self.M[None,:].expand(b, -1, -1, -1)
 
-        if G is None:
-            G = self.G # support batched G
-            if G.dim() == 3:
-                G = G[None,:].expand(b, -1, -1, -1)
+        M = self.M
+        if M.dim() == 3:
+            M = M[None,:].expand(b, -1, -1, -1)
 
-        if A is None:
-            A = self.A[None,:].expand(b, -1, -1)
+        G = self.G # support batched G
+        if G.dim() == 3:
+            G = G[None,:].expand(b, -1, -1, -1)
+
+        A = self.A
+        if A.dim() == 2:
+            A= A[None,:].expand(b, -1, -1)
 
         return gravity, ftip, M, G, A
 
@@ -167,26 +169,6 @@ def extract_state(obs):
     obs = obs['observation']
     return obs[:4]
 
-
-def test_model_by_gt():
-    from robot import A, U
-
-    env = A.train_utils.make('diff_acrobat')
-    mm = env.unwrapped.articulator
-
-    model = ArmModel(2).cuda()
-    model.assign(mm)
-
-    obs = env.reset()
-    for i in range(50):
-        s = extract_state(obs)
-        torque = env.action_space.sample()
-        obs, _, _, _ = env.step(torque)
-        t = extract_state(obs)
-
-        predict = U.tocpu(model( U.togpu(s, torch.float64)[None,:],
-                                 U.togpu(torque, torch.float64)[None,:])[0])[0]
-        print(((predict - t) ** 2).mean(), predict, t)
 
 def mod(x):
     return (x + np.pi) % (2*np.pi) - np.pi

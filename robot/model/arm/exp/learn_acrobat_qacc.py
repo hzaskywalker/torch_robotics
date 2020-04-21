@@ -165,6 +165,7 @@ def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
     else:
         optim = torch.optim.LBFGS(model.parameters(), lr=0.01)
 
+    some_param = next(model.parameters())
     for epoch in range(epoch_num):
         for phase in ['train', 'valid']:
             num_iter = 1000 if phase == 'train' else 200
@@ -184,7 +185,7 @@ def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
                     if learn_qacc > 0:
                         loss = qacc_loss(data, model, torque_norm) * learn_qacc
                     else:
-                        loss = model._A.mean() * 0 + model._M.mean() * 0+ model._G.mean() * 0
+                        loss = sum([i.mean()*0 for i in  model.parameters() if i.requires_grad])
 
                     if learn_ee > 0:
                         ee = ee_loss(data, model)
@@ -202,27 +203,21 @@ def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
                 else:
                     optim.zero_grad()
                     loss = optim.step(closure)
-                    print(loss)
                 outputs.append(U.tocpu(loss))
-
-            if phase == 'valid':
-                print("learned G:", model.G)
-                print("learned M:", model.M)
-                print("learned A:", model.A)
-                if viewer is not None:
-                    viewer.render(mode='human')
-                    viewer.r.save('tmp.pkl')
-            else:
-                print('grad G', model._G.grad)
-                print('grad M', model._M.grad)
-                print('grad A', model.A.grad)
-
             mean_loss = np.mean(outputs)
-            if mean_loss < loss_threshold:
-                return mean_loss
+            print(model._G)
+
             print(f'{phase} loss: ', mean_loss)
             if len(ee_losses) > 0:
                 print(f'{phase} ee loss: ', np.mean(ee_losses))
+
+            if phase == 'valid':
+                if viewer is not None:
+                    viewer.render(mode='human')
+                    viewer.r.save('tmp.pkl')
+                if mean_loss < loss_threshold:
+                    return mean_loss
+
     return mean_loss
 
 
@@ -231,8 +226,8 @@ def learnG():
     model: ArmModel = build_diff_model(env, timestep=0.025, max_velocity=np.inf, damping=0.5)
     dof = 2
 
-    optimize_A = True
-    optimize_M = True
+    optimize_A = False
+    optimize_M = False
     optimize_G = True
 
     dtype= model._G.dtype
@@ -258,7 +253,7 @@ def learnG():
         model._G.requires_grad = False
 
     viewer = Viewer(model)
-    trainQACC(model, '/dataset/acrobat2', env, learn_ee=1., viewer=viewer)
+    trainQACC(model, '/dataset/acrobat2', learn_ee=1., viewer=viewer)
     #cemQACC_G(model, '/dataset/acrobat2')
 
 

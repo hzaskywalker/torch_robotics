@@ -30,7 +30,7 @@ def collect(file_name):
     return np.array(qacc).reshape(-1, actions.shape[1], dof), file_name
 
 class QACCDataset:
-    def __init__(self, dataset_path, valid_ratio=0.2):
+    def __init__(self, dataset_path, valid_ratio=0.2, small=False):
         self.dataset_path = dataset_path
         self.path = os.path.join(dataset_path, 'qacc')
         if not os.path.exists(self.path):
@@ -46,8 +46,18 @@ class QACCDataset:
         self.device = dd.device
         self.obs, self.action = dd.obs, dd.action
         self.num_train = int(len(self.qacc) * (1-valid_ratio))
+        if small == True:
+            self.num_train = 30
+        print("TRAINING SIZE", self.obs[:self.num_train].shape)
         self.qacc = self.qacc[dd.not_inf_mask][dd._rand_idx]
         print(self.obs.shape, self.action.shape, self.qacc.shape)
+
+    def permute(self):
+        idx = np.arange(len(self.obs))
+        self._rand_idx = np.random.permutation(idx)
+        self.obs = self.obs[self._rand_idx]
+        self.action = self.action[self._rand_idx]
+        self.qacc = self.qacc[self._rand_idx]
 
     def create(self):
         from multiprocessing import Pool
