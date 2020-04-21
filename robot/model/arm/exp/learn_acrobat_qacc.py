@@ -152,14 +152,20 @@ class Viewer:
 
 
 
-def trainQACC(model, dataset_path, env=None, viewer=None, torque_norm=50, learn_ee=0., learn_qacc=1., optim_method='adam'):
-    dataset = QACCDataset(dataset_path)
+def trainQACC(model, dataset_path=None, viewer=None, torque_norm=50,
+              learn_ee=0., learn_qacc=1., optim_method='adam', epoch_num=1000, loss_threshold=1e-10, lr=0.001):
+
+    if isinstance(dataset_path, str):
+        dataset = QACCDataset(dataset_path)
+    else:
+        dataset = dataset_path
+
     if optim_method == 'adam':
-        optim = torch.optim.Adam(model.parameters(), lr=0.001)
+        optim = torch.optim.Adam(model.parameters(), lr=lr)
     else:
         optim = torch.optim.LBFGS(model.parameters(), lr=0.01)
 
-    for epoch in range(1000):
+    for epoch in range(epoch_num):
         for phase in ['train', 'valid']:
             num_iter = 1000 if phase == 'train' else 200
             outputs = []
@@ -203,15 +209,21 @@ def trainQACC(model, dataset_path, env=None, viewer=None, torque_norm=50, learn_
                 print("learned G:", model.G)
                 print("learned M:", model.M)
                 print("learned A:", model.A)
-                viewer.render(mode='human')
-                viewer.r.save('tmp.pkl')
+                if viewer is not None:
+                    viewer.render(mode='human')
+                    viewer.r.save('tmp.pkl')
             else:
                 print('grad G', model._G.grad)
                 print('grad M', model._M.grad)
                 print('grad A', model.A.grad)
-            print(f'{phase} loss: ', np.mean(outputs))
+
+            mean_loss = np.mean(outputs)
+            if mean_loss < loss_threshold:
+                return mean_loss
+            print(f'{phase} loss: ', mean_loss)
             if len(ee_losses) > 0:
                 print(f'{phase} ee loss: ', np.mean(ee_losses))
+    return mean_loss
 
 
 def learnG():

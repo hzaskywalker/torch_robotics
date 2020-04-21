@@ -33,6 +33,8 @@ def cemQACC_M(model, dataset_path, env=None, torque_norm=50, param=None):
 class Viewer(AcrobatViewer):
     def __init__(self, model):
         super(Viewer, self).__init__(model, scale=0.1)
+        for i in range(6):
+            self.screw.add_shapes(None)
 
     def set_camera(self, r):
         r.add_point_light([2, 2, 2], [255, 255, 255])
@@ -48,41 +50,98 @@ class Viewer(AcrobatViewer):
             self.r.render(mode)
 
 def learnG():
-    env = get_env_agent()[0]
-    model: ArmModel = build_diff_model(env)
+    env = get_env_agent(seed=None)[0]
     dof = 7
 
     optimize_A = True
     optimize_M = True
     optimize_G = False
+    model: ArmModel = build_diff_model(env)
 
-    dtype= model._G.dtype
-    if optimize_A:
-        model._A.requires_grad = True
-        model._A.data[:] = torch.tensor([0., 0., 1., 0.0, 0, 0], dtype=dtype, device='cuda:0')
-        #model._A.data += torch.randn_like(model._A.data) * 0.5
-    else:
-        model._A.requires_grad = False
+    def make_model(model, init_A=np.array([0., 1., 0., 0.0, 0, 0]) ):
+        dtype= model._G.dtype
+        if optimize_A:
+            model._A.requires_grad = True
+            model._A.data[:] = torch.tensor(init_A, dtype=dtype, device='cuda:0')
+        else:
+            model._A.requires_grad = False
 
-    if optimize_M:
-        model._M.requires_grad = True
-        cc = model._M.data[0].clone()
-        model._M.data[:] = torch.tensor(np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]),
-            dtype=dtype, device=model._M.device)
-        model._M.data[0] = cc + torch.randn_like(cc) # xjb hack
-    else:
-        model._M.requires_grad = False
+        if optimize_M:
+            model._M.requires_grad = True
+            model._M.data[:] = torch.tensor(np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]),
+                dtype=dtype, device=model._M.device)
+            #model._M.data[0,3,3] = cc[3,3]#torch.randn_like(cc) # xjb hack, in fact, better initialization may help
+        else:
+            model._M.requires_grad = False
 
-    if optimize_G:
-        model._G.requires_grad = True
-        G = [torch.rand((4,), dtype=dtype, device=model._G.device) for _ in range(dof)]  # G should be positive...
-        model._G.data = torch.stack(G)
-    else:
-        model._G.requires_grad = False
+        if optimize_G:
+            model._G.requires_grad = True
+            G = [torch.rand((4,), dtype=dtype, device=model._G.device) for _ in range(dof)]  # G should be positive...
+            model._G.data = torch.stack(G)
+        else:
+            model._G.requires_grad = False
 
+        return model
+
+    dataset = QACCDataset('/dataset/arm')
     viewer = Viewer(model)
-    trainQACC(model, '/dataset/arm', env, learn_ee=1., viewer=viewer, learn_qacc=0., optim_method='adam')
+    #viewer = None
+    losses = []
+    #for i in range(30):
+    for i in range(10):
+        initA = [*np.random.normal(size=(3,)), 0, 0, 0]
+        #initA = [2.7162355469095885, 1.5762245473496705, 0.34537523430899664, 0, 0, 0]
+        model = make_model(model, initA)
+        losses += [(initA, trainQACC(model, dataset, learn_ee=1., viewer=viewer, learn_qacc=0.,
+                        optim_method='adam', epoch_num=10, loss_threshold=1e-10, lr=0.01))]
+        print(losses[-1])
     #cemQACC_M(model, '/dataset/arm', param=model._A)
+    print(losses)
+
+
+
+from torch import nn
+from robot.utils.models import MLP
+class ParamNet(nn.Module):
+    def __init__(self, inp_dim, oup_dim, z_dim=10, mid_channels=32, num_layers=2, beta=1.):
+        super(ParamNet, self).__init__()
+        self.inp_dim = inp_dim
+        self.encoder = MLP(inp_dim, z_dim*2, mid_channels, num_layers=num_layers)
+        self.decoder = MLP(z_dim, oup_dim, mid_channels, num_layers=num_layers)
+        self.beta = beta
+        self.z_dim = z_dim
+
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def kl_divergence(self, mu, logvar):
+        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return KLD
+
+    def forward(self, inp):
+        tmp = self.encoder(inp)
+        mu, logvar = tmp[..., :self.z_dim], tmp[..., self.z_dim:]
+        z = self.reparameterize(mu, logvar)
+        output = self.decoder(z)
+        return output, mu, logvar, self.kl_divergence(mu, logvar)
+    
+class ParamModel(nn.Module):
+    def __init__(self, params, phys):
+        super(ParamModel, self).__init__()
+        self.params = params
+        self.phys = phys
+
+    def parameters(self, recurse: bool = ...):
+        from itertools import chain
+        return chain(self.params.parameters(), (self.phys._G))
+
+    def forward(self, inp):
+        # Let's see what would happen
+        inp2 = torch.cat((torch.cos(inp), torch.sin(inp)))
+        AM, mu, logvar, kl_dist = self.params(inp2)
+
 
 def show():
     from robot.renderer import Renderer
@@ -112,7 +171,9 @@ def show():
         cv2.imshow('x', np.concatenate((img1, img2), axis=1))
         cv2.waitKey(1)
 
+
 if __name__ == '__main__':
+    # 6/30 failing
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--show', action='store_true')

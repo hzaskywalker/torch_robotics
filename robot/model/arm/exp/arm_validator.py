@@ -17,14 +17,14 @@ def relative_check(a, b, m="", eps=1e-6):
     assert diff < eps, f"{m} {a}, {b}          max relative diff: {diff}"
 
 
-def get_env_agent(timestep=0.00001):
+def get_env_agent(timestep=0.00001, seed=2):
     # timestep =0.00001 is very important
     env = ArmReachWithXYZ(timestep=timestep, frameskip=2)
-    seed = 2
-    np.random.seed(seed)
-    env.seed(seed)
-    env.action_space.seed(seed)
-    env.observation_space.seed(seed) # goal sampling
+    if seed is not None:
+        np.random.seed(seed)
+        env.seed(seed)
+        env.action_space.seed(seed)
+        env.observation_space.seed(seed) # goal sampling
     return env, env.agent
 
 

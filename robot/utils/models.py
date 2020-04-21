@@ -78,3 +78,22 @@ class BatchReshape(nn.Module):
 
     def forward(self, inp):
         return inp.view(inp.size(0), *self.shape)
+
+
+class MLP(nn.Module):
+    def __init__(self, inp_dim, oup_dim, mid_channels, num_layers, batchnorm=False):
+        nn.Module.__init__(self)
+
+        self.inp_dim = inp_dim
+        self.oup_dim = oup_dim
+
+        models = []
+        cur = inp_dim
+        for i in range(num_layers-1):
+            models.append(fc(cur, mid_channels, relu=True, batch_norm=batchnorm))
+            cur = mid_channels
+        models.append(fc(cur, oup_dim, relu=False))
+        self.main = nn.Sequential(*models)
+
+    def forward(self, q):
+        return self.main(q)

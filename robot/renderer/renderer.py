@@ -137,7 +137,7 @@ def vec2pose(vec):
     # find quat such that qmult(quat, [1, 0, 0]) = vec
     import transforms3d
     if np.linalg.norm(a - b) < 1e-6:
-        pose = np.eye(4)
+        pose = np.eye(3)
     elif np.linalg.norm(a + b) < 1e-6:
         pose = transforms3d.quaternions.quat2mat(np.array([0, 0, 0, 1]))
     else:
@@ -237,6 +237,8 @@ class ScrewArm(Arm):
             pose = self.screw_pose(screw)
             screw = Cylinder(scene, height=scale * 1.5, radius=scale * 0.3, color=(255, 0, 0, 255), pose=pose)
             self.links.append(Compose(cmass_box, cmass_axis, screw))
+
+        self.links.append(Sphere(scene, (0,0,0), scale * 0.7, (0, 0, 255)))
 
     def screw_pose(self, screw):
         # w, q -> screw=(w,-wxq)

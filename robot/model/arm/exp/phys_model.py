@@ -15,33 +15,22 @@ class ArmModel(nn.Module):
         self.max_velocity = max_velocity
         self.action_range = action_range
         self.damping = damping
-        self._M = nn.Parameter(torch.tensor(np.array([
-            [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]] for _ in range(dof+1)]), dtype=dtype),
-                              requires_grad=True)
-
-        #self.M_rot = nn.Parameter(torch.tensor(np.array([
-        #    [[1, 0], [0, 1], [0, 0]] for _ in range(dof+1)]), dtype=dtype),
-        #                      requires_grad=True)
-        #self.M_trans = nn.Parameter(torch.tensor(np.array([[0, 0, 0] for _ in range(dof+1)]), dtype=dtype),
-        #                      requires_grad=True)
-
-        # NOTE: A should be greater than 0
-        self._A = nn.Parameter(torch.rand((dof, 6), dtype=dtype), requires_grad=True)
-
-        #G = [torch.rand((6), dtype=dtype).diag() for _ in range(dof)] # G should be positive...
-
-        # not feasible, but we ignore the off-diagonal elements
-
-        # TODO: perhaps over simplified... we ignored all off-diagonal mass..
-        G = [torch.rand((4,), dtype=dtype) for _ in range(dof)] # G should be positive...
-        self._G = nn.Parameter(torch.stack(G), requires_grad=True)
-
-        #L = [torch.randn((6, 6), dtype=dtype) for _ in range(dof)]
-        #self.L = nn.Parameter(torch.stack(L), requires_grad=True)
+        self.dtype = dtype
+        self.init_parameters(dof, dtype)
 
         self.gravity = nn.Parameter(torch.tensor(gravity, dtype=dtype), requires_grad=False)
         self.ftip = nn.Parameter(torch.zeros(6, dtype=dtype), requires_grad=False)
         self.timestep = nn.Parameter(torch.tensor(timestep, dtype=dtype), requires_grad=False)
+
+    def init_parameters(self, dof, dtype):
+        self._M = nn.Parameter(torch.tensor(np.array([
+            [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]] for _ in range(dof+1)]), dtype=dtype),
+            requires_grad=True)
+        self._A = nn.Parameter(torch.rand((dof, 6), dtype=dtype), requires_grad=True)
+
+        # TODO: perhaps over simplified... we ignored all off-diagonal mass..
+        G = [torch.rand((4,), dtype=dtype) for _ in range(dof)] # G should be positive...
+        self._G = nn.Parameter(torch.stack(G), requires_grad=True)
 
     @property
     def G(self):
@@ -51,6 +40,11 @@ class ArmModel(nn.Module):
             out[..., idx, 3, 3] = out[..., idx, 4, 4] = out[..., idx, 5, 5] = self._G[..., idx, 3]
         return out.abs() # project into positive M
 
+    @G.setter
+    def G(self, G):
+        self._G.data = G[..., torch.arange(4), torch.arange(4)].detach()
+
+
     @property
     def A(self):
         # there must be a rotation ...
@@ -58,23 +52,9 @@ class ArmModel(nn.Module):
         A1 = tr.normalize(A1)
         return torch.cat((A1, A2), dim=-1)
 
-    """
-    @property
-    def G(self):
-        return tr.dot(self.L, self.L.transpose(-1, -2))
-    """
-    def compute_mass_matrix(self, q):
-        return tr.compute_mass_matrix(q, *self.get_parameters(q)[-3:])
-
-    def compute_gravity(self, q):
-        params = self.get_parameters(q)
-        return tr.compute_passive_force(q, *params[-3:], params[0])
-
-    def compute_coriolis_centripetal(self, q, dq):
-        return tr.compute_coriolis_centripetal(q, dq, *self.get_parameters(q)[-3:])
-
-    def inverse_dynamics(self, q, dq, ddq):
-        return tr.inverse_dynamics(q, dq, ddq, *self.get_parameters(q))
+    @A.setter
+    def A(self, A):
+        self._A.data = A.detach()
 
     @property
     def M(self):
@@ -98,17 +78,38 @@ class ArmModel(nn.Module):
         out[:, 3, 3] = 1
         return out
 
-    def get_parameters(self, qpos):
+    @M.setter
+    def M(self, M):
+        self._M.data = M.detach()
+
+    def compute_mass_matrix(self, q):
+        return tr.compute_mass_matrix(q, *self.get_parameters(q)[-3:])
+
+    def compute_gravity(self, q):
+        params = self.get_parameters(q)
+        return tr.compute_passive_force(q, *params[-3:], params[0])
+
+    def compute_coriolis_centripetal(self, q, dq):
+        return tr.compute_coriolis_centripetal(q, dq, *self.get_parameters(q)[-3:])
+
+    def inverse_dynamics(self, q, dq, ddq):
+        return tr.inverse_dynamics(q, dq, ddq, *self.get_parameters(q))
+
+    def get_parameters(self, qpos, M=None, G=None, A=None):
         b = qpos.shape[0]
         gravity = self.gravity[None,:].expand(b, -1)
         ftip = self.ftip[None,:].expand(b, -1)
-        M = self.M[None,:].expand(b, -1, -1, -1)
+        if M is None:
+            M = self.M[None,:].expand(b, -1, -1, -1)
 
-        G = self.G # support batched G
-        if G.dim() == 3:
-            G = G[None,:].expand(b, -1, -1, -1)
+        if G is None:
+            G = self.G # support batched G
+            if G.dim() == 3:
+                G = G[None,:].expand(b, -1, -1, -1)
 
-        A = self.A[None,:].expand(b, -1, -1)
+        if A is None:
+            A = self.A[None,:].expand(b, -1, -1)
+
         return gravity, ftip, M, G, A
 
     def fk(self, q, dim=3):
@@ -119,13 +120,13 @@ class ArmModel(nn.Module):
         else:
             return ee[:, -1]
 
-    def qacc(self, qpos, qvel, action, damping=False):
+    def qacc(self, qpos, qvel, action, damping=False, **kwargs):
         torque = action * self.action_range
         if damping:
             torque -= self.damping * qvel
         return tr.forward_dynamics(qpos, qvel, torque, *self.get_parameters(qpos))
 
-    def forward(self, state, action):
+    def forward(self, state, action, **kwargs):
         # return the
         torque = action * self.action_range
 
@@ -156,16 +157,9 @@ class ArmModel(nn.Module):
         return torch.cat((q, dq), -1), ee[:, -1, :2, 3]
 
     def assign(self, A, M, G):
-        #self.M.data = mm.M.detach()
-        #self.A.data = mm.A.detach()
-        #self.M_rot.data = mm.M[:,:3,:2]
-        #self.M_trans.data = mm.M[:,:3,3]
-        #self.G.data = mm.G.detach()
-        #self.L.data = torch.stack([torch.cholesky(g) for g in mm.G.detach()])
-
-        self._A.data = A.detach()
-        self._M.data = M.detach()
-        self._G.data = G[..., torch.arange(4), torch.arange(4)].detach()
+        self.A = A
+        self.M = M
+        self.G = G
         return self
 
 
