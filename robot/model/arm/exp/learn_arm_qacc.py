@@ -7,7 +7,7 @@ from robot.model.arm.exp.learn_acrobat_qacc import trainQACC, QACCDataset, ee_lo
 
 def learn_qacc():
     optimize_A = False
-    optimize_M = True
+    optimize_M = False # if optimize M will be better?
     optimize_G = True
     env, agent = get_env_agent(seed=None)
     model: ArmModel = build_diff_model(env, damping=3.0)
@@ -38,8 +38,11 @@ def learn_qacc():
         if optimize_G:
             model._G.requires_grad = True
             GG = model._G.data.clone()
-            G = [torch.rand((4,), dtype=dtype, device=model._G.device) for _ in range(dof)]
-            model._G.data = torch.stack(G)
+            G = [torch.rand((10,), dtype=dtype, device=model._G.device) for _ in range(dof)]
+            G= torch.stack(G)
+            G[...,3:6] = 0
+            G[...,7:10] = 0
+            model._G.data = G
             #model._G.data = GG
         else:
             model._G.requires_grad = False
