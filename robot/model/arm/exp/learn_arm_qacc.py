@@ -45,24 +45,10 @@ def learn_qacc():
             model._G.requires_grad = False
 
         return model
-    """
-    s, a, qacc = dataset.sample('train')
-    #a = a.clamp(-0.3, 0.3)
-    from robot.utils import tocpu
-    #s[0,7:14] = s[0,7:14].clamp(-10, 10)
-    print(s[0,7:14])
-    print(compute_qacc(env, agent, tocpu(s[0,:7]), tocpu(s[0, 7:14]), tocpu(a[0]*50)))
-    #print(qacc[0])
-    print(model.qacc(s[:1, :7].double(), s[:1, 7:14].double(), a[:1].double(), damping=True)[0])
-    exit(0)
-    """
 
     model = make_model(model)
-    #trainQACC(model, dataset, learn_ee=1., viewer=None, learn_qacc=1.,
-    #                     optim_method='adam', epoch_num=10, loss_threshold=1e-10, lr=0.0001, num_train=1000)
     trainQACC(model, dataset, learn_ee=1., viewer=None, learn_qacc=1.,
-                         optim_method='adam', epoch_num=10, loss_threshold=1e-10, lr=1e-3, num_train=1000, batch_size=256)
-    #cemQACC_G(model, dataset)
+                         optim_method='adam', epoch_num=40, loss_threshold=1e-10, lr=1e-3, num_train=1000, batch_size=256)
 
 if __name__ == '__main__':
     import argparse

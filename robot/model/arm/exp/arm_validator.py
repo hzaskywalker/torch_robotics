@@ -129,7 +129,7 @@ def test_fk():
 def test_inverse_dynamics():
     env, agent = get_env_agent()
 
-    model = build_diff_model(env, damping=0.01)
+    model = build_diff_model(env, damping=3.)
 
     #q, dq = [-2.148633, 2.129848], [-2.0222425, 6.676592 ]
     np.random.seed(1)
@@ -156,7 +156,7 @@ def test_inverse_dynamics():
             #print(env.scene.get_contacts())
             continue
 
-        relative_check(qacc, predict_qacc, "qacc", eps=0.2)
+        relative_check(qacc, predict_qacc, "qacc", eps=0.5)
 
         M = sapien_validator.compute_mass_matrix(agent, q)
         M2 = U.tocpu(model.compute_mass_matrix(q_torch)[0])
@@ -177,7 +177,7 @@ def test_inverse_dynamics():
 
         I = sapien_validator.inverse_dynamics(agent, q, dq, qacc, with_passive=True, external=True)
         I2 = U.tocpu(model.inverse_dynamics(q_torch, dq_torch, qacc_torch))
-        check(I, I2, "inverse dynamics", eps=2e-3)
+        check(I, I2, "inverse dynamics", eps=4e-3)
 
     """
     agent.set_qpos(q)

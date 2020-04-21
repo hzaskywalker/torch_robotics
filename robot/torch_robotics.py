@@ -73,8 +73,7 @@ def so3_to_vec(so3mat):
     :param so3mat: A 3x3 skew-symmetric matrix
     :return: The 3-vector corresponding to so3mat
     """
-    #return np.array([so3mat[2][1], so3mat[0][2], so3mat[1][0]])
-    return torch.stack((so3mat[..., 2, 1], so3mat[..., 0, 2], so3mat[..., 1, 0]), dim=-1)
+    return so3mat[..., [2, 0, 1], [1,2,0]]
 
 
 def vec_to_se3(V):

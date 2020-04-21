@@ -8,8 +8,10 @@ class ArmModel(nn.Module):
     # possible variants: constrained parameter space
     # possible if we use the dynamics to optimize the geometry
     def __init__(self, dof, dtype=torch.float64, max_velocity=20, action_range=50, timestep=0.1, damping=0.,
-                 gravity=(0., -9.8, 0.)):
+                 gravity=(0., -9.8, 0.), typeG='spatial'):
         super(ArmModel, self).__init__()
+        assert typeG in ['diag', 'spatial']
+        self.typeG = typeG
 
         self.dof = dof
         self.max_velocity = max_velocity
@@ -28,21 +30,33 @@ class ArmModel(nn.Module):
             requires_grad=True)
         self._A = nn.Parameter(torch.rand((dof, 6), dtype=dtype), requires_grad=True)
 
-        # TODO: perhaps over simplified... we ignored all off-diagonal mass..
-        G = [torch.rand((4,), dtype=dtype) for _ in range(dof)] # G should be positive...
+        if self.typeG == 'diag':
+            G = [torch.rand((4,), dtype=dtype) for _ in range(dof)] # G should be positive...
+        else:
+            G = [torch.rand((10,), dtype=dtype) for _ in range(dof)]  # G should be positive...
         self._G = nn.Parameter(torch.stack(G), requires_grad=True)
 
     @property
     def G(self):
         out = self._G.new_zeros((*self._G.shape[:-2], self.dof, 6, 6))
-        for idx in range(self._G.shape[-2]):
-            out[..., idx, :3, :3] = self._G[..., idx, :3].diag()
-            out[..., idx, [3,4,5], [3,4,5]] = self._G[..., idx, 3]
+        if self.typeG == 'diag':
+            out[..., [0, 1, 2], [0, 1, 2]] = self._G[..., :3]
+            out[..., [3,4,5], [3,4,5]] = self._G[..., 3, None]
+        else:
+            out[..., [0, 1, 2, 0, 0, 1], [0, 1, 2, 1, 2, 2]] = self._G[..., :6]
+            out[..., [1, 2, 2], [0, 0, 1]] = self._G[..., 3:6]
+            out[..., [3, 4, 5], [3, 4, 5]] = self._G[..., 6, None]
+            p = tr.vec_to_so3(self._G[..., 7:])
+            out[..., :3, 3:] = p
+            out[..., 3:, :3] = tr.transpose(p)
         return out.abs() # project into positive M
 
     @G.setter
     def G(self, G):
-        self._G.data = G[..., torch.arange(4), torch.arange(4)].detach()
+        if self.typeG == 'diag':
+            self._G.data = G[..., torch.arange(4), torch.arange(4)].detach()
+        else:
+            self._G.data = G[..., [0,1,2,0,0,1,3, 2, 0, 1], [0,1,2,1,2,2,3, 1+3, 2+3, 0+3]]
 
 
     @property
