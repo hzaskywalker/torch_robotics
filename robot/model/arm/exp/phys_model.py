@@ -42,14 +42,18 @@ class ArmModel(nn.Module):
         if self.typeG == 'diag':
             out[..., [0, 1, 2], [0, 1, 2]] = self._G[..., :3]
             out[..., [3,4,5], [3,4,5]] = self._G[..., 3, None]
+            return out.abs()  # project into positive M
         else:
-            out[..., [0, 1, 2, 0, 0, 1], [0, 1, 2, 1, 2, 2]] = self._G[..., :6]
-            out[..., [1, 2, 2], [0, 0, 1]] = self._G[..., 3:6]
-            out[..., [3, 4, 5], [3, 4, 5]] = self._G[..., 6, None]
+            L = self._G.new_zeros((*self._G.shape[:-2], self.dof, 3, 3))
+            L[..., [0, 1, 2], [0, 1, 2]] = self._G[..., :3].abs()
+            L[..., [1, 2, 2], [0, 0, 1]] = self._G[..., 3:6]
+            out[...,:3,:3] = tr.dot(L, tr.transpose(L))
+            out[..., [3, 4, 5], [3, 4, 5]] = self._G[..., 6, None].abs()
+
             p = tr.vec_to_so3(self._G[..., 7:])
             out[..., :3, 3:] = p
             out[..., 3:, :3] = tr.transpose(p)
-        return out.abs() # project into positive M
+            return out  # project into positive M
 
     @G.setter
     def G(self, G):

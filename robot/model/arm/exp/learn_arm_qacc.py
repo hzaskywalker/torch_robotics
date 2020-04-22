@@ -42,6 +42,8 @@ def learn_qacc():
             G= torch.stack(G)
             G[...,3:6] = 0
             G[...,7:10] = 0
+            #G[...,3:6] *= 0.01
+            #G[...,7:10] *= 0.01
             model._G.data = G
             #model._G.data = GG
         else:
