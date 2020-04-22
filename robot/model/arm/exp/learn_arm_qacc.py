@@ -43,8 +43,11 @@ def learn_qacc(typeG='spatial'):
         return model
 
     model = make_model(model)
-    trainQACC(model, dataset, learn_ee=100., viewer=None, learn_qacc=1.,
-                         optim_method='adam', epoch_num=40, loss_threshold=1e-10, lr=1e-3, num_train=1000, batch_size=256)
+    #trainQACC(model, dataset, learn_ee=10., viewer=None, learn_qacc=1.,
+    #                     optim_method='adam', epoch_num=40, loss_threshold=1e-10, lr=1e-3, num_train=1000, batch_size=256)
+    # if the above is 10, then it's possible to optimize the diagonal case.
+    trainQACC(model, dataset, learn_ee=10, viewer=None, learn_qacc=1.,
+                         optim_method='adam', epoch_num=40, loss_threshold=1e-10, lr=3e-3, num_train=1000, batch_size=256)
 
 if __name__ == '__main__':
     import argparse
