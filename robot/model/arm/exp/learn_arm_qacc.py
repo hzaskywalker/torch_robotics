@@ -11,14 +11,13 @@ def learn_qacc(typeG='spatial'):
     env, agent = get_env_agent(seed=None)
     model: ArmModel = build_diff_model(env, damping=3.0, typeG=typeG)
     dof = 7
-    dataset = QACCDataset('/dataset/arm', small=True)
+    dataset = QACCDataset('/dataset/arm', small=False)
 
     print(model._G)
     def make_model(model):
         dtype= model._G.dtype
         if optimize_A:
             model._A.requires_grad = True
-            #model._A.data[:] = torch.randn_like(model._A.data) * 0.1
         else:
             model._A.data[:] = torch.tensor([1,0,0,0,0,0], dtype=dtype, device='cuda:0')
             model._A.requires_grad = False
