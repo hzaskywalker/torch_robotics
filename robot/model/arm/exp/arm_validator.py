@@ -63,7 +63,7 @@ def solveJoint(agent, M):
     return torch.stack(outs)
 
 
-def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=torch.float64):
+def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=torch.float64, typeG='spatial'):
     # seven dof
     agent = env.agent
 
@@ -108,7 +108,8 @@ def build_diff_model(env, timestep=0.0025, max_velocity=200, damping=0.0, dtype=
     A = tr.togpu(A)
 
     model = sapien_validator.ArmModel(7, gravity=[0, 0, -9.8],
-                                      max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype).cuda()
+                                      max_velocity=max_velocity, timestep=timestep, damping=damping, dtype=dtype,
+                                      typeG=typeG).cuda()
     model.assign(A, M, G)
     return model
 

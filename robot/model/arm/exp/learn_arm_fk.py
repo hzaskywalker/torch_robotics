@@ -53,7 +53,7 @@ def learnG():
     env = get_env_agent(seed=None)[0]
     dof = 7
 
-    optimize_A = True
+    optimize_A = False
     optimize_M = True
     optimize_G = False
     model: ArmModel = build_diff_model(env)
@@ -63,16 +63,13 @@ def learnG():
         if optimize_A:
             model._A.requires_grad = True
             model._A.data[:] = torch.tensor(init_A, dtype=dtype, device='cuda:0')
-            #model._A.data[:] = torch.randn_like(model._A.data) * 0.1
         else:
+            model._A.data[:] = torch.tensor([1,0,0,0,0,0], dtype=dtype, device='cuda:0')
             model._A.requires_grad = False
 
         if optimize_M:
             model._M.requires_grad = True
-            #model._M.data[:] = torch.tensor(np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]),
-            #    dtype=dtype, device=model._M.device)
             model._M.data[:] = torch.randn_like(model._M.data) * 0.1
-            #model._M.data[0,3,3] = cc[3,3]#torch.randn_like(cc) # xjb hack, in fact, better initialization may help
         else:
             model._M.requires_grad = False
 
@@ -85,12 +82,11 @@ def learnG():
 
         return model
 
-    dataset = QACCDataset('/dataset/arm', small=False)
+    dataset = QACCDataset('/dataset/arm', small=True)
     viewer = Viewer(model)
     #viewer = None
     losses = []
-    #for i in range(30):
-    for i in range(10):
+    for i in range(30):
         #initA = [[*np.random.normal(size=(3,)), 0, 0, 0] for j in range(7)]
         initA = [*np.random.normal(size=(3,)), 0, 0, 0]
         #initA = [2.7162355469095885, 1.5762245473496705, 0.34537523430899664, 0, 0, 0]
