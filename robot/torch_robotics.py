@@ -347,21 +347,11 @@ def A_to_S(A, M):
 
 def inverse_dynamics(theta, dtheta, ddtheta, gravity, Ftip, M, G, A):
     """Computes inverse dynamics in the space frame for an open chain robot
-    :param thetalist: n-vector of joint variables
-    :param dthetalist: n-vector of joint rates
-    :param ddthetalist: n-vector of joint accelerations
-    :param g: Gravity vector g
-    :param Ftip: Spatial force applied by the end-effector expressed in frame
-                 {n+1}
     :param Mlist: List of link frames {i} relative to {i-1} at the home
                   position, matrix of (b, n+1, 4, 4)
     :param Glist: Spatial inertia matrices Gi of the links, matrix of (b, n, 6, 6)
     :param Alist: Screw axes Si of the joints in frame {i}, matrix of (b, n, 6)
     :return: The n-vector of required joint forces/torques
-    This function uses forward-backward Newton-Euler iterations to solve the
-    equation:
-    taulist = Mlist(thetalist)ddthetalist + c(thetalist,dthetalist) \
-              + g(thetalist) + Jtr(thetalist)Ftip
     """
     batch_shape = theta.shape[:-1]
     assert len(batch_shape) == 1
