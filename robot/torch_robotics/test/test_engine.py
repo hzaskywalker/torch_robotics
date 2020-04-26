@@ -14,6 +14,9 @@ def test_engine():
     center2 = tr.togpu([0, 3, 3])[None, :]
     sphere2 = engine.sphere(center2, inertia, mass, radius, (0, 255, 0), name='sphere2')
 
+    print(sphere.obj.kinetic())
+    exit(0)
+
     renderer = engine.renderer
     renderer.axis(renderer.identity())
     renderer.set_camera_position(-10, 0, 0)

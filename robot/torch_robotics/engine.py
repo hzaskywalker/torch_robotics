@@ -89,6 +89,9 @@ class RigidBodyHandler:
     def fk(self):
         return self.cmass
 
+    def kinetic(self):
+        return self._rigid_body[self.slice].kinetic()
+
 
 class Engine:
     def __init__(self, vis=False, gravity=arith.togpu([0, 0, -9.8]),

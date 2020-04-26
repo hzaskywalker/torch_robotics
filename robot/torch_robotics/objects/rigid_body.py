@@ -166,3 +166,8 @@ class RigidBody(Physics):
             self.cmass = dot(self.cmass, arith.expse3(se3 * dt))
         else:
             raise NotImplementedError("Not inplace integral is not implemented yet")
+
+    def kinetic(self):
+        # return the current kinetic energy
+        G =  self.spatial_mass_matrix()
+        return dot(self.velocity, dot(G, self.velocity))/2
