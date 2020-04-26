@@ -1,33 +1,72 @@
 """
 Basical rigid body class, which supports query the Jacobian and the manipulation of the inertia matrices.
 """
-from .base import dot, inv_trans, Adjoint, transpose, Rp_to_trans, transform_vector, eyes_like
+import torch
+from .physics import Physics
+from ..arith import dot, inv_trans, Adjoint, transpose, Rp_to_trans, transform_vector, eyes_like
+from .. import arith
 
-#-----------------------  Rigid Body -------------------
-class RigidBody:
+
+class RigidBody(Physics):
+    xdof = 9
+    vdof = 6
+
     # the basical class to manipulate the rigid body
     # handles the rigid-body dynamics ...
 
-    def __init__(self, cmass, inertia, mass):
+    # by default we use the spatial frame to calcualte the qpos, qvel for ease
+
+    def __init__(self, cmass, inertia, mass, velocity=None):
         # cmass is in SE3
         if cmass.dim() == 2:
-            cmass, inertia, mass = cmass[None,:], inertia[None,:], mass[None,]
-        self.cmass, self.inertia, self.mass = cmass, inertia, mass
+            cmass, inertia, mass = cmass[None, :], inertia[None, :], mass[None,]
+        self.cmass, self.inertia, self.mass, self.velocity = cmass, inertia, mass, velocity
+        if velocity is None:
+            self.velocity = self.mass.new_zeros(*self.mass.shape, 6)
+        super(RigidBody, self).__init__()
 
     @property
     def G(self):
         out = self.inertia.new_zeros(*self.mass.shape, 6, 6)
-        out[..., :3,:3] = self.inertia
-        out[..., [3,4,5],[3,4,5]] = self.mass
+        out[..., :3, :3] = self.inertia
+        out[..., [3,4,5], [3,4,5]] = self.mass[:, None]
         return out
 
-    def spatial_mass_matrix(self, T_a):
+
+    def dynamics(self,  gravity=None, wrench=None):
+        """
+        :param wrench: the force applied from the other objects
+        :param gravity: the gravity acceleration
+        :return:
+        """
+        # get the rigid body dynamics
+        # \ddot q = M^{-1}(\tau - c)=M^{-1}c, return M, c
+
+        # Note that f+[ad_v]^TGv=Ga
+        # G^{-1}(f + [ad_v]^TGv) + g = a
+        G_spatial = self.spatial_mass_matrix()
+        invG = torch.inverse(G_spatial) # we assume it's always invertible
+
+        c = dot(dot(transpose(arith.ad(self.velocity)), G_spatial), self.velocity)
+        if wrench is not None:
+            c = c + wrench
+        if gravity is not None:
+            gravity = gravity[None,:].expand(G_spatial.shape[0], -1)
+            c += dot(G_spatial[..., 3:], gravity)
+        return invG, c
+
+
+    def spatial_mass_matrix(self, T_a=None):
         # return the spatial mass matrix in the frame T
         # so that we can apply the newton law in the frame T
 
         # G_a = [Ad_{T_ba}]^T G_b [Ad_{T_ba}]
         #  T_b T_ba y = T_a y =>T_{ba} = T_b^-1 T_a
-        T_ba = dot(inv_trans(self.cmass), T_a)
+
+        # if T_a is None, we assume it's identity, e.g., the spatial coordinate
+        T_ba = inv_trans(self.cmass)
+        if T_a is not None:
+            T_ba = dot(T_ba, T_a)
         Ad = Adjoint(T_ba)
         return dot(dot(transpose(Ad), self.G), Ad)
 
@@ -49,7 +88,6 @@ class RigidBody:
         else:
             self.cmass, self.inertia = cmass_, inertia_
             return self
-
 
     def align_principle_(self):
         return self.align_principle(inplace=True)
@@ -110,12 +148,21 @@ class RigidBody:
     def __repr__(self):
         return f"cmass: {self.cmass}\ninertia: {self.inertia}\nmass: {self.mass}\n"
 
-    def __getitem__(self, item):
-        return self.__class__(self.cmass[item], self.inertia[item], self.mass[item])
+    def iter(self):
+        return self.cmass, self.inertia, self.mass, self.velocity
 
     @property
     def shape(self):
         return self.mass.shape
 
+    def assign(self, b):
+        self.cmass, self.inertia, self.mass, self.velocity = b.iter()
 
-
+    def euler(self, qacc, dt, inplace=True):
+        # one-step euler integral..
+        if inplace:
+            self.velocity = self.velocity + qacc * dt # first update the velocity
+            se3 = arith.vec_to_se3(self.velocity)
+            self.cmass = dot(self.cmass, arith.expse3(se3 * dt))
+        else:
+            raise NotImplementedError("Not inplace integral is not implemented yet")

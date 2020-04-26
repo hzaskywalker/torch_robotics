@@ -21,6 +21,11 @@ def transpose(R):
     return R.transpose(-1, -2)
 
 
+def translate(p):
+    eye = eyes_like(p[..., None,:])
+    return Rp_to_trans(eye, p)
+
+
 def dot(A, B):
     assert A.shape[0] == B.shape[0]
     if A.dim() == 3 and B.dim() == 3:
@@ -542,6 +547,19 @@ def rk4(derivs, y0, t, *args, **kwargs):
         yout[i + 1] = y0 + dt / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
 
     return yout
+
+def normal2pose(normal):
+    normal = normalize(normal)
+    one = torch.zeros_like(normal); one[..., 0] = 1
+    two = torch.zeros_like(normal); two[..., 1] = 1
+    mask = NearZero(((normal - one)**2).sum(dim=-1)).float()
+    r = one * (1-mask) + two * mask
+    return projectSO3(torch.stack((normal, normal, r), dim=-2)).transpose(-1, -2)
+
+def transform_wrench(F_a, T_ab):
+    # transfrom wrench in coordinate T to
+    # F_b = [Ad_{Tab}]^TF_a
+    return dot(transpose(Adjoint(T_ab)), F_a)
 
 # ------------------------- SAPIEN ---------------------------------
 

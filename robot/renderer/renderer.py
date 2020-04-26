@@ -280,14 +280,13 @@ class ScrewArm(Arm):
 
 class Renderer:
     # the renderer it self doesn't do the resource management
-    # e.g., the renderer doesn't use a dict to maintain all objects in the scene
-    #    because it has already be maintained by the pyrender.Scene already
-
     def __init__(self, camera_pose=np.eye(4), ambient_light=(0.5, 0.5, 0.5),
                  bg_color=(0, 0, 0)):
         #This is not necessasry for Teamviewer of dummy x videos..
         #import pyglet
         #pyglet.options['shadow_window'] = False
+        # look towards x coordinates
+        # y is on the left for the right-hand coordiates
 
         import pyrender
         self.scene = pyrender.Scene(ambient_light=ambient_light, bg_color=bg_color)
@@ -421,7 +420,7 @@ class Renderer:
     def register(self, obj, name):
         if name is None:
             name = f'obj{len(self._objects)}'
-        assert name not in self._objects
+        assert name not in self._objects, f"{name} already exists in the renderer"
         self._objects[name] = obj
         return obj
 
