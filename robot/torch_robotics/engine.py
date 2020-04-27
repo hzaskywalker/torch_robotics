@@ -22,12 +22,13 @@ class RigidBodyHandler:
         self._rigid_body = rigid_body
         self.engine = engine
 
-    def apply_local(self, wrench, mode='set'):
-        # we need to transform the wrench
-        wrench = arith.transform_wrench(wrench, arith.inv_trans(self.cmass))
-        self.apply(wrench, mode)
-
     def apply(self, wrench, mode='set'):
+        """
+        Notice we use this only for debug as usually we can't manually set a force to the object easily ...
+        Once the object starts to rotate, it's hard to decide it's rotation angle ..
+        So in general, we will only apply a force to the center of the mass without any torque
+        :param wrench: local wrench apply to the rigid's cmass frame..
+        """
         if mode == 'set':
             self.engine.wrench[self.slice] = wrench
         else:
@@ -89,14 +90,17 @@ class RigidBodyHandler:
     def fk(self):
         return self.cmass
 
-    def kinetic(self):
-        return self._rigid_body[self.slice].kinetic()
+    def __getattr__(self, item):
+        return self._rigid_body[self.slice].__getattribute__(item)
 
 
 class Engine:
-    def __init__(self, vis=False, gravity=arith.togpu([0, 0, -9.8]),
+    def __init__(self,
+                 gravity=arith.togpu([0, 0, -9.8]),
                  dt = 0.01, frameskip=1,
-                 integrator='Euler'):
+                 integrator='Euler',
+                 contact_model=None
+             ):
         assert integrator in ['Euler']
         self.geometry = SimpleCollisionDetector()
         self.renderer = Renderer()
@@ -117,6 +121,9 @@ class Engine:
         self.frameskip = frameskip
         self.integrator = integrator
 
+        self.contact_model = contact_model
+        if self.contact_model is not None:
+            self.contact_model.set_dt(self.dt)
 
     @property
     def wrench(self):
@@ -127,7 +134,7 @@ class Engine:
     def dynamcis(self):
         # Note we don't organize it into batch, we will do it later..
         assert self.n_articulation == 0
-        invM, c = self._rigid_bodies.dynamics(gravity=self.gravity)
+        invM, c = self._rigid_bodies.dynamics(gravity=self.gravity, wrench=self.wrench)
         return invM, c
 
     def forward_kinematics(self, shape=True, render=True):
@@ -141,23 +148,64 @@ class Engine:
                 self.visuals[name].set_pose(arith.tocpu(pose[0]))
 
 
-    def collide(self):
-        # call this to make sure that all the rigid bodis are concatenated
-        # we should sync
-
+    def collide(self, return_jacobian=True):
+        # collision detection
+        # if we don't have the contact model or we don't need the jacobian, return the collision detection result
+        # otherwise we return the sparse blocked jacobian matrix (jacobian, constraint_id, obj_id)
         values = list(self.shapes.values())
-        ds = []
+        dists = []
         poses = []
         edges = []
         for i in range(len(values)):
             for j in range(i+1, len(values)):
                 d, pose, edge = self.geometry.collide(values[i], values[j])
+                if edge.shape[0] > 0:
+                    dists.append(d)
+                    poses.append(pose)
+                    edges.append(edge)
 
-                ds.append(d)
-                poses.append(pose)
-                edges.append(edge)
+        dists, poses, edges = torch.cat(dists), torch.cat(poses), torch.cat(edges)
+        if self.contact_model is None or not return_jacobian:
+            return dists, poses, edges
+        if edges.shape[0] > 0:
+            return d, self.compute_jacobian(dists, poses, edges)
+        else:
+            return None, None
 
-        return torch.cat(ds), torch.cat(poses), torch.cat(edges)
+    def rigid_body_index2xy(self, index):
+        total = len(self._rigid_bodies)
+        assert total % self.n_rigid_body == 0
+        batch_size = total//self.n_rigid_body
+        self.batch_size = batch_size
+        return index//batch_size, index % batch_size
+
+    def compute_jacobian(self, dist, poses, edges):
+        # the jacobian should be organized in the following form:
+        # we return the jacobian in form of (6x6xb) and the corresponding constraints id
+
+        # given the poses
+
+        # from torch_geometric.utils import scatter_
+        left_index = edges[:, 0]
+        right_index = edges[:, 1]
+
+        left_mask = left_index>=0
+        assert left_mask.all()
+
+        # we remove imortal objects ...
+        right_mask = (right_index >= 0)
+        right_index = right_index[right_mask]
+
+        all_index = torch.cat((left_index, right_index), dim=0)
+        all_poses = torch.cat([poses, poses[right_index]], dim=0)
+
+        bodies = self._rigid_bodies[all_index].compute_jacobian(all_poses)
+
+        #TODO: in fact we can speed it up, but we don't need to do it now...
+        jac = bodies.compute_jacobian()
+        constrain_id = torch.cat([torch.where(left_mask>=0), torch.where(right_mask)[0]], dim=0)
+        return (jac, constrain_id, all_index)
+
 
     def _add_object(self, obj, shape, visual, name=None):
         if name is None:
@@ -221,15 +269,19 @@ class Engine:
         return self._add_object(Imortal(), ground, visual, 'ground')
 
     def render(self, mode='human'):
-        self.renderer.render(mode=mode)
+        return self.renderer.render(mode=mode)
 
     def qacc(self):
         # compute the qacc for rigid bodies and the articulation (not implemented yet)
         self.forward_kinematics()
         invM, c = self.dynamcis()
+        # TODO: if there are articulation, we should also return the articulation's qacc
         qacc = arith.dot(invM, c)
 
-        # TODO: if there are articulation, we should also return the articulation's qacc
+        if self.contact_model:
+            dist, jac = self.collide()
+            if jac is not None:
+                qacc = qacc + self.contact_model(self, jac, invM, c, dist, self._rigid_bodies.velocity)
         return qacc
 
     def step(self):

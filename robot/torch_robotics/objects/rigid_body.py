@@ -35,7 +35,7 @@ class RigidBody(Physics):
 
     def dynamics(self,  gravity=None, wrench=None):
         """
-        :param wrench: the force applied from the other objects
+        :param wrench: the force applied from the other objects, wrench is always in the local frame..
         :param gravity: the gravity acceleration
         :return:
         """
@@ -49,7 +49,7 @@ class RigidBody(Physics):
 
         c = dot(dot(transpose(arith.ad(self.velocity)), G_spatial), self.velocity)
         if wrench is not None:
-            c = c + wrench
+            c = c + arith.transform_wrench(wrench, arith.inv_trans(self.cmass))
         if gravity is not None:
             gravity = gravity[None,:].expand(G_spatial.shape[0], -1)
             c += dot(G_spatial[..., 3:], gravity)
@@ -170,4 +170,21 @@ class RigidBody(Physics):
     def kinetic(self):
         # return the current kinetic energy
         G =  self.spatial_mass_matrix()
-        return dot(self.velocity, dot(G, self.velocity))/2
+        return (self.velocity * dot(G, self.velocity)).sum(dim=-1)/2
+
+    def potential(self, g=9.8):
+        return self.mass * self.cmass[..., 2,3] * g
+
+    def energy(self, g=9.8):
+        return self.kinetic() + self.potential(g)
+
+    def compute_jacobian(self, pose):
+        # return the jacobian for the point at the pose
+        # Notice that jacobian J(q) maps the velocity from spatial velocity into the velocity in the constraint space
+        # the current frame is cmass b, the destination frame is contact frame c
+        # V_c = Ad_{T_{cb}}V_b
+
+        # we assume pose and cmass are all in the space frame..
+        # T_{cb} = T_sc^{-1}T_sb
+        T_cb = dot(arith.inv_trans(pose), self.cmass)
+        return arith.Adjoint(T_cb)
