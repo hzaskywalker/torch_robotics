@@ -554,7 +554,7 @@ def normal2pose(normal):
     two = torch.zeros_like(normal); two[..., 1] = 1
     mask = NearZero(((normal - one)**2).sum(dim=-1)).float()
     r = one * (1-mask) + two * mask
-    return projectSO3(torch.stack((normal, normal, r), dim=-2)).transpose(-1, -2)
+    return projectSO3(torch.stack((normal, r, r), dim=-1))
 
 def transform_wrench(F_a, T_ab):
     # transfrom wrench in coordinate T to

@@ -86,6 +86,79 @@ def test_collision():
             print(sphere.obj.energy())
         print(sphere.obj.cmass[0, :3, 3], f"should be {-5+2*30*0.1}")
 
+
+def test_two_sphere():
+    from robot.torch_robotics.contact.elastic import ElasticImpulse
+    model = ElasticImpulse(alpha0=0)
+
+    engine = Engine(dt=0.01, frameskip=10, contact_model=model)
+    ground = engine.ground(ground_size=20)
+
+    center = tr.togpu([0, 0, 5])[None, :]
+    inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
+    mass = tr.togpu([1])
+    radius = tr.togpu([1])
+    sphere = engine.sphere(center, inertia, mass, radius, (0, 255, 0), name='sphere')
+
+    sphere2 = engine.sphere(tr.togpu([0, 3, 5])[None, :], inertia, mass, radius, (0, 255, 0), name='sphere2')
+
+    renderer = engine.renderer
+    renderer.axis(renderer.identity())
+    renderer.set_camera_position(-15, 0, 0)
+    renderer.set_camera_rotation(0, 0)
+
+    if False:
+        for i in range(30):
+            engine.step()
+            engine.render()
+
+    if False:
+        sphere.obj.cmass[:, :3, 3] = tr.togpu([0,-2,1])
+        sphere2.obj.cmass[:, :3, 3] = tr.togpu([0,2,1])
+        sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 3, 0])
+        sphere2.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 0, 0])
+
+        for i in range(30):
+            engine.step()
+            engine.render()
+            print(sphere.obj.energy()+sphere2.obj.energy())
+
+    if True:
+        sphere.obj.cmass[:, :3, 3] = tr.togpu([0,-2,1])
+        sphere2.obj.cmass[:, :3, 3] = tr.togpu([0,2,1])
+        sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 3, 0])
+        sphere2.obj.velocity[:] = tr.togpu([0, 0, 0, 0, -3, 0])
+
+        for i in range(20):
+            engine.step()
+            engine.render()
+            print(sphere.obj.energy()+sphere2.obj.energy())
+
+
+    import numpy as np
+    sphere.obj.cmass[:, :3, 3] = tr.togpu([0, -3, 1])
+    sphere.obj.cmass[:, :3, :3] = tr.projectSO3(tr.togpu(np.random.random(size=(3, 3))))
+
+    sphere2.obj.cmass[:, :3, 3] = tr.togpu([0, 3-0.00001, 1]) #TODO: LCP can't solve break away
+    sphere2.obj.cmass[:, :3, :3] = tr.projectSO3(tr.togpu(np.random.random(size=(3, 3))))
+
+    sphere3 = engine.sphere(tr.togpu([0, 5, 1])[None, :], inertia, mass, radius, (0, 255, 0), name='sphere3')
+    sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 3, 0])
+    sphere.obj.velocity = tr.dot(tr.Adjoint(tr.inv_trans(sphere.obj.cmass)), sphere.obj.velocity)
+    sphere2.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 0, 0])
+    sphere3.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 0, 0])
+
+    print('newton ball')
+    print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
+    for i in range(20):
+        engine.step()
+        print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
+        #exit(0)
+        img = engine.render(mode='rgb_array')
+        cv2.imshow('x', img)
+        cv2.waitKey(1)
+
 if __name__ == '__main__':
     #test_simple()
-    test_collision()
+    #test_collision()
+    test_two_sphere()

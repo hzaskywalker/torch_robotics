@@ -51,7 +51,7 @@ class RigidBody(Physics):
             c = c + wrench
         if gravity is not None:
             gravity = gravity[None,:].expand(G_body.shape[0], -1)
-            c += dot(G_body[..., 3:], gravity)
+            c += dot(G_body[..., 3:], dot(self.cmass[..., :3,:3].transpose(-1, -2), gravity))
         return invG, c
 
 
@@ -181,12 +181,8 @@ class RigidBody(Physics):
         # Notice that jacobian J(q) maps the velocity from spatial velocity into the velocity in the constraint space
         # the current frame is cmass b, the destination frame is contact frame c
         # V_c = Ad_{T_{cb}}V_b
-
         # we assume pose and cmass are all in the space frame..
         # T_{cb} = T_sc^{-1}T_sb
-
-        #T_cs = arith.inv_trans(pose)
-        #return arith.Adjoint(T_cs)
 
         T_cb = dot(arith.inv_trans(pose), self.cmass)
         return arith.Adjoint(T_cb)

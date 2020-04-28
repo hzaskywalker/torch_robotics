@@ -226,11 +226,11 @@ class SapienEnv(gym.Env):
             body.add_capsule_shape(Pose(xpos, xquat), radius, half_length, density=density) #half length
         body.add_capsule_visual(Pose(xpos, xquat), radius, half_length, color, name) #half length
 
-    def add_sphere(self, body, xpos, xquat, radius, color, name, shape=True, density=None):
+    def add_sphere(self, body, xpos, xquat, radius, color, name, shape=True, density=None, material=None):
         if density is None:
             density = self._default_density
         if shape:
-            body.add_sphere_shape(Pose(xpos, xquat), radius, density=density) #half length
+            body.add_sphere_shape(Pose(xpos, xquat), radius, density=density, material=material) #half length
         body.add_sphere_visual(Pose(xpos, xquat), radius, color, name) #half length
 
     def add_box(self, body, xpos, xquat, size, color, name, shape=True, density=None):

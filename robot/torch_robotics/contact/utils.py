@@ -13,7 +13,7 @@ def dense_contact_dynamics(engine, jac, invM, tau, dist, velocity):
     :return:
     """
     jac, jac_id_c, jac_id_o = jac
-    c_batch, c_o = engine.rigid_body_index2xy(jac_id_o)
+    jac_batch, jac_o = engine.rigid_body_index2xy(jac_id_o)
     batch_size = engine.batch_size
 
     # ideally we should try to find the maximum number kinematics chain
@@ -27,31 +27,57 @@ def dense_contact_dynamics(engine, jac, invM, tau, dist, velocity):
 
     n_b = engine.n_rigid_body
     vdof = invM.shape[-1]
-
     # O(num of contact loop)
-    with torch.no_grad():
-        batch_contact_id = np.zeros((len(c_batch),), dtype=np.int32)  # contact id in batch
-        batch_nc = np.zeros((batch_size,), dtype=np.int32)
-        for j in range(len(c_batch)):
-            batch_id = int(c_batch[j])
-            batch_contact_id[j] = batch_nc[batch_id]
-            batch_nc[batch_id] += 1
 
-    max_nc = batch_nc.max()
-    J = jac.new_zeros(batch_size, max_nc, n_b * vdof)
+    with torch.no_grad():
+        # O(collision loop on the cpu)
+
+        batch_contact_id = np.zeros((len(jac_batch),), dtype=np.int32) - 1  # contact id in batch
+        batch_nc = np.zeros((batch_size,), dtype=np.int32)
+
+        _jac_batch = jac_batch.detach().cpu().numpy()
+        _jac_id_c = jac_id_c.detach().cpu().numpy()
+
+        for j in range(len(_jac_batch)):
+            batch_id = int(_jac_batch[j])
+            contact_id = _jac_id_c[j]
+            if batch_contact_id[contact_id] < 0:
+                batch_contact_id[contact_id] = batch_nc[batch_id]
+                batch_nc[batch_id] += 1
+            else:
+                break
+
+    max_nc = int(batch_nc.max())
+    """
+    #J = jac.new_zeros(batch_size, max_nc, n_b * vdof)
     d0 = jac.new_zeros(batch_size, max_nc)
     for j in range(len(jac)):
         contact_id = jac_id_c[j]
-        batch_id = int(c_batch[contact_id])
-        obj_id = int(c_o[contact_id])
-
+        batch_id = int(jac_batch[j])
+        obj_id = int(jac_o[j])
         # ------------ we enforce it to be a very simple contact here
-        J[batch_id, batch_contact_id[contact_id], obj_id * vdof:(obj_id + 1) * vdof] = jac[
-            j, 3]  # we only extract the normal direction
+        # we only extract the normal direction
+        J[batch_id, batch_contact_id[contact_id], obj_id * vdof:(obj_id+1) * vdof] = jac[j, 3]
         d0[batch_id, batch_contact_id[contact_id]] = dist[contact_id]
+        """
+
+    dimq = n_b * vdof
+    obj_id = (torch.arange(vdof, device=jac.device)[None, :] + jac_o[:, None] * vdof)
+    batch_contact_id = torch.tensor(batch_contact_id, dtype=torch.long, device=jac.device)
+
+    contact_id = (jac_batch * max_nc + batch_contact_id[jac_id_c])
+    d0 = jac.new_zeros(batch_size * max_nc).scatter(dim=0, index=contact_id, src=dist[jac_id_c]).reshape(batch_size, max_nc)
+
+    index = (contact_id[:, None] * dimq + obj_id).reshape(-1)
+    J = jac.new_zeros(batch_size * max_nc * n_b * vdof)
+    J = J.scatter(dim=0, index=index.to(jac.device), src=jac[:, 3].reshape(-1)).reshape(batch_size, max_nc, dimq)
+
 
     invM_ = invM.reshape(n_b, batch_size, vdof, vdof).transpose(0, 1)
     invM = jac.new_zeros(batch_size, n_b * vdof, n_b * vdof)
+
+    # this loop is very hard to avoid, we assume that the number of objects is limited ...
+    # otherwise, we should use sparse matrix representation ...
     for i in range(n_b):
         invM[:, i * vdof:(i + 1) * vdof, i * vdof:(i + 1) * vdof] = invM_[:, i]
 
@@ -64,5 +90,4 @@ def dense_contact_dynamics(engine, jac, invM, tau, dist, velocity):
     A = dot(JinvM, transpose(J))
     v0 = dot(J, velocity)
     a0 = dot(JinvM, tau)
-
     return A, a0, v0, d0, J

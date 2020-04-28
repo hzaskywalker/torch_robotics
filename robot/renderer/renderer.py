@@ -368,6 +368,7 @@ class Renderer:
             if mode == 'rgb_array':
                 _viewer = self._viewers.get('human')
                 if _viewer is not None:
+                    _viewer.render_lock.release()
                     _viewer.close_external()
                     while _viewer.is_active:
                         pass
@@ -506,7 +507,6 @@ class Renderer:
                 for j in i.mesh.primitives:
                     j.delete()
         return r
-
 
     def get(self, name):
         return self._objects[name]

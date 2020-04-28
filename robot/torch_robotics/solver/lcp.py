@@ -2,9 +2,10 @@
 # projected gauss-sediel
 import numpy as np
 import torch
+from ..arith import dot
 
 class ProjectedGaussSiedelLCPSolver:
-    def __init__(self, niters=4, max_f=np.inf):
+    def __init__(self, niters=5, max_f=np.inf):
         self.niters = niters
         self.max_f = max_f
 
@@ -18,11 +19,15 @@ class ProjectedGaussSiedelLCPSolver:
         """
         n = A.shape[-1]
         u = torch.zeros_like(a)
+
+        A_diag = A[:,torch.arange(n), torch.arange(n)]
         for _ in range(self.niters):
             for i in range(n):
-                if i == 0:
-                    u[i] = -a[:, 0]/A[:, 0, 0]
-                else:
-                    u[i] = -(a[:, i] + (A[:, i, :i] * u[:, :i]).sum(dim=-1))/A[:, i, i]
-                u[i] = u[i].clamp(0, self.max_f)
+                #if i == 0:
+                #    u[:, i] = -a[:, 0]/A[:, 0, 0]
+                #else:
+                #    u[:, i] = -(a[:, i] + (A[:, i, :i] * u[:, :i]).sum(dim=-1))/A[:, i, i]
+                #u[:, i] = u[:, i].clamp(0, self.max_f)
+                u = -(dot(A, u) - A_diag * u + a)/A_diag
+                u = u.clamp(0, self.max_f)
         return u

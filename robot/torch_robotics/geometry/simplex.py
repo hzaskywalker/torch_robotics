@@ -89,7 +89,7 @@ class SimpleCollisionDetector:
     def collide_sphere_sphere(self, a:Sphere, b: Sphere):
         d = ((a.center-b.center) **2 + 1e-16).sum(dim=-1)**0.5
         assert (d < 1e-10).sum() == 0, "we don't allow two ball coincident with each other ..."
-        vec = (a.center - b.center)/d
+        vec = (b.center - a.center)/d
 
         p1 = a.center + a.radius * vec
         p2 = b.center - b.radius * vec

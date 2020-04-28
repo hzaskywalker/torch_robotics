@@ -19,15 +19,11 @@ class Ball(SapienEnv):
         self.set_state(qpos, qvel)
         return self._get_obs()
 
-    def step(self, a):
-        a = a
-        reward = 1.0
-        self.do_simulation(a * 108, self.frame_skip)
-        ob = self._get_obs()
-        notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= .2)
-        done = not notdone
+    def step(self, a=None):
+        #self.do_simulation(a * 108, self.frame_skip)
+        self.sim.step()
+        return np.array([1]), np.array([1]), 0, None
 
-        return ob, reward, done, {}
 
     def build_render(self):
         self.sim.set_ambient_light([.4, .4, .4])
@@ -40,28 +36,40 @@ class Ball(SapienEnv):
         self._renderer.set_camera_rotation(1.57, -0.5)
 
     def build_model(self):
-        builder = self.builder
         PxIdentity = np.array([1, 0, 0, 0])  # rotation
-        x2z = np.array([0.7071068, 0, -0.7071068, 0])
-        x2y = np.array([0.7071068, 0, 0, 0.7071068])
-        rail = self.add_link(None, Pose(np.array([0, 0, 0]), PxIdentity), "rail")  # world root
-        #self.add_capsule(rail, np.array([0, 0, 0]), np.array([1., 0, 0, 0]), 0.02, 1,
-        #                 np.array([1., 0., 0.]), "rail", shape=False)
+        material = self._sim.create_physical_material(0, 0, 1.0)
 
-        for i in range(10):
-            root2 = self.my_add_link(rail, ((5+i * 0.2, 0, 0.05), PxIdentity), ((0, 0, 0), PxIdentity), name=f'rootx{i}', damping=0, stiffness=0, type='slider', range=[-np.inf, np.inf], joint_name=f'rootx{i}')
-            root3 = self.my_add_link(root2, ((0, 0, 0), x2z), ((0, 0, 0), x2z), name=f'rootz{i}', damping=0, stiffness=0, type='slider', range=[-np.inf, np.inf], joint_name=f'rootz{i}')
-            torso = self.my_add_link(root3, ((0, 0, 0), x2y), ((0, 0, 0), x2y), name=f'torso{i}', damping=0, stiffness=0, type='hinge', range=[-np.inf, np.inf], joint_name=f'rooty{i}')
-            self.add_sphere(torso, (0, 0, 0), (1, 0, 0, 0), 0.05, np.array((0.8, 0.8, 1)), name=f"xxx{i}")
+        balls = []
+        for i in range(2):
+            actor = self.sim.create_actor_builder()
+            actor.add_sphere_shape(radius=0.05, material=material, density=10000)
+            actor.add_sphere_visual(radius=0.05, color=np.array((0.8, 0.8, 1)))
+            balls.append(actor.build())
 
-        wrapper = builder.build(True)
-        self.add_force_actuator("rooty0", -3, 3)
-        self.sim.add_ground(0)
-        return wrapper, None
+            balls[-1].set_pose(Pose((5+i*0.1, 0, 0.05)))
+            balls[-1].set_velocity(np.array([0,0,0]))
+            balls[-1].set_angular_velocity(np.array([0,0,0]))
+
+        self.sim.add_ground(0, material=material)
+        balls[0].set_pose(Pose((5-2, 0, 0.05)))
+        balls[0].set_velocity(np.array([1, 0, 0]))
+        #wrapper.set_qpos([-1, 0, 0,0])
+        #wrapper.set_qvel([1, 0, 0,0])
+        class Fake:
+            def get_joints(self):
+                return np.array([])
+            def get_qf(self):
+                return np.array([])
+            def get_qpos(self):
+                return np.array([])
+            def get_qvel(self):
+                return np.array([])
+
+        return Fake(), None
 
 
 if __name__ == '__main__':
-    #env = Ball()
-    ##while True:
-    #   env.render()
-    pass
+    env = Ball()
+    while True:
+        env.step()
+        env.render()

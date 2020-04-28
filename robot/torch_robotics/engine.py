@@ -128,6 +128,9 @@ class Engine:
     def wrench(self):
         if self._wrench is None:
             self._wrench = self._rigid_bodies.cmass.new_zeros((len(self._rigid_bodies), 6))
+        elif self._wrench.shape[0] != len(self._rigid_bodies):
+            n = len(self._rigid_bodies) - self._wrench.shape[0]
+            self._wrench = torch.cat((self._wrench, self._wrench.new_zeros(n, 6)))
         return self._wrench
 
     def dynamcis(self):
@@ -175,7 +178,7 @@ class Engine:
         assert total % self.n_rigid_body == 0
         batch_size = total//self.n_rigid_body
         self.batch_size = batch_size
-        return index//batch_size, index % batch_size
+        return index % batch_size, index//batch_size
 
     def compute_jacobian(self, dist, poses, edges):
         # the jacobian should be organized in the following form:
@@ -195,9 +198,10 @@ class Engine:
         right_index = right_index[right_mask]
 
         all_index = torch.cat((left_index, right_index), dim=0)
-        all_poses = torch.cat([poses, poses[right_index]], dim=0)
+        all_poses = torch.cat([poses, poses[right_mask]], dim=0)
 
         jac = self._rigid_bodies[all_index].compute_jacobian(all_poses)
+        jac[len(left_mask):] *= -1
         #TODO: in fact we can speed it up, but we don't need to do it now...
 
         constrain_id = torch.cat(torch.where(left_mask>=0) + torch.where(right_mask), dim=0)
@@ -240,7 +244,7 @@ class Engine:
 
         _slice = slice(start, end)
         # set the rigid body index for the shape ...
-        shape.index = torch.arange(_slice.start, _slice.stop)
+        shape.index = torch.arange(_slice.start, _slice.stop, device=cmass.device)
         return self._add_object(RigidBodyHandler(_slice, self._rigid_bodies, self),
                                 shape, visual, name)
 
@@ -263,9 +267,9 @@ class Engine:
 
         return self.add_rigid_body(cmass, _inertia, mass, shape, visual, name=name)
 
-    def ground(self):
+    def ground(self, ground_size=10):
         ground = self.geometry.ground()
-        visual = self.renderer.box((10, 10, 1), (255, 255, 255), self.renderer.translate((0, 0, -0.5)))
+        visual = self.renderer.box((ground_size, ground_size, 1), (255, 255, 255), self.renderer.translate((0, 0, -0.5)))
         return self._add_object(Imortal(), ground, visual, 'ground')
 
     def render(self, mode='human'):
