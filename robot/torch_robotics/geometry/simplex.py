@@ -108,4 +108,5 @@ class SimpleCollisionDetector:
         pose[..., 1,1] = 1
         pose[..., 2,0] = 1
         pose[..., 3,3] = 1
+        pose[..., :2, 3] = a.center[..., :2]
         return d, pose

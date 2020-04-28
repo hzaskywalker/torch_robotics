@@ -14,7 +14,7 @@ class RigidBody(Physics):
     # the basical class to manipulate the rigid body
     # handles the rigid-body dynamics ...
 
-    # by default we use the spatial frame to calcualte the qpos, qvel for ease
+    # by default we use the body frame to calcualte the qpos, qvel for ease
 
     def __init__(self, cmass, inertia, mass, velocity=None):
         # cmass is in SE3
@@ -43,15 +43,15 @@ class RigidBody(Physics):
 
         # Note that f+[ad_v]^TGv=Ga
         # G^{-1}(f + [ad_v]^TGv) + g = a
-        G_spatial = self.spatial_mass_matrix()
-        invG = torch.inverse(G_spatial) # we assume it's always invertible
+        G_body = self.G
+        invG = torch.inverse(G_body) # we assume it's always invertible
 
-        c = dot(dot(transpose(arith.ad(self.velocity)), G_spatial), self.velocity)
+        c = dot(dot(transpose(arith.ad(self.velocity)), G_body), self.velocity)
         if wrench is not None:
-            c = c + arith.transform_wrench(wrench, arith.inv_trans(self.cmass))
+            c = c + wrench
         if gravity is not None:
-            gravity = gravity[None,:].expand(G_spatial.shape[0], -1)
-            c += dot(G_spatial[..., 3:], gravity)
+            gravity = gravity[None,:].expand(G_body.shape[0], -1)
+            c += dot(G_body[..., 3:], gravity)
         return invG, c
 
 
@@ -168,8 +168,7 @@ class RigidBody(Physics):
 
     def kinetic(self):
         # return the current kinetic energy
-        G =  self.spatial_mass_matrix()
-        return (self.velocity * dot(G, self.velocity)).sum(dim=-1)/2
+        return (self.velocity * dot(self.G, self.velocity)).sum(dim=-1)/2
 
     def potential(self, g=9.8):
         return self.mass * self.cmass[..., 2,3] * g
@@ -185,5 +184,9 @@ class RigidBody(Physics):
 
         # we assume pose and cmass are all in the space frame..
         # T_{cb} = T_sc^{-1}T_sb
+
+        #T_cs = arith.inv_trans(pose)
+        #return arith.Adjoint(T_cs)
+
         T_cb = dot(arith.inv_trans(pose), self.cmass)
         return arith.Adjoint(T_cb)

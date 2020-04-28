@@ -30,6 +30,7 @@ class ElasticImpulse:
         # we also have d1 >= alpha0
         # d1 = h*h(Af+a0) + hv0 + d0
         A, a0, v0, d0, J = dense_contact_dynamics(engine, jac, invM, tau, dist, velocity)
+        #print(A, a0, v0, d0, J)
 
         h = engine.dt
         d1_lower_bound = (d0 - h * v0).clamp(self.alpha0, np.inf)

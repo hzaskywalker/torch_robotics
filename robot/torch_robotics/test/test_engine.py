@@ -50,7 +50,7 @@ def test_collision():
     engine = Engine(dt=0.001, frameskip=100, contact_model=model)
     ground = engine.ground()
 
-    center = tr.togpu([0, 0, 2])[None, :]
+    center = tr.togpu([0, 1, 3])[None, :]
     inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
     mass = tr.togpu([1])
     radius = tr.togpu([1])
@@ -61,13 +61,30 @@ def test_collision():
     renderer.set_camera_position(-10, 0, 0)
     renderer.set_camera_rotation(0, 0)
 
-    for i in range(100):
-        engine.step()
-        engine.render('human')
-        #img = engine.render('rgb_array')
-        #cv2.imshow('x', img)
-        #cv2.waitKey(0)
-        print(sphere.obj.energy())
+    if False:
+        for i in range(20):
+            engine.step()
+            engine.render('human')
+            print(sphere.obj.energy())
+
+    if False:
+        sphere.obj.cmass[0, :3, 3] = tr.togpu([0, 0, 5])
+        sphere.obj.velocity[0] = tr.togpu([0, 0, 0, 0, 0, 0])
+
+        for i in range(10):
+            engine.step()
+            engine.render('human')
+            print(sphere.obj.energy())
+
+    if True:
+        sphere.obj.cmass[0, :3, 3] = tr.togpu([0, -5, 2])
+        sphere.obj.velocity[0] = tr.togpu([0, 0, 0, 0, 2, 0])
+
+        for i in range(30):
+            engine.step()
+            engine.render('human')
+            print(sphere.obj.energy())
+        print(sphere.obj.cmass[0, :3, 3], f"should be {-5+2*30*0.1}")
 
 if __name__ == '__main__':
     #test_simple()
