@@ -1,1 +1,1 @@
-from .lcp import LCPSolver
+from .lcp import ProjectedGaussSiedelLCPSolver

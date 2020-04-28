@@ -32,7 +32,6 @@ class RigidBody(Physics):
         out[..., [3,4,5], [3,4,5]] = self.mass[:, None]
         return out
 
-
     def dynamics(self,  gravity=None, wrench=None):
         """
         :param wrench: the force applied from the other objects, wrench is always in the local frame..

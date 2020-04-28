@@ -122,8 +122,7 @@ class Engine:
         self.integrator = integrator
 
         self.contact_model = contact_model
-        if self.contact_model is not None:
-            self.contact_model.set_dt(self.dt)
+
 
     @property
     def wrench(self):
@@ -164,13 +163,12 @@ class Engine:
                     poses.append(pose)
                     edges.append(edge)
 
+        if len(edges) == 0:
+            return None, None
         dists, poses, edges = torch.cat(dists), torch.cat(poses), torch.cat(edges)
         if self.contact_model is None or not return_jacobian:
             return dists, poses, edges
-        if edges.shape[0] > 0:
-            return d, self.compute_jacobian(dists, poses, edges)
-        else:
-            return None, None
+        return dists, self.compute_jacobian(dists, poses, edges)
 
     def rigid_body_index2xy(self, index):
         total = len(self._rigid_bodies)
@@ -199,11 +197,10 @@ class Engine:
         all_index = torch.cat((left_index, right_index), dim=0)
         all_poses = torch.cat([poses, poses[right_index]], dim=0)
 
-        bodies = self._rigid_bodies[all_index].compute_jacobian(all_poses)
-
+        jac = self._rigid_bodies[all_index].compute_jacobian(all_poses)
         #TODO: in fact we can speed it up, but we don't need to do it now...
-        jac = bodies.compute_jacobian()
-        constrain_id = torch.cat([torch.where(left_mask>=0), torch.where(right_mask)[0]], dim=0)
+
+        constrain_id = torch.cat(torch.where(left_mask>=0) + torch.where(right_mask), dim=0)
         return (jac, constrain_id, all_index)
 
 
@@ -259,8 +256,11 @@ class Engine:
         _inertia = cmass.new_zeros((center.shape[0], 3, 3))
         _inertia[...,[0, 1, 2],[0, 1, 2]] = inertia
         shape = self.geometry.sphere(center, radius)
+
         visual = self.renderer.sphere(
-            arith.tocpu(center[0]), arith.tocpu(radius[0]), color, name)
+            arith.tocpu(center[0]*0), arith.tocpu(radius[0]), color, name)
+        visual.set_pose(arith.tocpu(cmass[0]))
+
         return self.add_rigid_body(cmass, _inertia, mass, shape, visual, name=name)
 
     def ground(self):
@@ -269,6 +269,7 @@ class Engine:
         return self._add_object(Imortal(), ground, visual, 'ground')
 
     def render(self, mode='human'):
+        self.forward_kinematics()
         return self.renderer.render(mode=mode)
 
     def qacc(self):

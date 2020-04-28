@@ -1,4 +1,5 @@
 from robot import tr
+import cv2
 from robot.torch_robotics import Engine
 
 def test_simple():
@@ -20,7 +21,7 @@ def test_simple():
     renderer.set_camera_position(-10, 0, 0)
     renderer.set_camera_rotation(0, 0)
 
-    sphere.obj.apply_local(tr.togpu([[0, 0, 0, 0, 10, 0]]))
+    sphere.obj.apply(tr.togpu([[0, 0, 0, 0, 10, 0]]))
 
     import cv2
     print(sphere.obj.energy())
@@ -32,20 +33,24 @@ def test_simple():
         k2 = sphere2.obj.kinetic()
         p2 = sphere2.obj.potential()
         engine.step()
-        #engine.render()
-        img = engine.render(mode='rgb_array')
-        cv2.imshow('x', img)
-        cv2.waitKey(1)
-    print(sphere.obj.cmass)
-    print(sphere2.obj.cmass)
+        engine.render()
+        #img = engine.render(mode='rgb_array')
+        #cv2.imshow('x', img)
+        #cv2.waitKey(1)
+
+    print("y axis should be 5", sphere.obj.cmass)
+    print("z axis should be -1.9", sphere2.obj.cmass)
     print(sphere.obj.energy())
     print(sphere2.obj.energy())
 
 def test_collision():
-    engine = Engine(dt=0.001, frameskip=10, contact_model='elastic')
+    from robot.torch_robotics.contact.elastic import ElasticImpulse
+    model = ElasticImpulse(alpha0=0)
+
+    engine = Engine(dt=0.001, frameskip=100, contact_model=model)
     ground = engine.ground()
 
-    center = tr.togpu([0, 0, 1])[None, :]
+    center = tr.togpu([0, 0, 2])[None, :]
     inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
     mass = tr.togpu([1])
     radius = tr.togpu([1])
@@ -56,10 +61,13 @@ def test_collision():
     renderer.set_camera_position(-10, 0, 0)
     renderer.set_camera_rotation(0, 0)
 
-    obj = sphere.obj
     for i in range(100):
         engine.step()
         engine.render('human')
+        #img = engine.render('rgb_array')
+        #cv2.imshow('x', img)
+        #cv2.waitKey(0)
+        print(sphere.obj.energy())
 
 if __name__ == '__main__':
     #test_simple()

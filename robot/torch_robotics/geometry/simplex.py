@@ -55,7 +55,7 @@ class Ground(RigidBody):
 
 
 class SimpleCollisionDetector:
-    def __init__(self, epsilon=1e-2):
+    def __init__(self, epsilon=1e-5):
         self.epsilon = epsilon
         self.shapes = []
 
@@ -95,15 +95,17 @@ class SimpleCollisionDetector:
         p2 = b.center - b.radius * vec
 
         p = (p1 + p2)/2 # the contact point...
-        pose = arith.Rp_to_trans(arith.normal2pose(vec), p)
+        pose = arith.Rp_to_trans(arith.normal2pose(-vec), p)
         return d - a.radius - b.radius, pose
 
     def collide_sphere_ground(self, a:Sphere, b: Ground):
+        # normal should point to the direction that increase the distance
+        # pose.dot([1, 0, 0, 1]) is the nomal
         r = a.radius
         d = a.center[..., 2] - r
         pose = a.center.new_zeros((*d.shape, 4, 4))
-        pose[..., 0,2] = 1
+        pose[..., 0,2] = -1
         pose[..., 1,1] = 1
-        pose[..., 2,0] = -1
+        pose[..., 2,0] = 1
         pose[..., 3,3] = 1
         return d, pose
