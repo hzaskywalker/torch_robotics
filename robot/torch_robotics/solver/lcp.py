@@ -28,6 +28,6 @@ class ProjectedGaussSiedelLCPSolver:
                 #else:
                 #    u[:, i] = -(a[:, i] + (A[:, i, :i] * u[:, :i]).sum(dim=-1))/A[:, i, i]
                 #u[:, i] = u[:, i].clamp(0, self.max_f)
-                u = -(dot(A, u) - A_diag * u + a)/A_diag
+                u = -(dot(A, u) - A_diag * u + a)/A_diag.clamp(1e-15, np.inf)
                 u = u.clamp(0, self.max_f)
         return u

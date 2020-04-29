@@ -107,18 +107,18 @@ def test_two_sphere():
     renderer.set_camera_position(-15, 0, 0)
     renderer.set_camera_rotation(0, 0)
 
-    if False:
-        for i in range(30):
+    if True:
+        for i in range(20):
             engine.step()
             engine.render()
 
-    if False:
+    if True:
         sphere.obj.cmass[:, :3, 3] = tr.togpu([0,-2,1])
         sphere2.obj.cmass[:, :3, 3] = tr.togpu([0,2,1])
         sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 3, 0])
         sphere2.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 0, 0])
 
-        for i in range(30):
+        for i in range(20):
             engine.step()
             engine.render()
             print(sphere.obj.energy()+sphere2.obj.energy())
@@ -158,7 +158,37 @@ def test_two_sphere():
         cv2.imshow('x', img)
         cv2.waitKey(1)
 
+
+
+def test_friction():
+    from robot.torch_robotics.contact.elastic import ElasticImpulse
+    model = ElasticImpulse(alpha0=0, restitution=1, contact_dof=3, mu=1)
+
+    engine = Engine(dt=0.01, frameskip=10, contact_model=model)
+    ground = engine.ground(ground_size=20)
+
+
+    renderer = engine.renderer
+    renderer.axis(renderer.identity())
+    renderer.set_camera_position(-15, 0, 0)
+    renderer.set_camera_rotation(0, 0)
+
+    center = tr.togpu([0, 0, 1])[None, :]
+    inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
+    mass = tr.togpu([1])
+    radius = tr.togpu([1])
+    sphere = engine.sphere(center, inertia, mass, radius, (0, 255, 0), name='sphere')
+
+    sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 1, 0])
+
+    while True:
+        engine.step()
+        engine.render()
+        print(sphere.obj.velocity)
+
+
 if __name__ == '__main__':
     #test_simple()
     #test_collision()
-    test_two_sphere()
+    #test_two_sphere()
+    test_friction()
