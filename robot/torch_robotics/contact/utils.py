@@ -73,11 +73,11 @@ def dense_contact_dynamics(engine, jac, invM, tau, dist, velocity, contact_dof=1
 
     obj_id = (torch.arange(vdof, device=jac.device)[None, :] + jac_o[:, None] * vdof)
     index = (index[..., None] * dimq + obj_id[:, None, :]).reshape(-1)
-    
+
     J = jac.new_zeros(batch_size * max_nc * contact_dof * dimq)
     J = J.scatter(dim=0, index=index.to(jac.device), src=_jac.reshape(-1))
-
-    J = J.reshape(batch_size, max_nc, contact_dof, dimq).transpose(1, 2).reshape(batch_size, max_nc * contact_dof, dimq)
+    J = J.reshape(batch_size, max_nc, contact_dof,
+                  dimq).transpose(1, 2).reshape(batch_size, max_nc * contact_dof, dimq)
 
     # this loop is very hard to avoid, we assume that the number of objects is limited ...
     # otherwise, we should use sparse matrix representation ...

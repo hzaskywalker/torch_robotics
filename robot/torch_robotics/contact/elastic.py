@@ -51,17 +51,21 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
 
     # lambda e + D^Tv = 11111 + D^TVx, D^Tvy
     beta_slice = slice(nc, nc + nc * (contact_dof - 1) * 2)
-    X[:, beta_slice] = dot(transpose(D)[:, beta_slice], VX)
+    DT = transpose(D)[:, beta_slice]
+    X[:, beta_slice] = dot(DT, VX)
     X[:, beta_slice, -nc:] = eye_nc.repeat(contact_dof * 2 - 2, 1) # \lambad
-    Y[:, beta_slice] = dot(transpose(D)[:, beta_slice], VY)
+    Y[:, beta_slice] = dot(DT, VY)
 
     # mu f1 - e^T\beta
     X[:, -nc:] = mu * e1[:, :nc]  # extract f1
     X[:, -nc:, nc:-nc] = -eye_nc[:, None, :].repeat(1, contact_dof * 2 - 2, 1).reshape(nc, -1)
 
     if solver is not None:
-        variable = solver(X, Y)
-        f = dot(f, variable)
+        sol = solver(X, Y)
+        print((dot(X, sol)-Y) * sol)
+        print(dot(X, sol)-Y)
+        f = dot(f, sol)
+        exit(0)
         return f
     else:
         return X, Y, VX, VY, f

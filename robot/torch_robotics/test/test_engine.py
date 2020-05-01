@@ -108,7 +108,7 @@ def test_two_sphere():
     renderer.set_camera_rotation(0, 0)
 
     if True:
-        for i in range(20):
+        for i in range(50):
             engine.step()
             engine.render()
 
@@ -154,9 +154,10 @@ def test_two_sphere():
         engine.step()
         print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
         #exit(0)
-        img = engine.render(mode='rgb_array')
-        cv2.imshow('x', img)
-        cv2.waitKey(1)
+        #img = engine.render(mode='rgb_array')
+        #cv2.imshow('x', img)
+        #cv2.waitKey(1)
+        img = engine.render(mode='human')
 
 
 
