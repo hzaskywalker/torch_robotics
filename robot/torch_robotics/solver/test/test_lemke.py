@@ -3,7 +3,7 @@ import numpy as np
 from robot import tr
 from robot.torch_robotics.solver.lcp import SlowLemkeAlgorithm
 
-def test():
+def test_pivot():
     #M = torch.zeros()
     lemke = SlowLemkeAlgorithm()
     M = tr.togpu([
@@ -38,9 +38,30 @@ def test():
     q = tr.togpu([[0.4, 0.4, -0.1], [-2, 1, -1]])
     lemke.evaluate(M, bas, xs, q)
 
-    new_bas, new_xs, leaving = lemke.pivot(M, bas, xs, entering)
-    lemke.evaluate(M, new_bas, new_xs, q)
+    #new_bas, new_xs, leaving = lemke.pivot(M, bas, xs, entering)
+    #lemke.evaluate(M, new_bas, new_xs, q)
+    x = lemke.solve(M, bas, xs, entering)
+    print(x)
+
+def test1():
+    M = tr.togpu([
+        [[1, -1.5, 0],
+         [-1.5, 1, 0],
+         [0, 0, 1]],
+        [[2, -1, 0],
+         [-1, 2, 0],
+         [0, 0, 1]],
+    ])
+
+    q = tr.togpu([[0.4, 0.4, -0.1], [-2, 1, -1]])
+
+    lemke = SlowLemkeAlgorithm()
+    out = lemke(M, q)
+    print(out)
+    lemke.check(M, q, out)
+
 
 
 if __name__ == '__main__':
-    test()
+    #test_pivot()
+    test1()

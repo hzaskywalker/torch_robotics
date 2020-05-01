@@ -1,1 +1,1 @@
-from .lcp import ProjectedGaussSiedelLCPSolver
+from .lcp import ProjectedGaussSiedelLCPSolver, SlowLemkeAlgorithm
