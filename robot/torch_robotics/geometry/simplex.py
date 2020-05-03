@@ -42,7 +42,7 @@ class Sphere(RigidBody):
     def pose(self, pose):
         self.center = pose[..., :3,3]
 
-def collide_edge_edge(s1, t1, s2, t2, eps=-1e14, inf=1e9):
+def collide_edge_edge(s1, t1, s2, t2, eps=-1e-14, inf=1e9):
     """
     :param s1, t1, s2, t2: (batch, 3)
     :return: dist
@@ -74,8 +74,9 @@ def collide_edge_edge(s1, t1, s2, t2, eps=-1e14, inf=1e9):
     normal = torch.cross(vec1, vec2)
     ans = ans[..., 0]
     flag = (ans[:, 0] >= eps) & (ans[:, 0] <= 1-eps) & (ans[:, 1]>=eps) & (ans[:, 1]<=1-eps) & (~colinear)
-    R = torch.stack((normal, vec1, vec2), dim=-2)
-    R[flag] = arith.projectSO3(R[flag])
+    R = torch.stack((normal, vec1, vec2), dim=-1)
+    if flag.any():
+        R[flag] = arith.projectSO3(R[flag])
 
     dist = ((p1 - p2) ** 2).sum(dim=-1).clamp(0, inf) ** 0.5
     return dist + inf * (~flag).float(), arith.Rp_to_trans(R, (p1+p2)/2)
@@ -108,8 +109,8 @@ class Box(RigidBody):
         self.size = size
         self.edges = []
         self.vertices = torch.tensor(
-            [[-1, -1, 1], [-1, 1, 1], [1,1,1], [1, -1, 1],
-             [-1, -1, -1], [-1, 1, -1], [1, 1, -1], [1, -1, -1]],
+            [[-1, -1, 1], [1, -1, 1], [1,1,1], [-1, 1, 1],
+             [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1]],
             dtype=pose.dtype, device=pose.device
         )/2
         self.faces = torch.tensor(
@@ -117,11 +118,13 @@ class Box(RigidBody):
             dtype= torch.long, device=pose.device
         )
         self.edges = torch.tensor(
-            [[0, 1], [1,2], [2, 3], [3, 0],
+            [[0, 1], [1, 2], [2, 3], [3, 0],
              [4, 5], [5, 6], [6, 7], [7, 4],
              [0, 4], [1, 5], [2, 6], [3, 7],],
             dtype=torch.long, device=pose.device
         )
+        self.edge_faces = []
+        raise NotImplementedError("Edge faces is not implemented...")
         self.pose = pose
         super(Box, self).__init__()
 
@@ -129,20 +132,42 @@ class Box(RigidBody):
         # return the set of vertices, eges, and poses
         #vertices = self.pose @ (self.vertices[None, :] * self.size)
         #print(vertices)
+        # vertices (b, 8, 3)
+        # edges (b, 12, 2, 3)
+        # faces (b, 6, 4, 3)
         vertices = self.vertices[None, :] * self.size
-        print(self.pose[:, None, :3, :3].expand(-1, 8, -1, -1).shape, vertices[..., None].shape)
         vertices = self.pose[:, None, :3, :3].expand(-1, 8, -1, -1) @ vertices[..., None]
         vertices = vertices[..., 0] + self.pose[:, None,:3,3]
-        print(vertices)
-        exit(0)
 
+        edges = vertices[:, self.edges]
 
-    def check_vertices(self, vertices):
-        pass
+        faces = vertices[:, self.faces]
+        normal = torch.cross(faces[..., 1, :] - faces[..., 0, :], faces[..., 2, :] - faces[..., 0, :])
+        print(vertices.shape, edges.shape, faces.shape)
+        return vertices, edges, faces
 
-    def check_edges(self, edges):
-        # do the edge to edge collision
-        pass
+    @classmethod
+    def collide_box(cls, box1, box2, edge_tolerance=1e-3):
+        # collision between two boxes
+        vertices1, edges1, faces1 = box1.get_all()
+        vertices2, edges2, faces2 = box2.get_all()
+
+        # first we need to do the edges1 to edges2 check
+        shape_old = (edges1.shape[0], edges1.shape[1], edges2.shape[1])
+        shape_new = (edges1.shape[0] * edges1.shape[1] * edges2.shape[1], 2, 3)
+        E1 = edges1[:, :, None].expand(*shape_old, -1, -1).reshape(shape_new)
+        E2 = edges2[:, None, :].expand(*shape_old, -1, -1).reshape(shape_new)
+        d, pose = collide_edge_edge(E1[..., 0, :], E1[..., 1, :], E2[..., 0, :], E2[..., 1, :])
+        d = d.reshape(*shape_old)
+        pose = pose.reshape(*shape_old, 4, 4)
+        p = torch.where(d.abs() < edge_tolerance)
+
+        edge_d = d[p[0], p[1], p[2]]
+        edge_pose = pose[p[0], p[1], p[2]]
+
+        #TODO: check the face normal to decide the orientation,
+        # i.e., we compare the computed normal with the face normal associated with the edge and reverse
+        # its direction if we found it's not correct...
 
     @property
     def pose(self):
