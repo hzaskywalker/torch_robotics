@@ -117,13 +117,6 @@ class ElasticImpulse:
             # after we have solved the f, what shall we do for the next?
             # calculate J^Tf
         else:
-            """
-            _f1 = slice(0, None,self.contact_dof)
-            _beta = slice(1, self.contact_dof * 2 - 2,self.contact_dof)
-            _lambda = slice(self.contact_dof*2-1, )
-            X[:, 0::self.contact_dof, 0::self.contact_dof] =
-            X[:, 0::self.contact_dof, 1:2*se:self.contact_dof] =
-            """
             f = coulomb_friction(self.contact_dof, A=A, a0=a0, v0=v0, d0=d0,
                                  alpha0=d1_lower_bound, mu=self.mu, h=h, solver=self.solver)
 

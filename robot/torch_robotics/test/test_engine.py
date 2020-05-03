@@ -1,5 +1,4 @@
 from robot import tr
-import cv2
 from robot.torch_robotics import Engine
 
 def test_simple():
@@ -47,7 +46,7 @@ def test_collision():
     from robot.torch_robotics.contact.elastic import ElasticImpulse
     model = ElasticImpulse(alpha0=0)
 
-    engine = Engine(dt=0.001, frameskip=100, contact_model=model)
+    engine = Engine(dt=0.01, frameskip=10, contact_model=model)
     ground = engine.ground()
 
     center = tr.togpu([0, 1, 3])[None, :]
@@ -181,15 +180,19 @@ def test_friction():
     sphere = engine.sphere(center, inertia, mass, radius, (0, 255, 0), name='sphere')
 
     sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 1, 0])
+    import time
 
     while True:
+        start = time.time()
         engine.step()
+        print(time.time()-start)
         engine.render()
-        print(sphere.obj.velocity)
 
 
 if __name__ == '__main__':
-    #test_simple()
-    #test_collision()
-    #test_two_sphere()
-    test_friction()
+    import argparse
+    parser = argparse.ArgumentParser()
+    choice = [i[5:] for i in globals() if i.startswith('test_')]
+    parser.add_argument('task', type=str, choices=choice)
+    args = parser.parse_args()
+    eval('test_'+args.task+'()')

@@ -261,8 +261,10 @@ class Engine:
         _inertia[...,[0, 1, 2],[0, 1, 2]] = inertia
         shape = self.geometry.sphere(center, radius)
 
-        visual = self.renderer.sphere(
-            arith.tocpu(center[0]*0), arith.tocpu(radius[0]), color, name)
+        visual = self.renderer.compose(self.renderer.sphere(
+            arith.tocpu(center[0]*0), arith.tocpu(radius[0]), color, name+'_sphere'),
+            self.renderer.axis(self.renderer.identity(), scale=arith.tocpu(radius[0])*1.2),
+            name=name)
         visual.set_pose(arith.tocpu(cmass[0]))
 
         return self.add_rigid_body(cmass, _inertia, mass, shape, visual, name=name)
