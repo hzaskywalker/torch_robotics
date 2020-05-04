@@ -19,12 +19,15 @@ def test_lemke_gradient():
     #     [0, 0.3, 1]],
     #]).expand(128, -1, -1)
     n = 30
-    batch_size = 2
+    batch_size = 512
     #batch_size = 1
     L = torch.randn((batch_size, n, n))
     M = tr.dot(L, tr.transpose(L)) + torch.eye(n)[None,:] * 0.0001
 
     q = torch.randn((batch_size, n))
+
+    M = M.cuda()
+    q = q.cuda()
 
     M.requires_grad = True
     q.requires_grad = True
@@ -33,12 +36,15 @@ def test_lemke_gradient():
         'lemke': SlowLemkeAlgorithm(niters=10000),
         'lemke2': lemke,
         'cvxpy': CvxpySolver(n),
-        'pgs': ProjectedGaussSiedelLCPSolver(niters=100),
+        'pgs': ProjectedGaussSiedelLCPSolver(niters=300),
     }
 
     sols = []
     M_grads = []
     q_grads = []
+
+    out = solver['lemke'](M, q) # initialize
+
     for name in ['lemke', 'cvxpy', 'lemke2', 'pgs']:
         M.grad, q.grad=None, None
         with Timer(name+' time'):

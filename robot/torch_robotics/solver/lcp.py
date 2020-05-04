@@ -15,7 +15,7 @@ def backward(M, q, u, grad_u):
     assert M.dim() == 3 and q.dim() == 2 and u.dim() == 2
     batch_size, n = u.shape
     with torch.no_grad():
-        eye = torch.eye(n)
+        eye = torch.eye(n, device=M.device, dtype=M.dtype)
         u = relu(u)
         xi = relu(bmv(M, u) + q)
 
