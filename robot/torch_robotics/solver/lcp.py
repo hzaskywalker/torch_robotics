@@ -4,6 +4,31 @@ import numpy as np
 import torch
 from ..arith import dot, eyes_like
 
+def bmv(m, v):
+    # batched matrix vector multiplication
+    return (m@v[..., None])[..., 0]
+
+
+def backward(M, q, u, grad_u):
+    from torch.nn.functional import relu
+    # u is the solution to Mu+q\ge 0, u\ge 0, (Mu+q)\cdot u = 0
+    assert M.dim() == 3 and q.dim() == 2 and u.dim() == 2
+    batch_size, n = u.shape
+    with torch.no_grad():
+        eye = torch.eye(n)
+        u = relu(u)
+        xi = relu(bmv(M, u) + q)
+
+        P = M.new_zeros(batch_size, 2*n, 2*n)
+        P[:, :n, :n] = M
+        P[:, :n, n:] = eye
+        P[:, n:, :n] = eye[None,:] * xi[:, None]
+        P[:, n:, n:] = eye[None,:] * u[:, None]
+
+        d_u = -bmv(torch.inverse(P)[:,:n,:n], grad_u)
+        return u[:, None, :] * d_u[:, :, None], d_u
+
+
 class ProjectedGaussSiedelLCPSolver:
     def __init__(self, niters=5, max_f=np.inf):
         self.niters = niters
@@ -24,11 +49,12 @@ class ProjectedGaussSiedelLCPSolver:
             niters = self.niters
 
         A_diag = A[:,torch.arange(n), torch.arange(n)]
-        #assert A_diag.min() > 1e-15, "ProjectedGaussSeidel can't solve the problem in this case"
-        for _ in range(niters):
+        assert A_diag.min() > 1e-8, "ProjectedGaussSeidel can't solve the problem in this case"
+        for _ in range(max(niters, n//2)):
             for i in range(n):
-                # TODO: if the diagonal is zero, u will always be zero
-                u = -(dot(A, u) - A_diag * u + a)/A_diag.clamp(1e-15, np.inf)
+                new_u = -((A[:, i] * u).sum(dim=-1) + a[:, i])/A_diag[:, i] + u[:, i]
+                u = u.clone()
+                u[:, i] = u[:, i] + 1. * (new_u - u[:, i])
                 u = u.clamp(0, self.max_f)
         return u
 
@@ -57,7 +83,8 @@ class SlowLemkeAlgorithm:
         j = d > self.piv_tol # (batch, n) the elements which d[j] is greater than 0
 
         inf = 1e9
-        inv_d = 1./d.clamp(1e-15, np.inf)
+        # this is important...
+        inv_d = 1./d.clamp(self.piv_tol, np.inf)
 
         theta, _ = ((x + self.zer_tol) * inv_d + (1-j.float()) * inf).min(dim=1) # minimal x[j]+zer
 
@@ -107,13 +134,11 @@ class SlowLemkeAlgorithm:
                 answer[unsolved] = rx
         return answer
 
-
     def evaluate(self, M, bas, x, q):
         # check the equality
         assert x.min() >= -1e-15
         B = M.gather(dim=2, index=bas[:, None, :].expand(*M.shape[:2], -1)) #(batch, n, n)
         assert ((dot(B, x) + q)**2).abs().max() < 1e-6
-
 
     def create_MI1(self, M):
         return torch.cat((M, -eyes_like(M), torch.ones_like(M[..., -1:])), dim=-1)
@@ -165,3 +190,42 @@ class SlowLemkeAlgorithm:
     def check(self, M, q, x):
         assert ((dot(M, x) + q) > -self.zer_tol).all(), f"{(dot(M, x)+q).min()}"
         assert (((dot(M, x) + q) * x).abs() < self.piv_tol).all(), f"{((dot(M, x) + q) * x).abs().max()}"
+
+
+forward_alg = SlowLemkeAlgorithm(1000, 1e-5, 1e-8)
+
+from torch.autograd import Function
+class FasterSlowLemke(Function):
+    @staticmethod
+    # bias is an optional argument
+    def forward(ctx, M, q, niters=None):
+        with torch.no_grad():
+            u = forward_alg(M, q, niters)
+        ctx.save_for_backward(M, q, u)
+        return u
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        M, q, u = ctx.saved_tensors
+        M_grad, q_grad = backward(M, q, u, grad_output)
+        return M_grad, q_grad, None
+
+lemke = FasterSlowLemke.apply
+
+
+class CvxpySolver:
+    def __init__(self, n):
+        import cvxpy as cp
+        from cvxpylayers.torch import CvxpyLayer
+        x = cp.Variable(n)
+        A = cp.Parameter((n, n))
+        b = cp.Parameter(n)
+        objective = cp.Minimize(0.5 * cp.sum_squares(A@x) + x.T @ b)
+        constraints = [x >= 0]
+        problem = cp.Problem(objective, constraints)
+        assert problem.is_dpp()
+        cvxpylayer = CvxpyLayer(problem, parameters=[A, b], variables=[x])
+        self.cvxpylayer = cvxpylayer
+
+    def __call__(self, M, q):
+        return self.cvxpylayer(torch.cholesky(M).transpose(-1, -2), q)[0]
