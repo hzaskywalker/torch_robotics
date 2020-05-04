@@ -5,7 +5,7 @@ import torch
 import numpy as np
 # from torch_geometric.utils import scatter_
 from ..arith import dot, transpose, eyes_like
-from ..solver import ProjectedGaussSiedelLCPSolver, SlowLemkeAlgorithm
+from ..solver import ProjectedGaussSiedelLCPSolver, lemke
 from .utils import dense_contact_dynamics
 
 
@@ -61,7 +61,7 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
     X[:, -nc:, nc:-nc] = -eye_nc[:, None, :].repeat(1, contact_dof * 2 - 2, 1).reshape(nc, -1)
 
     if solver is not None:
-        sol = solver(X/h/h, Y/h/h) # it seems to be important..
+        sol = solver(X/h/h, Y/h/h) # /h is important for numerical issue, especially for lemke
         f = dot(f, sol)
         return f
     else:
@@ -76,10 +76,12 @@ class ElasticImpulse:
         # ideally, the restitution and mu should be the input, depends on the collision type ...
         self.restitution = restitution
         self.mu = mu
-        if contact_dof == 1:
-            self.solver = ProjectedGaussSiedelLCPSolver()
-        else:
-            self.solver = SlowLemkeAlgorithm()
+        #if contact_dof == 1:
+        #    self.solver = ProjectedGaussSiedelLCPSolver()
+        #else:
+
+        # we always use the lemke solver as we find it's faster than PGS for linear case...
+        self.solver = lemke
 
     def __call__(self, engine, jac, invM, tau, dist, velocity):
         # we now have the following matrix

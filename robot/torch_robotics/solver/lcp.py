@@ -25,7 +25,7 @@ def backward(M, q, u, grad_u):
         P[:, n:, :n] = eye[None,:] * xi[:, None]
         P[:, n:, n:] = eye[None,:] * u[:, None]
 
-        d_u = -bmv(torch.inverse(P)[:,:n,:n], grad_u)
+        d_u = -bmv(torch.inverse(P)[:, :n, :n], grad_u)
         return u[:, None, :] * d_u[:, :, None], d_u
 
 
@@ -212,8 +212,9 @@ class FasterSlowLemke(Function):
 
 lemke = FasterSlowLemke.apply
 
-
 class CvxpySolver:
+    # NOTE: we found the default parameter is not very accurate ...
+    #  perhaps we should try the ipm ..
     def __init__(self, n):
         import cvxpy as cp
         from cvxpylayers.torch import CvxpyLayer
