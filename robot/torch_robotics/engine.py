@@ -99,10 +99,10 @@ class Engine:
                  gravity=arith.togpu([0, 0, -9.8]),
                  dt = 0.01, frameskip=1,
                  integrator='Euler',
-                 contact_model=None
+                 contact_model=None, epsilon=1e-5
              ):
         assert integrator in ['Euler']
-        self.geometry = SimpleCollisionDetector()
+        self.geometry = SimpleCollisionDetector(epsilon)
         self.renderer = Renderer()
 
         self.objects = OrderedDict() # we should apply force to objs
@@ -264,6 +264,20 @@ class Engine:
         visual = self.renderer.compose(self.renderer.sphere(
             arith.tocpu(center[0]*0), arith.tocpu(radius[0]), color, name+'_sphere'),
             self.renderer.axis(self.renderer.identity(), scale=arith.tocpu(radius[0])*1.2),
+            name=name)
+        visual.set_pose(arith.tocpu(cmass[0]))
+
+        return self.add_rigid_body(cmass, _inertia, mass, shape, visual, name=name)
+
+    def box(self, pose, inertia, mass, size, color, name=None):
+        cmass = pose
+        _inertia = cmass.new_zeros((cmass.shape[0], 3, 3))
+        _inertia[...,[0, 1, 2],[0, 1, 2]] = inertia
+        shape = self.geometry.box(cmass, size)
+
+        visual = self.renderer.compose(self.renderer.box(
+            arith.tocpu(size[0]), color, self.renderer.identity(), name+'_box'),
+            #self.renderer.axis(self.renderer.identity(), scale=arith.tocpu(size[0].max())*1.2),
             name=name)
         visual.set_pose(arith.tocpu(cmass[0]))
 

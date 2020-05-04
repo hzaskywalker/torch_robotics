@@ -96,10 +96,15 @@ class SlowLemkeAlgorithm:
         unsolved = (leaving != last - 1)
         answer = new_xs.new_zeros((M.shape[0], M.shape[-1]))
         answer.scatter_(dim=1, index=new_bas, src=new_xs)
-        if unsolved.sum() > 0:
+        if not num_iter:
+            import logging
+            logging.warning("WRONG>>>>>>>>>>>>>>>>>>>>>>>>>>> LEMKE doesn't converge after 1000 timesteps")
+            return None
+        if unsolved.sum() > 0 and num_iter>0:
             rx = self.solve(M[unsolved], new_bas[unsolved],
                            new_xs[unsolved], self.reverse(bas, leaving[unsolved]), num_iter-1)
-            answer[unsolved] = rx
+            if rx is not None:
+                answer[unsolved] = rx
         return answer
 
 
@@ -134,20 +139,24 @@ class SlowLemkeAlgorithm:
 
     def run(self, M, q, niters):
         n = M.shape[-1]
-        if niters is not None:
-            self.niters = niters
+        if niters is None:
+            niters = self.niters
 
         init_bas, init_x, init_entering = self.init(M, q)
         M = self.create_MI1(M)
-        answer = self.solve(M, init_bas, init_x, init_entering)
+        answer = self.solve(M, init_bas, init_x, init_entering, num_iter=niters)
         return answer[..., :n]
 
 
     def __call__(self, M, q, niters=None):
         # https://www.cs.ubc.ca/cgi-bin/tr/2005/TR-2005-01.pdf
-        unsolved = (q<-self.piv_tol).any(dim=-1)
+        unsolved = (q<0).any(dim=-1) # must be smaller than 1e-3, otherwise lemke will not terminate
         answer = M.new_zeros((M.shape[0], M.shape[-1]))
-        answer[unsolved] = self.run(M[unsolved], q[unsolved], niters)
+
+        if unsolved.any():
+            out = self.run(M[unsolved], q[unsolved], niters)
+            if out is not None:
+                answer[unsolved] = out
 
         #TODO: we can check if the solution to the LCP is correct
         #self.check(M, q, answer)

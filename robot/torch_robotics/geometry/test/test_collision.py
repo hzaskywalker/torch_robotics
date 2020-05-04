@@ -45,22 +45,36 @@ def test_face_vertics():
     print(simplex.collide_face_vertex(face, vertices, eps=-1e-8))
 
 def test_box():
-    print(simplex.collide_edge_edge(tr.togpu([[0.5, 0.5, 0]]), tr.togpu([[-0.5, 0.5, 0]]),
-                                                                          tr.togpu([[0.4, 0.1, 0]]), tr.togpu([[0.4, 0.9, 0]])))
-    exit(0)
+    #print(simplex.collide_edge_edge(tr.togpu([[0.5, 0.5, 0]]), tr.togpu([[-0.5, 0.5, 0]]),
+    #                                                                      tr.togpu([[0.4, 0.1, 0]]), tr.togpu([[0.4, 0.9, 0]])))
+
     box = simplex.Box(tr.togpu([[[1, 0, 0, 0],
                          [0, 1, 0, 0],
                          [0, 0, 1, 0],
                          [0, 0, 0, 1]]]), size=tr.togpu([[1, 1, 1]]))
 
+    #h = 0.99
+    h = 1.1
     box2 = simplex.Box(tr.togpu([[[1, 0, 0, 0],
-                                 [0, 1, 0, 0.5],
-                                 [0, 0, 1, 0.9],
-                                 [0, 0, 0, 1]]]), size=tr.togpu([[0.8, 0.8, 0.8]]))
-    box.collide_box(box, box2)
+                                 [0, 1, 0, 0],
+                                 [0, 0, 1, 0.5+h/2-0.001],
+                                 [0, 0, 0, 1]]]), size=tr.togpu([[h, h, h]]))
+
+    print(box.collide_box(box, box2))
+
+def test_box_ground():
+    box = simplex.Box(tr.togpu([[[1, 0, 0, 0],
+                                 [0, 1, 0, 0],
+                                 [0, 0, 1, 0.6],
+                                 [0, 0, 0, 1]]]), size=tr.togpu([[1, 1, 1]]))
+
+    box.index = torch.arange(1)
+    out = simplex.SimpleCollisionDetector().collide_box_ground(box, None)
+    print(out)
 
 
 if __name__ == '__main__':
-    test_edge_edge()
+    #test_edge_edge()
     #test_face_vertics()
     #test_box()
+    test_box_ground()

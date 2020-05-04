@@ -61,7 +61,7 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
     X[:, -nc:, nc:-nc] = -eye_nc[:, None, :].repeat(1, contact_dof * 2 - 2, 1).reshape(nc, -1)
 
     if solver is not None:
-        sol = solver(X, Y)
+        sol = solver(X/h, Y/h) # it seems to be important..
         f = dot(f, sol)
         return f
     else:
@@ -122,5 +122,4 @@ class ElasticImpulse:
 
         a1 = dot(invM, dot(transpose(J), f).transpose(1, 0).reshape(
             engine.batch_size * engine.n_rigid_body, invM.shape[-1]))
-
         return a1
