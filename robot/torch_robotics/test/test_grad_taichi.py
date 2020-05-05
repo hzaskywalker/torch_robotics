@@ -6,8 +6,8 @@ from robot.torch_robotics import Engine
 from robot.torch_robotics.contact.elastic import ElasticImpulse
 import numpy as np
 
-def make_env(batch_size=256, gravity=np.array([0, 0, -9.8]), contact_dof=1, dt=0.001, frameskip=10):
-    model = ElasticImpulse(alpha0=0, contact_dof=contact_dof)
+def make_env(batch_size=256, gravity=np.array([0, 0, -9.8]), contact_dof=1, dt=0.001, frameskip=10, use_toi=False):
+    model = ElasticImpulse(alpha0=0, contact_dof=contact_dof, use_toi=use_toi)
     engine = Engine(dt=dt, frameskip=frameskip, gravity=tr.togpu(gravity), contact_model=model)
     ground = engine.ground()
 
@@ -28,16 +28,17 @@ def test_taichi():
     # I am not sure if we should add the continuous collision check into the code ...
     # and I don't know if this is trivial
     batch_size = 1024
-    engine, sphere = make_env(batch_size=batch_size, contact_dof=1, dt=0.01, frameskip=1, gravity=np.array([0, 0, 0]))
+    engine, sphere = make_env(batch_size=batch_size, contact_dof=1, dt=0.01,
+                              frameskip=1, gravity=np.array([0, 0, -9.8]), use_toi=True)
 
-    value = 1.0001 + 2 * torch.arange(batch_size, device='cuda:0').double()/batch_size
+    value = 2 + 2 * torch.arange(batch_size, device='cuda:0').double()/batch_size
     value.requires_grad =True
 
     sphere.obj.cmass[:, 2, 3] = value[:batch_size]
     sphere.obj.velocity[:, -1] = -2
 
     print(sphere.obj.cmass[:, 2, 3].detach().cpu().numpy()[:100])
-    for i in tqdm.trange(1):
+    for i in tqdm.trange(100):
         engine.step()
 
         #print(sphere.obj.cmass[:, 2, 3])

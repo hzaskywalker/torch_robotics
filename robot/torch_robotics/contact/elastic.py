@@ -69,7 +69,7 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
 
 
 class ElasticImpulse:
-    def __init__(self, alpha0, restitution=1., contact_dof=1, mu=0, use_toi=True):
+    def __init__(self, alpha0, restitution=1., contact_dof=1, mu=0, use_toi=False):
         self.alpha0 = alpha0
         self.contact_dof = contact_dof
 
@@ -111,27 +111,44 @@ class ElasticImpulse:
             #Y = a0 * h * h + v0 * h + d0
 
             # we consider the following approximation
-            #    d_1 = d_0 + h^2 a_0 + hv_0 + h(h-toi) Af
-            #    v_1 = ha_0 + v_0 + (h-toi)Af = (d_1 - d_0)/h >= -r * v_0 => d_1 >= d_0 - r * h * v_0
+            #    d_1 = d_0 + (toi * toi + t2 * t2) a_0 + hv_0 + t2 * t2Af
+            #    v_1 = (toi + t2) * a0 + v_0 + t2 Af
+            #    d_1 = d_0 + toi * toi a_0 + toi * v_0 +  t2(toi + t2)a_0 + t2 v_0 + t2 * t2 Af
+            #        =      d_0 + (h*h - toi * t2) * a_0 + h v_0 + t2*t2 Af
             t2 = h - toi
-            X = A * h * t2[:, :, None]
+            X = A * t2[:, :, None] * t2[:, :, None]
+            Y = a0 * (h * h - t2 * t2) + v0 * h + d0
 
-            Y = a0 * h * h + v0 * h + d0
+            #    v_1 = (d1 - Y)/t2 + (toi +t2) * a0 + v0 >= - r * v0
+            #elastic = d0  - h * self.restitution * _v0  # inverse the velocity
+            elastic = (-self.restitution * _v0) * t2 - h * a0 * t2 - v0 * t2 + Y
 
-            elastic = d0  - h * self.restitution * _v0  # inverse the velocity
             d1_lower_bound = elastic.clamp(self.alpha0, np.inf)
             Y = Y - d1_lower_bound
 
-            f = self.solver(X/h/h, Y/h/h) /h * t2 #(batch, nc)
+            f = self.solver(X/h/h, Y/h/h) #(batch, nc)
         else:
             _v0 = _v0[:, :d0.shape[1]]
             d1_lower_bound = (d0 - h * _v0).clamp(self.alpha0, np.inf)
             f = coulomb_friction(self.contact_dof, A=A, a0=a0, v0=v0, d0=d0,
                                  alpha0=d1_lower_bound, mu=self.mu, h=h, solver=self.solver)
 
-        f = dot(transpose(J), f)
-        # f batch, dimq = f, batch, nobj, vbof
-        f = f.reshape(engine.batch_size, engine.n_rigid_body,
-                      invM.shape[-1]).transpose(0, 1).reshape(-1, invM.shape[-1])
-        a1 = dot(invM, f)
-        return a1
+        if not self.use_toi:
+            f = dot(transpose(J), f)
+            f = f.reshape(engine.batch_size, engine.n_rigid_body,
+                          invM.shape[-1]).transpose(0, 1).reshape(-1, invM.shape[-1])
+            a1 = dot(invM, f)
+            return a1
+        else:
+            #print(transpose(J).shape)
+            #print(f.shape)
+            nc = d0.shape[-1]
+            dimq = J.shape[-1]
+            J = J.reshape(J.shape[0], self.contact_dof, nc, dimq)
+
+            # f (batch, contact_dof * nc)
+            f = f.reshape(f.shape[0], self.contact_dof, nc)
+            #a1 = transpose(J)[:, None] * f[:,:]
+            f = (J * f[:, :, :, None]).sum(dim=1) # (batch, nc, dimq)
+            a1 = dot(invM, f.transpose(-1, -2))
+            return a1, toi

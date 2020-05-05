@@ -160,8 +160,12 @@ class RigidBody(Physics):
     def euler(self, qacc, dt, inplace=True):
         # one-step euler integral..
         if inplace:
+            if isinstance(dt, torch.Tensor):
+                dt = dt[..., None]
             self.velocity = self.velocity + qacc * dt # first update the velocity
             se3 = arith.vec_to_se3(self.velocity)
+            if isinstance(dt, torch.Tensor):
+                dt = dt[..., None]
             self.cmass = dot(self.cmass, arith.expse3(se3 * dt))
         else:
             raise NotImplementedError("Not inplace integral is not implemented yet")

@@ -168,7 +168,7 @@ class Engine:
         if len(edges) == 0:
             return None, None
         dists, poses, edges = torch.cat(dists), torch.cat(poses), torch.cat(edges)
-        print('NUM_COLLISION:', len(dists))
+        #print('NUM_COLLISION:', len(dists))
         if self.contact_model is None or not return_jacobian:
             return dists, poses, edges
         return dists, self.compute_jacobian(dists, poses, edges)
@@ -292,21 +292,42 @@ class Engine:
         self.forward_kinematics(render=render_idx)
         return self.renderer.render(mode=mode)
 
-    def qacc(self):
+    def do_simulation(self):
         # compute the qacc for rigid bodies and the articulation (not implemented yet)
         self.forward_kinematics()
         invM, c = self.dynamcis()
         # TODO: if there are articulation, we should also return the articulation's qacc
         qacc = arith.dot(invM, c)
 
+        use_toi = False
         if self.contact_model:
             dist, jac = self.collide()
             if jac is not None:
-                qacc = qacc + self.contact_model(self, jac, invM, c, dist, self._rigid_bodies.velocity)
-        return qacc
+                output = self.contact_model(self, jac, invM, c, dist, self._rigid_bodies.velocity)
+                if not isinstance(output, tuple):
+                    qacc = qacc + output
+                else:
+                    use_toi = True
+                    qacc_f, toi = output
+        if not use_toi:
+            self._rigid_bodies.euler(qacc, self.dt)
+        else:
+            assert qacc.shape == qacc_f.sum(dim=-1).shape
+            qacc_f = qacc_f.transpose(-1, -2)
+            index = toi.argsort(dim=-1)
+            toi = toi.gather(index=index, dim=1)
+            qacc_f = qacc_f.gather(index=index[:, :, None].expand_as(qacc_f), dim=1)
+
+            steps = toi.shape[1]
+            now = 0
+            for i in range(steps+1):
+                next = toi[:, i] if i < steps else self.dt
+                self._rigid_bodies.euler(qacc, next-now)
+                now = next
+                if i < steps:
+                    qacc = qacc + qacc_f[:, i]
 
     def step(self):
         # perhaps we have to apply force
         for i in range(self.frameskip):
-            qacc = self.qacc()
-            self._rigid_bodies.euler(qacc, self.dt)
+            self.do_simulation()
