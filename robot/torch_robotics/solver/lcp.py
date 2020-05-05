@@ -1,5 +1,6 @@
 # the simplest lcp solver
 # projected gauss-sediel
+# http://image.diku.dk/kenny/download/erleben.13.siggraph.course.notes.pdf
 import numpy as np
 import torch
 from ..arith import dot, eyes_like
@@ -20,12 +21,23 @@ def backward(M, q, u, grad_u):
         xi = relu(bmv(M, u) + q)
 
         P = M.new_zeros(batch_size, 2*n, 2*n)
-        P[:, :n, :n] = M
-        P[:, :n, n:] = eye
-        P[:, n:, :n] = eye[None,:] * xi[:, None]
-        P[:, n:, n:] = eye[None,:] * u[:, None]
+        A = M
+        B = eye
+        C = eye[None,:] * xi[:, None]
+        D = eye[None,:] * u[:, None]
+        P[:, :n, :n] = A
+        P[:, :n, n:] = B
+        P[:, n:, :n] = C
+        P[:, n:, n:] = D
 
-        d_u = -bmv(torch.inverse(P)[:, :n, :n], grad_u)
+        to_inv = (grad_u.abs() > 1e-15).any(dim=-1)
+        d_u = torch.zeros_like(grad_u)
+
+        #print(P[to_inv][5], grad_u[to_inv][5], u[to_inv][0])
+        #print(P[to_inv][0])
+        P = P[to_inv]
+        P = P + eyes_like(P) * 1e-10 # TODO: small hack to make it not singular ...
+        d_u[to_inv] = -bmv(torch.inverse(P)[:, :n, :n], grad_u[to_inv])
         return u[:, None, :] * d_u[:, :, None], d_u
 
 
