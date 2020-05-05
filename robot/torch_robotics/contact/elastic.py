@@ -122,7 +122,6 @@ class ElasticImpulse:
             #    v_1 = (d1 - Y)/t2 + (toi +t2) * a0 + v0 >= - r * v0
             #elastic = d0  - h * self.restitution * _v0  # inverse the velocity
             elastic = (-self.restitution * _v0) * t2 - h * a0 * t2 - v0 * t2 + Y
-
             d1_lower_bound = elastic.clamp(self.alpha0, np.inf)
             Y = Y - d1_lower_bound
 

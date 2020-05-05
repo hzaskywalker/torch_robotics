@@ -8,7 +8,7 @@ import numpy as np
 
 def make_env(batch_size=256, gravity=np.array([0, 0, -9.8]), contact_dof=1, dt=0.001, frameskip=10, use_toi=False):
     model = ElasticImpulse(alpha0=0, contact_dof=contact_dof, use_toi=use_toi)
-    engine = Engine(dt=dt, frameskip=frameskip, gravity=tr.togpu(gravity), contact_model=model)
+    engine = Engine(dt=dt, frameskip=frameskip, gravity=tr.togpu(gravity), contact_model=model, epsilon=0.05)
     ground = engine.ground()
 
     center = tr.togpu([0, 0, 1])[None, :].expand(batch_size, -1)
@@ -29,16 +29,16 @@ def test_taichi():
     # and I don't know if this is trivial
     batch_size = 1024
     engine, sphere = make_env(batch_size=batch_size, contact_dof=1, dt=0.01,
-                              frameskip=1, gravity=np.array([0, 0, -9.8]), use_toi=True)
+                              frameskip=1, gravity=np.array([0, 0, 0]), use_toi=True)
 
-    value = 2 + 2 * torch.arange(batch_size, device='cuda:0').double()/batch_size
+    value = 1 + 0.001 + 2 * torch.arange(batch_size, device='cuda:0').double()/batch_size
     value.requires_grad =True
 
     sphere.obj.cmass[:, 2, 3] = value[:batch_size]
     sphere.obj.velocity[:, -1] = -2
 
     print(sphere.obj.cmass[:, 2, 3].detach().cpu().numpy()[:100])
-    for i in tqdm.trange(100):
+    for i in tqdm.trange(1):
         engine.step()
 
         #print(sphere.obj.cmass[:, 2, 3])

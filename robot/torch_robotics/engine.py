@@ -99,7 +99,7 @@ class Engine:
                  gravity=arith.togpu([0, 0, -9.8]),
                  dt = 0.01, frameskip=1,
                  integrator='Euler',
-                 contact_model=None, epsilon=1e-2
+                 contact_model=None, epsilon=1e-3
              ):
         assert integrator in ['Euler']
         self.geometry = SimpleCollisionDetector(epsilon)

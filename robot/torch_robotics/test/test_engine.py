@@ -138,7 +138,7 @@ def test_two_sphere():
     sphere.obj.cmass[:, :3, 3] = tr.togpu([0, -3, 1])
     sphere.obj.cmass[:, :3, :3] = tr.projectSO3(tr.togpu(np.random.random(size=(3, 3))))
 
-    sphere2.obj.cmass[:, :3, 3] = tr.togpu([0, 3-0.00001, 1]) #TODO: LCP can't solve break away
+    sphere2.obj.cmass[:, :3, 3] = tr.togpu([0, 3-0.01, 1]) #TODO: LCP can't solve break away
     sphere2.obj.cmass[:, :3, :3] = tr.projectSO3(tr.togpu(np.random.random(size=(3, 3))))
 
     sphere3 = engine.sphere(tr.togpu([0, 5, 1])[None, :], inertia, mass, radius, (0, 255, 0), name='sphere3')
