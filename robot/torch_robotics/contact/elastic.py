@@ -69,7 +69,7 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
 
 
 class ElasticImpulse:
-    def __init__(self, alpha0, restitution=1., contact_dof=1, mu=0):
+    def __init__(self, alpha0, restitution=1., contact_dof=1, mu=0, use_toi=True):
         self.alpha0 = alpha0
         self.contact_dof = contact_dof
 
@@ -82,6 +82,7 @@ class ElasticImpulse:
 
         # we always use the lemke solver as we find it's faster than PGS for linear case...
         self.solver = lemke
+        self.use_toi = use_toi
 
     def __call__(self, engine, jac, invM, tau, dist, velocity):
         # we now have the following matrix
@@ -99,25 +100,32 @@ class ElasticImpulse:
         A, a0, v0, d0, J = dense_contact_dynamics(engine, jac, invM, tau, dist, velocity, contact_dof=self.contact_dof)
 
         h = engine.dt
-
         _v0 = v0
-        if self.contact_dof > 1:
-            _v0 = _v0[:, :d0.shape[1]]
-        d1_lower_bound = (d0 - h * _v0).clamp(self.alpha0, np.inf)
 
         if self.contact_dof == 1:
-            # we don't consider friction here
-            # v1 = (d1-d0)/h >= -v0 => d1 \ge -hv0 + d0
-            # we also have d1 >= alpha0
-            # d1 = h*h(Af+a0) + hv0 + d0
+            if self.use_toi:
+                toi = (-d0 / (v0 + (v0.abs() < 1e-15).float())).clamp(0, h)
+            else:
+                toi = d0 * 0
+            #X = A * ((h-toi) * (h-toi))[:, None]
+            #Y = a0 * h * h + v0 * h + d0
 
+            # we consider the following approximation
+            #    d_1 = d_0 + h^2 a_0 + hv_0 + h(h-toi) Af
+            #    v_1 = ha_0 + v_0 + (h-toi)Af = (d_1 - d_0)/h >= -r * v_0 => d_1 >= d_0 - r * h * v_0
+            t2 = h - toi
+            X = A * h * t2[:, :, None]
 
-            X = A
-            Y = a0 + v0/h + (d0 - d1_lower_bound)/h/h
-            f = self.solver(X, Y) #(batch, nc)
-            # after we have solved the f, what shall we do for the next?
-            # calculate J^Tf
+            Y = a0 * h * h + v0 * h + d0
+
+            elastic = d0  - h * self.restitution * _v0  # inverse the velocity
+            d1_lower_bound = elastic.clamp(self.alpha0, np.inf)
+            Y = Y - d1_lower_bound
+
+            f = self.solver(X/h/h, Y/h/h) /h * t2 #(batch, nc)
         else:
+            _v0 = _v0[:, :d0.shape[1]]
+            d1_lower_bound = (d0 - h * _v0).clamp(self.alpha0, np.inf)
             f = coulomb_friction(self.contact_dof, A=A, a0=a0, v0=v0, d0=d0,
                                  alpha0=d1_lower_bound, mu=self.mu, h=h, solver=self.solver)
 

@@ -27,32 +27,29 @@ def test_taichi():
     # taichi like methods...
     # I am not sure if we should add the continuous collision check into the code ...
     # and I don't know if this is trivial
-    batch_size = 30
-    engine, sphere = make_env(batch_size=batch_size, contact_dof=1, dt=1, frameskip=1, gravity=np.array([0, 0, 0]))
+    batch_size = 1024
+    engine, sphere = make_env(batch_size=batch_size, contact_dof=1, dt=0.01, frameskip=1, gravity=np.array([0, 0, 0]))
 
-    value = 2 + torch.arange(batch_size, device='cuda:0').double()/10
+    value = 1.0001 + 2 * torch.arange(batch_size, device='cuda:0').double()/batch_size
     value.requires_grad =True
 
     sphere.obj.cmass[:, 2, 3] = value[:batch_size]
     sphere.obj.velocity[:, -1] = -2
 
-    print(sphere.obj.cmass[:, 2, 3])
-    img = engine.render(mode='rgb_array', render_idx=0)
-    cv2.imshow('x', img)
-    cv2.waitKey(0)
-
-    for i in tqdm.trange(4):
+    print(sphere.obj.cmass[:, 2, 3].detach().cpu().numpy()[:100])
+    for i in tqdm.trange(1):
         engine.step()
 
-        print(sphere.obj.cmass[:, 2, 3])
-        img = engine.render(mode='rgb_array', render_idx=0)
-        cv2.imshow('x', img)
-        cv2.waitKey(0)
+        #print(sphere.obj.cmass[:, 2, 3])
+        img = engine.render(render_idx=0)
+        #cv2.imshow('x', img)
+        #cv2.waitKey(0)
 
     out = sphere.obj.cmass[:, 2, 3]
-    print(out)
+    print('out', out.detach().cpu().numpy()[:100])
+    print('vel', sphere.obj.velocity.detach().cpu().numpy()[:100, -1])
     out.sum().backward()
-    print(value.grad)
+    print('grad', value.grad.detach().cpu().numpy()[:100])
 
 
 if __name__ == "__main__":

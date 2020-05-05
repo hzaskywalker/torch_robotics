@@ -99,7 +99,7 @@ class Engine:
                  gravity=arith.togpu([0, 0, -9.8]),
                  dt = 0.01, frameskip=1,
                  integrator='Euler',
-                 contact_model=None, epsilon=1e-5
+                 contact_model=None, epsilon=1e-2
              ):
         assert integrator in ['Euler']
         self.geometry = SimpleCollisionDetector(epsilon)
@@ -168,6 +168,7 @@ class Engine:
         if len(edges) == 0:
             return None, None
         dists, poses, edges = torch.cat(dists), torch.cat(poses), torch.cat(edges)
+        print('NUM_COLLISION:', len(dists))
         if self.contact_model is None or not return_jacobian:
             return dists, poses, edges
         return dists, self.compute_jacobian(dists, poses, edges)
