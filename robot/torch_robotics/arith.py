@@ -552,7 +552,7 @@ def normal2pose(normal):
     normal = normalize(normal)
     one = torch.zeros_like(normal); one[..., 0] = 1
     two = torch.zeros_like(normal); two[..., 1] = 1
-    mask = NearZero(((normal - one)**2).sum(dim=-1)).float()
+    mask = NearZero(((normal - one)**2).sum(dim=-1)).float()[:, None]
     r = one * (1-mask) + two * mask
     return projectSO3(torch.stack((normal, r, r), dim=-1))
 

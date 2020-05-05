@@ -303,10 +303,10 @@ class SimpleCollisionDetector:
     def collide_sphere_sphere(self, a:Sphere, b: Sphere):
         d = ((a.center-b.center) **2 + 1e-16).sum(dim=-1)**0.5
         assert (d < 1e-10).sum() == 0, "we don't allow two ball coincident with each other ..."
-        vec = (b.center - a.center)/d
+        vec = (b.center - a.center)/d[:, None]
 
-        p1 = a.center + a.radius * vec
-        p2 = b.center - b.radius * vec
+        p1 = a.center + a.radius[:, None] * vec
+        p2 = b.center - b.radius[:, None] * vec
 
         p = (p1 + p2)/2 # the contact point...
         pose = arith.Rp_to_trans(arith.normal2pose(-vec), p)

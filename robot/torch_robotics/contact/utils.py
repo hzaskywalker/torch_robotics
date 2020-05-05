@@ -11,6 +11,8 @@ def dense_contact_dynamics(engine, jac, invM, tau, dist, velocity, contact_dof=1
     :param tau (obj, 6):
     :param N_b: number of object per scene
     :return:
+        J: (batch, contact_dof * max_nc, dimq=n_b * vdof)
+        A: (batch, contact_dof * max_nc, contact_dof * max_nc)
     """
     jac, jac_id_c, jac_id_o = jac
     jac_batch, jac_o = engine.rigid_body_index2xy(jac_id_o)

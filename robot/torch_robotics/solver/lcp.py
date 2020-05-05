@@ -192,7 +192,8 @@ class SlowLemkeAlgorithm:
         assert (((dot(M, x) + q) * x).abs() < self.piv_tol).all(), f"{((dot(M, x) + q) * x).abs().max()}"
 
 
-forward_alg = SlowLemkeAlgorithm(1000, 1e-5, 1e-8)
+forward_alg = SlowLemkeAlgorithm(10000, 1e-5, 1e-8)
+
 
 from torch.autograd import Function
 class FasterSlowLemke(Function):
@@ -211,6 +212,7 @@ class FasterSlowLemke(Function):
         return M_grad, q_grad, None
 
 lemke = FasterSlowLemke.apply
+
 
 class CvxpySolver:
     # NOTE: we found the default parameter is not very accurate ...

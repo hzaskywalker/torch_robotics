@@ -97,7 +97,6 @@ class ElasticImpulse:
         # Elastic collision: v1\ge -v_0; after the collision, the velocity should reverse the sign
 
         A, a0, v0, d0, J = dense_contact_dynamics(engine, jac, invM, tau, dist, velocity, contact_dof=self.contact_dof)
-        #print(A, a0, v0, d0, J)
 
         h = engine.dt
 
@@ -122,7 +121,9 @@ class ElasticImpulse:
             f = coulomb_friction(self.contact_dof, A=A, a0=a0, v0=v0, d0=d0,
                                  alpha0=d1_lower_bound, mu=self.mu, h=h, solver=self.solver)
 
-        f = dot(transpose(J), f).transpose(1, 0).reshape(
-            engine.batch_size * engine.n_rigid_body, invM.shape[-1])
+        f = dot(transpose(J), f)
+        # f batch, dimq = f, batch, nobj, vbof
+        f = f.reshape(engine.batch_size, engine.n_rigid_body,
+                      invM.shape[-1]).transpose(0, 1).reshape(-1, invM.shape[-1])
         a1 = dot(invM, f)
         return a1

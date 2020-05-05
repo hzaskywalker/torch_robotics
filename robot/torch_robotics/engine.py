@@ -123,7 +123,6 @@ class Engine:
 
         self.contact_model = contact_model
 
-
     @property
     def wrench(self):
         if self._wrench is None:
@@ -139,15 +138,15 @@ class Engine:
         invM, c = self._rigid_bodies.dynamics(gravity=self.gravity, wrench=self.wrench)
         return invM, c
 
-    def forward_kinematics(self, shape=True, render=True):
+    def forward_kinematics(self, shape=True, render=None):
         # The goal is to compute the pose to update the shape and the render
         # However for
         for name in self.objects:
             pose = self.objects[name].fk()
             if shape:
                 self.shapes[name].set_pose(pose)
-            if render and pose is not None:
-                self.visuals[name].set_pose(arith.tocpu(pose[0]))
+            if render is not None and pose is not None:
+                self.visuals[name].set_pose(arith.tocpu(pose[render]))
 
 
     def collide(self, return_jacobian=True):
@@ -288,8 +287,8 @@ class Engine:
         visual = self.renderer.box((ground_size, ground_size, 1), (255, 255, 255), self.renderer.translate((0, 0, -0.5)))
         return self._add_object(Imortal(), ground, visual, 'ground')
 
-    def render(self, mode='human'):
-        self.forward_kinematics()
+    def render(self, mode='human', render_idx=0):
+        self.forward_kinematics(render=render_idx)
         return self.renderer.render(mode=mode)
 
     def qacc(self):
