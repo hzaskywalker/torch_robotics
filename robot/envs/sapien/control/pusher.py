@@ -111,7 +111,8 @@ class PusherEnv(SapienEnv, utils.EzPickle):
 
         self._link_dict = {i.name: i for i in wrapper.get_links()}
         for _, link in self._link_dict.items():
-            link.set_inertia(np.array(link.inertia) + 0.04)
+            #link.set_inertia(np.array(link.inertia) + 0.04)
+            link.set_mass_and_inertia(link.get_mass(), np.array(link.inertia) + 0.04)
         return wrapper, None
 
     def get_body_com(self, body_name):

@@ -1,6 +1,6 @@
 import torch
 from robot import tr
-from robot.torch_robotics.solver.lcp import SlowLemkeAlgorithm, ProjectedGaussSiedelLCPSolver, CvxpySolver, lemke
+from robot.torch_robotics.solver.lcp import SlowLemkeAlgorithm, ProjectedGaussSiedelLCPSolver, CvxpySolver, lemke, QpthSolver
 from robot.utils import Timer
 
 def test_lemke_gradient():
@@ -18,11 +18,11 @@ def test_lemke_gradient():
     #     [0.5, 1, 0.3],
     #     [0, 0.3, 1]],
     #]).expand(128, -1, -1)
-    n = 30
-    batch_size = 512
+    n = 5
+    batch_size = 128
     #batch_size = 1
     L = torch.randn((batch_size, n, n))
-    M = tr.dot(L, tr.transpose(L)) + torch.eye(n)[None,:] * 0.0001
+    M = tr.dot(L, tr.transpose(L)) + torch.eye(n)[None,:] * 0.001
 
     q = torch.randn((batch_size, n))
 
@@ -37,6 +37,7 @@ def test_lemke_gradient():
         'lemke2': lemke,
         'cvxpy': CvxpySolver(n),
         'pgs': ProjectedGaussSiedelLCPSolver(niters=300),
+        'qpth': QpthSolver()
     }
 
     sols = []
@@ -45,7 +46,7 @@ def test_lemke_gradient():
 
     out = solver['lemke'](M, q) # initialize
 
-    for name in ['lemke', 'cvxpy', 'lemke2', 'pgs']:
+    for name in ['lemke2', 'qpth', 'lemke', 'pgs', 'cvxpy']:
         M.grad, q.grad=None, None
         with Timer(name+' time'):
             with Timer(name + ' forward'):
@@ -64,6 +65,8 @@ def test_lemke_gradient():
     print((M_grads[2]-M_grads[1]).abs().max())
     print((M_grads[3]-M_grads[1]).abs().max())
     print((M_grads[3]-M_grads[2]).abs().max())
+    print((M_grads[-1]-M_grads[1]).abs().max())
+    print('lemke2','lemke1', (M_grads[2]-M_grads[0]).abs().max())
 
 
 

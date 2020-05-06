@@ -312,6 +312,8 @@ class Engine:
         if not use_toi:
             self._rigid_bodies.euler(qacc, self.dt)
         else:
+            # integral according to the time of impact ...
+            # a trick for correct gradient (but I don't think this approach makes sense..)
             assert qacc.shape == qacc_f.sum(dim=-1).shape
             qacc_f = qacc_f.transpose(-1, -2)
             index = toi.argsort(dim=-1)

@@ -110,6 +110,9 @@ class ElasticImpulse:
             #X = A * ((h-toi) * (h-toi))[:, None]
             #Y = a0 * h * h + v0 * h + d0
 
+            # TODO: the following methods are not correct, what I really need to do is to sort the TOI and
+            #   and calculate the parameters in the integration ... by an interatively euler intergration
+            #   but this is not in high-priority
             # we consider the following approximation
             #    d_1 = d_0 + (toi * toi + t2 * t2) a_0 + hv_0 + t2 * t2Af
             #    v_1 = (toi + t2) * a0 + v_0 + t2 Af

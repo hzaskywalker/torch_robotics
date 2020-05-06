@@ -11,6 +11,7 @@ def bmv(m, v):
 
 
 def backward(M, q, u, grad_u):
+    # TODO: may be not correct ...
     from torch.nn.functional import relu
     # u is the solution to Mu+q\ge 0, u\ge 0, (Mu+q)\cdot u = 0
     assert M.dim() == 3 and q.dim() == 2 and u.dim() == 2
@@ -38,6 +39,50 @@ def backward(M, q, u, grad_u):
         P = P[to_inv]
         P = P + eyes_like(P) * 1e-10 # TODO: small hack to make it not singular ...
         d_u[to_inv] = -bmv(torch.inverse(P)[:, :n, :n], grad_u[to_inv])
+        return u[:, None, :] * d_u[:, :, None], d_u
+
+def backward2(M, q, u, grad_u):
+    from torch.nn.functional import relu
+    # u is the solution to Mu+q\ge 0, u\ge 0, (Mu+q)\cdot u = 0
+    # we consider the gradient to the following problem
+    # 1/2 z^TMz+ q^Tz st. Gz<=h where G=[-M\\ -I], h=[q\\0]
+
+    assert M.dim() == 3 and q.dim() == 2 and u.dim() == 2
+    batch_size, n = u.shape
+    with torch.no_grad():
+        eye = torch.eye(n, device=M.device, dtype=M.dtype)
+        eye2 = torch.eye(2*n, device=M.device, dtype=M.dtype)
+        u = relu(u)
+        xi = relu(bmv(M, u) + q)
+
+        P = M.new_zeros(batch_size, n*3, n*3)
+        lamb = M.new_zeros(batch_size, n*2)
+        lamb[:, n:] = xi
+        """
+        given lambda*
+        P is 
+        Q G^T
+        D(\lambda*)G D(Gz^*-h)
+        """
+        G = torch.cat((-M, -eye[None,:].expand(batch_size, -1, -1)), dim=1)
+        h = torch.cat((q, torch.zeros_like(q)), dim=1)
+        A = M
+        B = G.transpose(1, 2)
+        C = dot(eye2[None, :] * lamb[:, None], G)
+        D = eye2[None, :] * (-relu(-bmv(G, u) + h)[:, None])
+        P[:, :n, :n] = A
+        P[:, :n, n:] = B
+        P[:, n:, :n] = C
+        P[:, n:, n:] = D
+
+        to_inv = (grad_u.abs() > 1e-15).any(dim=-1)
+        d_u = torch.zeros_like(grad_u)
+
+        #print(P[to_inv][5], grad_u[to_inv][5], u[to_inv][0])
+        #print(P[to_inv][0])
+        P = P[to_inv]
+        P = P + eyes_like(P) * 1e-10 # TODO: small hack to make it not singular ...
+        d_u[to_inv] = -bmv(torch.inverse(P.transpose(-1, -2))[:, :n, :n], grad_u[to_inv])
         return u[:, None, :] * d_u[:, :, None], d_u
 
 
@@ -222,9 +267,15 @@ class FasterSlowLemke(Function):
         M, q, u = ctx.saved_tensors
         M_grad, q_grad = backward(M, q, u, grad_output)
         return M_grad, q_grad, None
-
 lemke = FasterSlowLemke.apply
 
+class FasterSlowLemke2(Function):
+    @staticmethod
+    def backward(ctx, grad_output):
+        M, q, u = ctx.saved_tensors
+        M_grad, q_grad = backward2(M, q, u, grad_output)
+        return M_grad, q_grad, None
+lemke2 = FasterSlowLemke2.apply
 
 class CvxpySolver:
     # NOTE: we found the default parameter is not very accurate ...
@@ -244,3 +295,19 @@ class CvxpySolver:
 
     def __call__(self, M, q):
         return self.cvxpylayer(torch.cholesky(M).transpose(-1, -2), q)[0]
+
+
+class QpthSolver:
+    def __init__(self, max_iter=10):
+        from qpth.qp import QPFunction
+        self.f = QPFunction(eps=1e-12, verbose=True, maxIter=max_iter, notImprovedLim=10)
+
+    def __call__(self, M, q):
+        A = torch.tensor([], dtype=M.dtype, device=M.device)
+        b = torch.tensor([], dtype=M.dtype, device=M.device)
+        G = M.new_zeros(M.shape[0], M.shape[1] * 2, M.shape[2])
+        G[:,:M.shape[1]] = -M
+        G[:,M.shape[1]:] = -eyes_like(M)
+        h = M.new_zeros(M.shape[0], M.shape[1] * 2)
+        h[:,:M.shape[1]] = q
+        return self.f(M, q, G, h, A, b)

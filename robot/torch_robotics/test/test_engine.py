@@ -190,7 +190,7 @@ def test_friction():
 
 def test_box():
     from robot.torch_robotics.contact.elastic import ElasticImpulse
-    model = ElasticImpulse(alpha0=0, restitution=1, contact_dof=3, mu=0.1)
+    model = ElasticImpulse(alpha0=0, restitution=1, contact_dof=3, mu=0.5)
 
     engine = Engine(dt=0.01, frameskip=1, contact_model=model, epsilon=1e-3)
     ground = engine.ground(ground_size=20)
@@ -209,13 +209,13 @@ def test_box():
     size = tr.togpu([1, 1, 1])[None,:]
 
     box = engine.box(center, inertia, mass, size, (255, 0, 0, 180), 'box1')
-    box.obj.velocity = tr.togpu([0, 0, 0, 0, 2, 0])[None, :]
+    box.obj.velocity = tr.togpu([0, 0, 0, 0, 5, 0])[None, :]
     # N=mg, f = \mu mg
     # v^2 - v_0^2 = 2ax => x = v_0^2/2a
 
     import tqdm
     for i in tqdm.trange(200):
-        #engine.render()
+        engine.render()
         engine.step()
 
     print(box.obj.cmass[..., :3, :4], box.obj.velocity)
