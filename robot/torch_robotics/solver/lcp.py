@@ -298,7 +298,7 @@ class CvxpySolver:
 
 
 class QpthSolver:
-    def __init__(self, max_iter=10):
+    def __init__(self, max_iter=20):
         from qpth.qp import QPFunction
         self.f = QPFunction(eps=1e-12, verbose=True, maxIter=max_iter, notImprovedLim=10)
 
@@ -311,3 +311,25 @@ class QpthSolver:
         h = M.new_zeros(M.shape[0], M.shape[1] * 2)
         h[:,:M.shape[1]] = q
         return self.f(M, q, G, h, A, b)
+
+
+class LCPPhysics:
+    def __init__(self):
+        from lcp_physics.lcp.lcp import LCPFunction
+        self.f = LCPFunction(max_iter=30, verbose=True, not_improved_lim=5, eps=1e-15)
+
+    def __call__(self, M, q):
+        n = M.shape[-1]
+        # Q, p, G, h, A, b, F
+        # M  q  G  m        -F
+
+        # in their code they requre sz=0
+        A = torch.tensor([])
+        b = torch.tensor([])
+        h = q
+        Q = eyes_like(M)
+        p = q * 0
+        G = -eyes_like(M)
+        F = M + G
+        out = self.f(Q, p, G, h, A, b, F)
+        return out

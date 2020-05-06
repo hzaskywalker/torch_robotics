@@ -1,6 +1,6 @@
 import torch
 from robot import tr
-from robot.torch_robotics.solver.lcp import SlowLemkeAlgorithm, ProjectedGaussSiedelLCPSolver, CvxpySolver, lemke, QpthSolver
+from robot.torch_robotics.solver.lcp import SlowLemkeAlgorithm, ProjectedGaussSiedelLCPSolver, CvxpySolver, lemke, QpthSolver, LCPPhysics
 from robot.utils import Timer
 
 def test_lemke_gradient():
@@ -18,8 +18,8 @@ def test_lemke_gradient():
     #     [0.5, 1, 0.3],
     #     [0, 0.3, 1]],
     #]).expand(128, -1, -1)
-    n = 5
-    batch_size = 128
+    n = 50
+    batch_size = 256
     #batch_size = 1
     L = torch.randn((batch_size, n, n))
     M = tr.dot(L, tr.transpose(L)) + torch.eye(n)[None,:] * 0.001
@@ -36,8 +36,9 @@ def test_lemke_gradient():
         'lemke': SlowLemkeAlgorithm(niters=10000),
         'lemke2': lemke,
         'cvxpy': CvxpySolver(n),
-        'pgs': ProjectedGaussSiedelLCPSolver(niters=300),
-        'qpth': QpthSolver()
+        'pgs': ProjectedGaussSiedelLCPSolver(niters=50),
+        'qpth': QpthSolver(),
+        'lcp_phys': LCPPhysics()
     }
 
     sols = []
@@ -46,7 +47,8 @@ def test_lemke_gradient():
 
     out = solver['lemke'](M, q) # initialize
 
-    for name in ['lemke2', 'qpth', 'lemke', 'pgs', 'cvxpy']:
+    algo = ['lemke2', 'lcp_phys', 'lemke', 'pgs', 'cvxpy', 'qpth']
+    for name in algo:
         M.grad, q.grad=None, None
         with Timer(name+' time'):
             with Timer(name + ' forward'):
@@ -60,13 +62,16 @@ def test_lemke_gradient():
     M_grads = torch.stack(M_grads, dim=0)
     q_grads = torch.stack(q_grads, dim=0)
 
-    print((sols[0]-sols[1]).abs().max())
-    print((M_grads[0]-M_grads[1]).abs().max())
-    print((M_grads[2]-M_grads[1]).abs().max())
-    print((M_grads[3]-M_grads[1]).abs().max())
-    print((M_grads[3]-M_grads[2]).abs().max())
-    print((M_grads[-1]-M_grads[1]).abs().max())
-    print('lemke2','lemke1', (M_grads[2]-M_grads[0]).abs().max())
+    diff_sol = (sols[:, None] - sols[None, :]).reshape(len(algo), len(algo),
+                                                         -1).abs().max(dim=-1)[0].detach().cpu().numpy()
+    from robot.utils.print_table import print_table
+    print_table([['']+algo]+[[name] + i.tolist() for name,i in zip(algo, diff_sol)])
+
+    diff = (M_grads[:, None] - M_grads[None, :]).reshape(len(algo), len(algo),
+                                                         -1).abs().max(dim=-1)[0].detach().cpu().numpy()
+    from robot.utils.print_table import print_table
+    print_table([['']+algo]+[[name] + i.tolist() for name,i in zip(algo, diff)])
+    print(M_grads[1].max())
 
 
 
