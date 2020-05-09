@@ -300,7 +300,7 @@ class CvxpySolver:
 class QpthSolver:
     def __init__(self, max_iter=20):
         from qpth.qp import QPFunction
-        self.f = QPFunction(eps=1e-12, verbose=True, maxIter=max_iter, notImprovedLim=10)
+        self.f = QPFunction(eps=1e-12, verbose=False, maxIter=max_iter, notImprovedLim=3)
 
     def __call__(self, M, q):
         A = torch.tensor([], dtype=M.dtype, device=M.device)
@@ -313,10 +313,10 @@ class QpthSolver:
         return self.f(M, q, G, h, A, b)
 
 
-class LCPPhysics:
+class LCPPhysics_Wrong:
     def __init__(self):
         from lcp_physics.lcp.lcp import LCPFunction
-        self.f = LCPFunction(max_iter=30, verbose=True, not_improved_lim=5, eps=1e-15)
+        self.f = LCPFunction(max_iter=30, verbose=False, not_improved_lim=3, eps=1e-15)
 
     def __call__(self, M, q):
         n = M.shape[-1]
@@ -333,3 +333,13 @@ class LCPPhysics:
         F = M + G
         out = self.f(Q, p, G, h, A, b, F)
         return out
+
+
+class LCPPhysics(LCPPhysics_Wrong):
+    def __init__(self):
+        from lcp_physics.lcp.lcp import LCPFunction
+        class LCPFunction2(LCPFunction):
+            def backward(*args, **kwargs):
+                grad = LCPFunction.backward(*args, **kwargs)
+                return grad[:-1]+(-grad[-1],)
+        self.f = LCPFunction2(max_iter=30, verbose=True, not_improved_lim=5, eps=1e-15)

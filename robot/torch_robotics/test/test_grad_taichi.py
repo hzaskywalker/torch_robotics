@@ -3,11 +3,13 @@ import cv2
 import torch
 import tqdm
 from robot.torch_robotics import Engine
-from robot.torch_robotics.contact.elastic import ElasticImpulse
+from robot.torch_robotics.contact import StewartAndTrinkle, DualMujoco
 import numpy as np
 
 def make_env(batch_size=256, gravity=np.array([0, 0, -9.8]), contact_dof=1, dt=0.001, frameskip=10, use_toi=False):
-    model = ElasticImpulse(alpha0=0, contact_dof=contact_dof, use_toi=use_toi)
+    #model = StewartAndTrinkle(alpha0=0, contact_dof=contact_dof, use_toi=use_toi)
+    model = DualMujoco(alpha0=0.01)
+
     engine = Engine(dt=dt, frameskip=frameskip, gravity=tr.togpu(gravity), contact_model=model, epsilon=0.05)
     ground = engine.ground()
 

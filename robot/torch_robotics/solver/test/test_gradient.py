@@ -13,14 +13,12 @@ def test_lemke_gradient():
     """
     torch.manual_seed(0)
 
-    #M = tr.togpu([
-    #    [[1, 0.5, 0],
-    #     [0.5, 1, 0.3],
-    #     [0, 0.3, 1]],
-    #]).expand(128, -1, -1)
-    n = 50
-    batch_size = 256
-    #batch_size = 1
+    n = 30 # only if n<=30, lemke is faster than interior point methods..
+    # it seems that interior methods are better in any sense ...
+    # as there are very good implementation
+
+    batch_size = 512
+
     L = torch.randn((batch_size, n, n))
     M = tr.dot(L, tr.transpose(L)) + torch.eye(n)[None,:] * 0.001
 

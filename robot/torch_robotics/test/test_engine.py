@@ -43,8 +43,8 @@ def test_simple():
     print(sphere2.obj.energy())
 
 def test_collision():
-    from robot.torch_robotics.contact.elastic import ElasticImpulse
-    model = ElasticImpulse(alpha0=0)
+    from robot.torch_robotics.contact.elastic import StewartAndTrinkle
+    model = StewartAndTrinkle(alpha0=0)
 
     engine = Engine(dt=0.01, frameskip=10, contact_model=model)
     ground = engine.ground()
@@ -87,8 +87,8 @@ def test_collision():
 
 
 def test_two_sphere():
-    from robot.torch_robotics.contact.elastic import ElasticImpulse
-    model = ElasticImpulse(alpha0=0)
+    from robot.torch_robotics.contact.elastic import StewartAndTrinkle
+    model = StewartAndTrinkle(alpha0=0)
 
     engine = Engine(dt=0.01, frameskip=10, contact_model=model)
     ground = engine.ground(ground_size=20)
@@ -161,8 +161,8 @@ def test_two_sphere():
 
 
 def test_friction():
-    from robot.torch_robotics.contact.elastic import ElasticImpulse
-    model = ElasticImpulse(alpha0=0, restitution=1, contact_dof=3, mu=1)
+    from robot.torch_robotics.contact.elastic import StewartAndTrinkle
+    model = StewartAndTrinkle(alpha0=0, restitution=1, contact_dof=3, mu=1)
 
     engine = Engine(dt=0.01, frameskip=10, contact_model=model)
     ground = engine.ground(ground_size=20)
@@ -189,8 +189,8 @@ def test_friction():
         engine.render()
 
 def test_box():
-    from robot.torch_robotics.contact.elastic import ElasticImpulse
-    model = ElasticImpulse(alpha0=0, restitution=1, contact_dof=3, mu=0.5)
+    from robot.torch_robotics.contact.elastic import StewartAndTrinkle
+    model = StewartAndTrinkle(alpha0=0, restitution=1, contact_dof=3, mu=0.5)
 
     engine = Engine(dt=0.01, frameskip=1, contact_model=model, epsilon=1e-3)
     ground = engine.ground(ground_size=20)

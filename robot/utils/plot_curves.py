@@ -6,37 +6,40 @@ linestyles = ['-', '--', '-.', ':']
 colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 
 
-def plot_curve_with_variance(fig, mean, std=None, ylim=None, X=None, train_sizes=None,
+def plot_curve_with_variance(fig, mean, std=None, ylim=None, X=None,
                              label='Training score', color="r", linestyle='-'):
     """
     ylim (ymin, ymax)
     """
     mean = np.array(mean)
-    if train_sizes is None:
-        train_sizes = np.linspace(0, 1, num=mean.shape[0])
+    if X is None:
+        X = np.linspace(0, 1, num=mean.shape[0])
 
     if ylim is not None:
         plt.ylim(ylim)
 
     if std is not None:
-        plt.fill_between(train_sizes, mean - std,
+        plt.fill_between(X, mean - std,
                          mean + std, alpha=0.1,
                          color=color)
-    plt.plot(train_sizes, mean, '-', color=color,
+    plt.plot(X, mean, '-', color=color,
              label=label, linestyle=linestyle)
     plt.legend(loc="best")
     return fig
 
 
-def plot_curves(field, ylim=None):
+def plot_curves(dict, ylim=None):
     assert len(
-        field) < 32, "current we only suppor the plot for 32 lines, we will add node marker later"
+        dict) < 32, "current we only suppor the plot for 32 lines, we will add node marker later"
     fig = plt.figure()
-    num = len(field)
+    num = len(dict)
 
-    for (key, val), (s, c) in zip(field.items(), product(linestyles, colors)):
+    for (key, val), (s, c) in zip(dict.items(), product(linestyles, colors)):
+        X = None
+        if isinstance(val, tuple):
+            X, val = val
         fig = plot_curve_with_variance(
-            fig, val, label=key, color=c, linestyle=s, ylim=ylim)
+            fig, val, label=key, color=c, linestyle=s, X=X, ylim=ylim)
     plt.show()
 
 

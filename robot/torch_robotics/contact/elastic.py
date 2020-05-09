@@ -68,7 +68,7 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
         return X, Y, VX, VY, f
 
 
-class ElasticImpulse:
+class StewartAndTrinkle:
     def __init__(self, alpha0, restitution=1., contact_dof=1, mu=0, use_toi=False):
         self.alpha0 = alpha0
         self.contact_dof = contact_dof
@@ -136,11 +136,7 @@ class ElasticImpulse:
                                  alpha0=d1_lower_bound, mu=self.mu, h=h, solver=self.solver)
 
         if not self.use_toi:
-            f = dot(transpose(J), f)
-            f = f.reshape(engine.batch_size, engine.n_rigid_body,
-                          invM.shape[-1]).transpose(0, 1).reshape(-1, invM.shape[-1])
-            a1 = dot(invM, f)
-            return a1
+            return self.f2a(engine, J, f, invM)
         else:
             #print(transpose(J).shape)
             #print(f.shape)
@@ -154,3 +150,11 @@ class ElasticImpulse:
             f = (J * f[:, :, :, None]).sum(dim=1) # (batch, nc, dimq)
             a1 = dot(invM, f.transpose(-1, -2))
             return a1, toi
+
+
+    def f2a(self, engine, J, f, invM):
+        f = dot(transpose(J), f)
+        f = f.reshape(engine.batch_size, engine.n_rigid_body,
+                      invM.shape[-1]).transpose(0, 1).reshape(-1, invM.shape[-1])
+        a1 = dot(invM, f)
+        return a1

@@ -5,8 +5,8 @@ import tqdm
 from robot.torch_robotics import Engine
 
 def make_env(batch_size=1):
-    from robot.torch_robotics.contact.elastic import ElasticImpulse
-    model = ElasticImpulse(alpha0=0, contact_dof=3, mu=0.3)
+    from robot.torch_robotics.contact.elastic import StewartAndTrinkle
+    model = StewartAndTrinkle(alpha0=0, contact_dof=3, mu=0.3)
 
     engine = Engine(dt=0.01, frameskip=10, contact_model=model)
     ground = engine.ground(ground_size=20)
