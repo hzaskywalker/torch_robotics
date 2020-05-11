@@ -6,19 +6,8 @@ import logging
 from .. import arith
 
 class RigidBody:
-    def __init__(self):
-        self._index = None
-        
     def set_pose(self, pose):
         self.pose = pose
-
-    @property
-    def index(self):
-        return self._index
-
-    @index.setter
-    def index(self, index):
-        self._index = index
 
     @property
     def pose(self):

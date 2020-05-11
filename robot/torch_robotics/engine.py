@@ -310,7 +310,7 @@ class Engine:
                     use_toi = True
                     qacc_f, toi = output
         if not use_toi:
-            self._rigid_bodies.euler(qacc, self.dt)
+            self._rigid_bodies.euler_(qacc, self.dt)
         else:
             # integral according to the time of impact ...
             # a trick for correct gradient (but I don't think this approach makes sense..)
@@ -324,7 +324,7 @@ class Engine:
             now = 0
             for i in range(steps+1):
                 next = toi[:, i] if i < steps else self.dt
-                self._rigid_bodies.euler(qacc, next-now)
+                self._rigid_bodies.euler_(qacc, next - now)
                 now = next
                 if i < steps:
                     qacc = qacc + qacc_f[:, i]

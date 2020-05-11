@@ -1,6 +1,6 @@
-from .physics import Physics
+from .physical_object import PhysicalObject
 
-class Imortal(Physics):
+class Imortal(PhysicalObject):
     xdof = 0
     vdof = 0
 

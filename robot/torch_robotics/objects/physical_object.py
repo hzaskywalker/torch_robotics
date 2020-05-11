@@ -1,7 +1,7 @@
 # basic objects
 import torch
 
-class Physics:
+class PhysicalObject:
     def iter(self):
         raise NotImplementedError
 

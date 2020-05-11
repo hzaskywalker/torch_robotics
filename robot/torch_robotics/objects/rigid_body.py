@@ -2,12 +2,12 @@
 Basical rigid body class, which supports query the Jacobian and the manipulation of the inertia matrices.
 """
 import torch
-from .physics import Physics
+from .physical_object import PhysicalObject
 from ..arith import dot, inv_trans, Adjoint, transpose, Rp_to_trans, transform_vector, eyes_like
 from .. import arith
 
 
-class RigidBody(Physics):
+class RigidBody(PhysicalObject):
     xdof = 9
     vdof = 6
 
@@ -50,7 +50,9 @@ class RigidBody(Physics):
         if wrench is not None:
             c = c + wrench
         if gravity is not None:
-            gravity = gravity[None,:].expand(G_body.shape[0], -1)
+            while gravity.dim() < c.dim():
+                gravity = gravity[None, :]
+            gravity = gravity.expand(*c.shape[:-1], -1)
             c += dot(G_body[..., 3:], dot(self.cmass[..., :3,:3].transpose(-1, -2), gravity))
         return invG, c
 
@@ -157,7 +159,7 @@ class RigidBody(Physics):
     def assign(self, b):
         self.cmass, self.inertia, self.mass, self.velocity = b.iter()
 
-    def euler(self, qacc, dt, inplace=True):
+    def euler_(self, qacc, dt, inplace=True):
         # one-step euler integral..
         if inplace:
             if isinstance(dt, torch.Tensor):
