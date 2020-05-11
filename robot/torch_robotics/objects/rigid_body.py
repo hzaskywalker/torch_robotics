@@ -192,3 +192,6 @@ class RigidBody(PhysicalObject):
 
         T_cb = dot(arith.inv_trans(pose), self.cmass)
         return arith.Adjoint(T_cb)
+
+    def fk(self):
+        return self.cmass

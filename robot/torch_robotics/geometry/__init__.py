@@ -9,3 +9,4 @@
 
 
 from .simplex import SimpleCollisionDetector
+from .simplex2 import SimpleCollisionDetector2

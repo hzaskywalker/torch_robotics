@@ -34,9 +34,9 @@ class Collision:
         self.batch_id, self.contact_id, self.dist, self.pose, self.contact_objects = [], [], [], [], []
 
         for i in range(len(values)):
-            a_id = values[i].object_id
+            a_id = values[i].index
             for j in range(i+1, len(values)):
-                b_id = values[i].object_id
+                b_id = values[i].index
 
                 batch_id, dists, poses = self.collision_checker(values[i], values[j])
 
@@ -65,6 +65,7 @@ class Collision:
             device = self.batch_id.device
             self.contact_id = torch.tensor(np.concatenate(self.contact_id), dtype=torch.long, device=device)
             self.contact_objects = torch.tensor(np.concatenate(self.contact_objects), dtype=torch.long, device=device)
+        return self
 
     def filter(self, fn):
         object_mask = fn(self.contact_objects)
@@ -80,16 +81,17 @@ class Collision:
         return torch.cat(batch_id), torch.cat(contact_id), torch.cat(pose), torch.cat(obj_id)
 
 
-class DynamicsEquation:
+class Mechanism:
     # used to find the parameters for the solver
     # the return is the hidden dynamic functions
     vdof = 6
 
-    def __init__(self, rigid_body, articulation=None, contact_dof=3):
+    def __init__(self, rigid_body, articulation=None, contact_dof=3, contact_method=None):
         assert self.rigid_body is not None
         self.rigid_body = rigid_body
         self.articulation = articulation
         self.batch_size, self.n_obj = self.rigid_body.shape
+        self.contact_method = contact_method
 
         self.invM_obj, self.c_obj = None, None
         self.invM_art, self.c_art = None, None
@@ -113,6 +115,7 @@ class DynamicsEquation:
             self.build_contact_dynamics(collision)
         else:
             self.A = self.v0 = self.a0 = self.d0 = self.Jac = None
+        return self
 
     def build_contact_dynamics(self, collisions: Collision):
         # some constant..
@@ -122,7 +125,7 @@ class DynamicsEquation:
         device = self.invM_obj.device
         vdof = self.vdof
         dim_art = self.invM_art.shape[-1] if self.invM_art is not None else 0
-        dimq = self.n_obj * self.vdof + dim_art
+        self.dimq = dimq = self.n_obj * self.vdof + dim_art
 
         invM = self.invM_obj.new_zeros(batch_size, dimq, dimq)
         for i in range(self.n_obj):
@@ -175,3 +178,20 @@ class DynamicsEquation:
         index = collisions.batch_id * max_nc + collisions.contact_id
         self.d0 = J.new_zeros(batch_size * max_nc).scatter(
             dim=0, index=index, src=collisions.dist).reshape(batch_size, max_nc)
+
+    def solve(self, dt):
+        if self.A is not None:
+            f = self.contact_method.solve(self)
+            f = tr.dot(tr.transpose(self.Jac), f)
+            f = f.reshape(self.batch_size, self.dimq, -1)
+            f_obj, f_art = f[:,:self.n_obj * self.vdof], f[:,self.n_obj *self.vdof:]
+            f_obj = f_obj.reshape(self.batch_size, self.n_obj, self.vdof)
+        else:
+            f_obj, f_art = 0, 0
+
+        qacc_obj = tr.dot(self.invM_obj, self.c_obj + f_obj)
+        if self.invM_art is not None:
+            qacc_art = tr.dot(self.invM_art, self.c_art + f_art)
+        else:
+            qacc_art = None
+        return qacc_obj, qacc_art
