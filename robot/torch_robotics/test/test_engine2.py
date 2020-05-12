@@ -53,7 +53,7 @@ def test_box():
 
 
 def test_sphere_box():
-    engine = Engine2(dt=0.01, frameskip=10, contact_dof=3, mu=0.0, restitution=1)
+    engine = Engine2(dt=0.005, frameskip=10, contact_dof=3, mu=1.0, restitution=0)
     ground = engine.ground(10)
 
     center = tr.togpu([[1, 0, 0, 0],
@@ -69,7 +69,7 @@ def test_sphere_box():
     engine.add(*box)
 
 
-    center = tr.togpu([0, -0.7, 0.2])[None, :]
+    center = tr.togpu([0, 0, 1.2])[None, :]
     inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
     mass = tr.togpu([5])
     radius = tr.togpu([0.2])
@@ -83,6 +83,26 @@ def test_sphere_box():
         engine.render()
         engine.step()
 
+
+def test_two_sphere():
+    engine = Engine2(contact_dof=3, frameskip=10, dt=0.01, mu=1)
+
+    center = tr.togpu([0, 0, 1])[None, :]
+    inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
+    mass = tr.togpu([1])
+    radius = tr.togpu([1])
+    sphere = engine.sphere(center, inertia, mass, radius, (0, 255, 0), name='sphere')
+    ground = engine.ground(10)
+
+    center2 = tr.togpu([0, 0, 3])[None, :]
+    sphere2 = engine.sphere(center2, inertia, mass, radius, (0, 255, 0), name='sphere2')
+
+    engine.add(*sphere).add(*sphere2).add(*ground).reset()
+    engine.rigid_body[:, 0].velocity[:] = tr.togpu([0, 0, 0, 0, 1, 0])
+
+    for i in tqdm.trange(30):
+        engine.step()
+        engine.render()
 
 def test_articulation():
     pass

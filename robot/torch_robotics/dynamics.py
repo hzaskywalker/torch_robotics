@@ -135,12 +135,6 @@ class Mechanism:
         vdof = self.vdof
         dim_art = self.invM_art.shape[-1] if self.invM_art is not None else 0
         self.dimq = dimq = self.n_obj * self.vdof + dim_art
-        """
-        print(collisions.pose)
-        print(collisions.contact_objects)
-        if collisions.pose.shape[0]>5:
-            exit(0)
-            """
 
         invM = self.invM_obj.new_zeros(batch_size, dimq, dimq)
         for i in range(self.n_obj):
@@ -158,8 +152,7 @@ class Mechanism:
             # hack
             _contact_dof_index = torch.arange(contact_dof, device=device)
 
-            _jac = jac[:, 3:4] if contact_dof == 1 else (jac[:, 3:] if contact_dof == 3 else jac[:, [3, 0, 1, 2, 4, 5]])
-            # Jac (0:contact_dof, l:l+p)
+            _jac = jac[:, 3:4] if contact_dof == 1 else (jac[:, 3:] if contact_dof == 3 else jac[:, [3, 4, 5, 0, 1, 2]])
             index = ((batch_id * int(max_nc) + contact_id) * contact_dof)[:, None] + _contact_dof_index[None, :]
             index = index[:, :, None] * int(dimq) + (obj_id[:, None] * int(vdof) +
                                                 torch.arange(_jac.shape[-1], device=device)[None, :])[:, None]
@@ -195,9 +188,7 @@ class Mechanism:
         index = collisions.batch_id * int(max_nc) + collisions.contact_id
         self.d0 = J.new_zeros(batch_size * max_nc).scatter(
             dim=0, index=index, src=collisions.dist).reshape(batch_size, max_nc)
-        #print(self.A, self.v0, self.a0, self.d0)
-        #print(self.Jac)
-        #exit(0)
+        return
 
 
     def solve(self, dt):

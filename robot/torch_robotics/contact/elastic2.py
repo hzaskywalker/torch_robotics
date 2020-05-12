@@ -6,6 +6,7 @@ import numpy as np
 # from torch_geometric.utils import scatter_
 from ..arith import dot, transpose
 from ..solver import lemke
+from ..solver.lcp import LCPPhysics
 from ..dynamics import Mechanism
 
 
@@ -67,8 +68,20 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
         X[:, -nc:, nc:-nc] = -eye_nc[:, None, :].repeat(1, contact_dof * 2 - 2, 1).reshape(nc, -1)
 
     sol = solver(X/h/h, Y/h/h) # /h is important for numerical issue, especially for lemke
-    f = dot(f, sol)
-    return f
+    """
+    print('sol', sol.shape)
+    print(sol.reshape(contact_dof*2, nc))
+    print(X.shape, f.shape)
+    print((dot(X, sol)+Y) * sol)
+    F = dot(f, sol)
+    V = dot(VX, sol) + VY
+    d_normal = dot(X[:, :nc], sol) + Y[:, :nc]
+    print('FORCE', F.reshape(contact_dof, nc))
+    print('VELOCITY', V.reshape(contact_dof, nc))
+    print(d_normal * sol[0,:nc])
+    exit(0)
+    """
+    return dot(f, sol)
 
 
 class StewartAndTrinkle:
