@@ -42,7 +42,7 @@ class Collision:
             for j in range(i+1, len(shapes)):
                 b_id = self.shape_idx[j]
 
-                batch_id, dists, poses = self.collision_checker(shapes[i], shapes[j])
+                batch_id, dists, poses, swap = self.collision_checker(shapes[i], shapes[j])
 
                 if batch_id.shape[0] > 0:
                     # number of contacts
@@ -57,7 +57,10 @@ class Collision:
 
                     # current a np array
                     self.contact_id.append(_contact_id)
-                    self.contact_objects.append(np.array([a_id, b_id])[None,:].repeat(len(batch_id), 0))
+                    tmp = a_id, b_id
+                    if swap:
+                        tmp = b_id, a_id
+                    self.contact_objects.append(np.array(tmp)[None,:].repeat(len(batch_id), 0))
 
         self.max_nc = 0
         if len(self.batch_id)>0:
@@ -132,6 +135,12 @@ class Mechanism:
         vdof = self.vdof
         dim_art = self.invM_art.shape[-1] if self.invM_art is not None else 0
         self.dimq = dimq = self.n_obj * self.vdof + dim_art
+        """
+        print(collisions.pose)
+        print(collisions.contact_objects)
+        if collisions.pose.shape[0]>5:
+            exit(0)
+            """
 
         invM = self.invM_obj.new_zeros(batch_size, dimq, dimq)
         for i in range(self.n_obj):
@@ -168,7 +177,6 @@ class Mechanism:
             batch_id, contact_id, pose, obj_id, sign = collisions.filter(lambda x: x >= self.n_obj)
             artJac = self.articulation[batch_id].compute_jacobian(obj_id-self.n_obj, pose) * sign[..., None, None]
             J = assign_jac(J, batch_id, contact_id, obj_id, artJac)
-
         # assign result
         self.Jac = J = J.reshape(batch_size, max_nc, contact_dof,
                       dimq).transpose(1, 2).reshape(batch_size, max_nc * contact_dof, dimq)

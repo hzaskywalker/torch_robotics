@@ -97,9 +97,7 @@ class StewartAndTrinkle:
         # Separation: d1 \ge \alpha_0
         # Elastic collision: v1\ge -v_0; after the collision, the velocity should reverse the sign
 
-        from robot.utils import Timer
-        with Timer("jaco"):
-            A, a0, v0, d0, J = dense_contact_dynamics(engine, jac, invM, tau, dist, velocity, contact_dof=self.contact_dof)
+        A, a0, v0, d0, J = dense_contact_dynamics(engine, jac, invM, tau, dist, velocity, contact_dof=self.contact_dof)
 
         h = engine.dt
         _v0 = v0

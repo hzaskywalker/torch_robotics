@@ -89,8 +89,8 @@ def vec_to_se3(V):
     #return np.r_[np.c_[VecToso3([V[0], V[1], V[2]]), [V[3], V[4], V[5]]],
     #             np.zeros((1, 4))]
     return make_matrix((
-        (vec_to_so3(V[..., :3]), V[..., 3:, None]),
-        (V.new_zeros((*V.shape[:-1], 1, 4)), )
+        [vec_to_so3(V[..., :3]), V[..., 3:, None]],
+        [V.new_zeros((*V.shape[:-1], 1, 4)), ]
     ))
 
 
@@ -325,6 +325,22 @@ def ad(V):
     adv[..., 3:,:3] = vmat
     return adv
 
+def adT(V):
+    """Calculate the 6x6 matrix [adV] of the given 6-vector
+    :param V: A 6-vector spatial velocity
+    :return: The corresponding 6x6 matrix [adV]
+    Used to calculate the Lie bracket [V1, V2] = [adV1]V2
+    """
+    #omgmat = VecToso3([V[0], V[1], V[2]])
+    assert V.shape[-1] == 6
+    omgmatT = -vec_to_so3(V[..., :3])
+    vmatT = -vec_to_so3(V[..., 3:])
+    adv = omgmatT.new_zeros(V.shape[:-1]+(6, 6))
+    adv[..., :3,:3] = omgmatT
+    adv[..., 3:,3:] = omgmatT
+    adv[..., :3,3:] = vmatT
+    return adv
+
 
 def newton_law(G, V, dV):
     return dot(G, dV) - dot(dot(transpose(ad(V)), G), V)
@@ -552,7 +568,7 @@ def normal2pose(normal):
     normal = normalize(normal)
     one = torch.zeros_like(normal); one[..., 0] = 1
     two = torch.zeros_like(normal); two[..., 1] = 1
-    mask = NearZero(((normal - one)**2).sum(dim=-1)).float()[:, None]
+    mask = NearZero(((normal.abs() - one)**2).sum(dim=-1)).float()[:, None]
     r = one * (1-mask) + two * mask
     return projectSO3(torch.stack((normal, r, r), dim=-1))
 

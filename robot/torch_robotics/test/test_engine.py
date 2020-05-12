@@ -95,7 +95,7 @@ def test_two_sphere():
     from robot.torch_robotics.contact.elastic import StewartAndTrinkle
     model = StewartAndTrinkle(alpha0=0, contact_dof=3, mu=1)
 
-    engine = Engine(dt=0.01, frameskip=1, contact_model=model)
+    engine = Engine(dt=0.02, frameskip=10, contact_model=model)
     ground = engine.ground(ground_size=20)
 
     center = tr.togpu([0, 0, 5])[None, :]
@@ -155,10 +155,11 @@ def test_two_sphere():
     print('newton ball')
     print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
     import tqdm
-    for i in tqdm.trange(1000):
+    for i in tqdm.trange(100):
         engine.step()
         #print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
         #exit(0)
+        engine.render()
         #img = engine.render(mode='rgb_array')
         #cv2.imshow('x', img)
         #cv2.waitKey(1)

@@ -72,9 +72,36 @@ def test_box_ground():
     out = simplex.SimpleCollisionDetector().collide_box_ground(box, None)
     print(out)
 
+def test_box_point():
+    from robot.torch_robotics.geometry.simplex2 import SimpleCollisionDetector
+    geo = SimpleCollisionDetector()
+
+    rand_pos = tr.Rp_to_trans(tr.projectSO3(torch.randn((6, 3, 3), device='cuda:0')).double(),
+                              torch.randn((6, 3), device='cuda:0').double())
+    rand_pos = tr.eyes_like(rand_pos)
+    box = geo.box(tr.togpu([[[1, 0, 0, 0],
+                                 [0, 1, 0, 0],
+                                 [0, 0, 1, 0.1],
+                                 [0, 0, 0, 1]]]).expand(6, -1, -1),
+                  size=tr.togpu([[1.2, 0.8, 1.3]]).expand(6, -1))
+    sphere = geo.sphere(tr.togpu([[0, 0, 0.5],
+                                  [0, 0.5, 0],
+                                  [0.5, 0, 0],
+                                  [0, 0, -0.5],
+                                  [0, -0.5, 0],
+                                  [-0.5, 0, 0],
+                                  ]),
+                        tr.togpu([0.001]).expand(6))
+    box.pose = tr.dot(rand_pos, box.pose)
+    sphere.pose = tr.dot(rand_pos, sphere.pose)
+    out = geo.collide_box_point(box, sphere)
+    print(out)
+    #print(tr.dot(tr.inv_trans(rand_pos[out[0]]), out[-1]))
+
 
 if __name__ == '__main__':
     #test_edge_edge()
     #test_face_vertics()
     #test_box()
-    test_box_ground()
+    #test_box_ground()
+    test_box_point()

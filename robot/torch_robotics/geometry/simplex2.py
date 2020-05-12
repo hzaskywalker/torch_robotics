@@ -113,8 +113,10 @@ class SimpleCollisionDetector:
         pass
 
     def __call__(self, a, b):
-        if isinstance(a, Ground):
+        swap = False
+        if isinstance(a, Ground) or (isinstance(a, Sphere) and isinstance(b, Box)):
             a, b = b, a
+            swap = True
 
         if isinstance(a, Sphere) and isinstance(b, Sphere):
             out = self.collide_sphere_sphere(a, b)
@@ -122,13 +124,17 @@ class SimpleCollisionDetector:
             out = self.collide_sphere_ground(a, b)
         elif isinstance(a, Box) and isinstance(b, Ground):
             out = self.collide_box_ground(a, b)
+        elif isinstance(a, Box) and isinstance(b, Sphere):
+            out = self.collide_box_point(a, b)
         else:
             raise NotImplementedError
-
         # -1 for no object
         batch_id, dist, pose = out
         idx = (dist < self.epsilon)
-        return batch_id[idx], dist[idx], pose[idx]
+        if idx.any() and len(idx)>0:
+            return batch_id[idx], dist[idx], pose[idx], swap
+        else:
+            return batch_id[idx], None, None, swap
 
     def collide_sphere_sphere(self, a: Sphere, b: Sphere):
         d = ((a.center - b.center) ** 2 + 1e-16).sum(dim=-1) ** 0.5
@@ -158,17 +164,15 @@ class SimpleCollisionDetector:
     def collide_box_ground(self, box: Box, b: Ground):
         # we only allow at most 4 vertices under the ground
         # h is the tolerance
-        raise NotImplementedError("batch idx for box ground collision is not ")
-
         vertex, _, _ = box.get_all()
         d = vertex[..., -1]
         is_collision = d < 0 + self.epsilon
 
         idx = torch.where(is_collision)
 
-        obj_idx = box.index[idx[0]]
-        edge = torch.stack((obj_idx, obj_idx * 0 - 1), dim=1)
+        batch_id = torch.arange(d.shape[0], device=d.device)
 
+        batch_id = batch_id[idx[0]]
         dist = d[idx[0], idx[1]]
 
         pose = vertex.new_zeros((idx[0].shape[0], 4, 4))
@@ -179,3 +183,31 @@ class SimpleCollisionDetector:
         pose[..., :2, 3] = vertex[idx[0], idx[1], :2]
 
         #torch.arange(d.shape[0], device=d.device), dist, pose
+        return batch_id, dist, pose
+
+    def collide_box_point(self, box: Box, sphere: Sphere):
+        # the contact point is the center of the sphere
+        assert (sphere.radius <= 0.2).all(), "We only support the collision between the box and the very small sphere"
+        box_size = box.size / 2
+        box_pose = box.pose
+        box_size = box_size + sphere.radius[:, None] + self.epsilon
+        point = arith.dot(arith.inv_trans(box_pose), sphere.pose)[..., :3, 3]
+
+        batch_id = torch.arange(point.shape[0], device=point.device)
+        inside = ((point <= box_size) & (point >= -box_size)).all(dim=-1)
+
+        if inside.any():
+            diffs = torch.cat((box_size-point, point + box_size), dim=-1)[inside] # (3, 3)
+            dist, face_id = diffs.min(dim=-1)
+            dist = -(dist-self.epsilon)
+            face_id = face_id
+            p = point[inside]
+
+            normal = torch.zeros_like(p)
+            tmp = batch_id[:p.shape[0]]
+            normal[tmp, face_id%3] = -(1 - 2*(face_id//3).double())
+            pose = arith.dot(box_pose[inside], arith.Rp_to_trans(arith.normal2pose(normal), p))
+        else:
+            pose = None
+            dist = batch_id[inside].float()
+        return batch_id[inside], dist, pose

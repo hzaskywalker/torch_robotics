@@ -45,8 +45,10 @@ class RigidBody(PhysicalObject):
         # G^{-1}(f + [ad_v]^TGv) + g = a
         G_body = self.G
         invG = torch.inverse(G_body) # we assume it's always invertible
+        # TODO: we can optimize it
+        adT = transpose(arith.ad(self.velocity))
+        c = dot(adT, dot(G_body, self.velocity))
 
-        c = dot(dot(transpose(arith.ad(self.velocity)), G_body), self.velocity)
         if wrench is not None:
             c = c + wrench
         if gravity is not None:

@@ -163,7 +163,6 @@ class Engine2(Builder):
         # compute the qacc for rigid bodies and the articulation (not implemented yet)
         self.forward_kinematics() # update collision shapes
         self.collision.update()
-
         # update
         self.mechanism(self.gravity, self.collision, tau=None, wrench=None)
 

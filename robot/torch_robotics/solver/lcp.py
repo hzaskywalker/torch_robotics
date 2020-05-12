@@ -2,6 +2,7 @@
 # projected gauss-sediel
 # http://image.diku.dk/kenny/download/erleben.13.siggraph.course.notes.pdf
 import numpy as np
+import logging
 import torch
 from ..arith import dot, eyes_like
 
@@ -181,7 +182,6 @@ class SlowLemkeAlgorithm:
         answer = new_xs.new_zeros((M.shape[0], M.shape[-1]))
         answer.scatter_(dim=1, index=new_bas, src=new_xs)
         if not num_iter:
-            import logging
             logging.warning("WRONG>>>>>>>>>>>>>>>>>>>>>>>>>>> LEMKE doesn't converge after 1000 timesteps")
             return None
         if unsolved.sum() > 0 and num_iter>0:

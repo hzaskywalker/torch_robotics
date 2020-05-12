@@ -8,7 +8,7 @@ def make_env(batch_size=1):
     from robot.torch_robotics.contact.elastic import StewartAndTrinkle
     model = StewartAndTrinkle(alpha0=0, contact_dof=3, mu=0.3)
 
-    engine = Engine(dt=0.01, frameskip=10, contact_model=model)
+    engine = Engine(dt=0.002, frameskip=10, contact_model=model)
     ground = engine.ground(ground_size=20)
 
     center = tr.togpu([0, 0, 5])[None, :].expand(batch_size, -1)
@@ -35,7 +35,7 @@ def make_env(batch_size=1):
 
     sphere3 = engine.sphere(tr.togpu([0, 5, 1])[None, :].expand(batch_size, -1),
                             inertia, mass, radius, (0, 255, 0), name='sphere3')
-    sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 3, 0])
+    sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 5, 0])
     sphere.obj.velocity = tr.dot(tr.Adjoint(tr.inv_trans(sphere.obj.cmass)), sphere.obj.velocity)
     sphere2.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 0, 0])
     sphere3.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 0, 0])
@@ -43,7 +43,7 @@ def make_env(batch_size=1):
 
 def test_batch():
     torch.manual_seed(0)
-    engine, spheres = make_env(batch_size=30)
+    engine, spheres = make_env(batch_size=2048)
     spheres[0].obj.velocity[:] = 0
     spheres[0].obj.velocity[:, 4] = torch.rand_like(spheres[0].obj.velocity[:, 4]) * 5
     spheres[0].obj.velocity = tr.dot(tr.Adjoint(tr.inv_trans(spheres[0].obj.cmass)), spheres[0].obj.velocity)
