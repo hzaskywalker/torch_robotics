@@ -301,7 +301,9 @@ class Engine:
 
         use_toi = False
         if self.contact_model:
-            dist, jac = self.collide()
+            from robot.utils import Timer
+            with Timer('collide'):
+                dist, jac = self.collide()
             if jac is not None:
                 output = self.contact_model(self, jac, invM, c, dist, self._rigid_bodies.velocity)
                 if not isinstance(output, tuple):

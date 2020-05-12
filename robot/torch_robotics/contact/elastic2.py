@@ -20,7 +20,10 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
     batch, nc, _ = A.shape
     nc = nc // contact_dof
 
-    n_variable = nc * 2 * contact_dof
+    if contact_dof != 1:
+        n_variable = nc * 2 * contact_dof
+    else:
+        n_variable = nc
 
     # v1 = hAf+a_0 + v0 = hA (f_1e_1 + D\beta) + a_0+v_0 = hAe_1 + hAD\beta + ha_0+v_0
     # d_1 = d_0 + v_1
@@ -31,10 +34,13 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
     e1 = A.new_zeros(batch, contact_dof * nc, n_variable)  # transform  into
     e1[:, index, index] = 1  # first nc is the  f
 
-    D = A.new_zeros(batch, contact_dof * nc, n_variable)  # extract
-    D_diagnoal = torch.arange(nc * (contact_dof-1))
-    D[:, D_diagnoal + nc, D_diagnoal + nc] = 1
-    D[:, D_diagnoal + nc, D_diagnoal + nc * contact_dof] = -1
+    if contact_dof > 1:
+        D = A.new_zeros(batch, contact_dof * nc, n_variable)  # extract
+        D_diagnoal = torch.arange(nc * (contact_dof-1))
+        D[:, D_diagnoal + nc, D_diagnoal + nc] = 1
+        D[:, D_diagnoal + nc, D_diagnoal + nc * contact_dof] = -1
+    else:
+        D = 0
 
     f = e1 + D  # use this times the variable, one can get the force
 
@@ -47,25 +53,22 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
     X[:, :nc] = h * VX[:, :nc]
     Y[:, :nc] = h * VY[:, :nc] + d0 - alpha0
 
-    eye_nc = torch.eye(nc, device=X.device)
+    if contact_dof > 1:
+        eye_nc = torch.eye(nc, device=X.device)
+        # lambda e + D^Tv = 11111 + D^TVx, D^Tvy
+        beta_slice = slice(nc, nc + nc * (contact_dof - 1) * 2)
+        DT = transpose(D)[:, beta_slice]
+        X[:, beta_slice] = dot(DT, VX)
+        X[:, beta_slice, -nc:] = eye_nc.repeat(contact_dof * 2 - 2, 1) # \lambad
+        Y[:, beta_slice] = dot(DT, VY)
 
-    # lambda e + D^Tv = 11111 + D^TVx, D^Tvy
-    beta_slice = slice(nc, nc + nc * (contact_dof - 1) * 2)
-    DT = transpose(D)[:, beta_slice]
-    X[:, beta_slice] = dot(DT, VX)
-    X[:, beta_slice, -nc:] = eye_nc.repeat(contact_dof * 2 - 2, 1) # \lambad
-    Y[:, beta_slice] = dot(DT, VY)
+        # mu f1 - e^T\beta
+        X[:, -nc:] = mu * e1[:, :nc]  # extract f1
+        X[:, -nc:, nc:-nc] = -eye_nc[:, None, :].repeat(1, contact_dof * 2 - 2, 1).reshape(nc, -1)
 
-    # mu f1 - e^T\beta
-    X[:, -nc:] = mu * e1[:, :nc]  # extract f1
-    X[:, -nc:, nc:-nc] = -eye_nc[:, None, :].repeat(1, contact_dof * 2 - 2, 1).reshape(nc, -1)
-
-    if solver is not None:
-        sol = solver(X/h/h, Y/h/h) # /h is important for numerical issue, especially for lemke
-        f = dot(f, sol)
-        return f
-    else:
-        return X, Y, VX, VY, f
+    sol = solver(X/h/h, Y/h/h) # /h is important for numerical issue, especially for lemke
+    f = dot(f, sol)
+    return f
 
 
 class StewartAndTrinkle:
@@ -76,10 +79,9 @@ class StewartAndTrinkle:
         self.mu = mu
         self.solver = lemke
 
-    def __call__(self, mechanism: Mechanism, dt):
+    def solve(self, mechanism: Mechanism, dt):
         A, a0, v0, d0, h = mechanism.A, mechanism.a0, mechanism.v0, mechanism.d0, dt
         _v0 = v0[:, :d0.shape[1]]
         d1_lower_bound = (d0 - h * _v0 * self.restitution).clamp(self.alpha0, np.inf)
-        f = coulomb_friction(mechanism.contact_dof, A=A, a0=a0, v0=v0, d0=d0,
+        return coulomb_friction(mechanism.contact_dof, A=A, a0=a0, v0=v0, d0=d0,
                              alpha0=d1_lower_bound, mu=self.mu, h=h, solver=self.solver)
-        return f

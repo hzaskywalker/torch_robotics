@@ -7,19 +7,8 @@ from .. import arith
 
 
 class RigidBody:
-    def __init__(self):
-        self._index = None
-
     def set_pose(self, pose):
         self.pose = pose
-
-    @property
-    def index(self):
-        return self._index
-
-    @index.setter
-    def index(self, index):
-        self._index = index
 
     @property
     def pose(self):
@@ -103,7 +92,7 @@ class Ground(RigidBody):
         assert p is None, "You can't set the pose of the ground!!!"
 
 
-class SimpleCollisionDetector2:
+class SimpleCollisionDetector:
     def __init__(self, epsilon=1e-5):
         self.epsilon = epsilon
         self.shapes = []
@@ -139,7 +128,7 @@ class SimpleCollisionDetector2:
         # -1 for no object
         batch_id, dist, pose = out
         idx = (dist < self.epsilon)
-        return out[idx], dist[idx], pose[idx]
+        return batch_id[idx], dist[idx], pose[idx]
 
     def collide_sphere_sphere(self, a: Sphere, b: Sphere):
         d = ((a.center - b.center) ** 2 + 1e-16).sum(dim=-1) ** 0.5

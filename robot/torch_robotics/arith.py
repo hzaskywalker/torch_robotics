@@ -28,9 +28,9 @@ def translate(p):
 
 def dot(A, B):
     assert A.shape[0] == B.shape[0]
-    if A.dim() == 3 and B.dim() == 3:
+    if A.dim() == B.dim():
         return A @ B
-    elif A.dim() ==3 and B.dim() == 2:
+    elif A.dim() == B.dim() + 1:
         return (A @ B[..., None])[..., 0]
     else:
         raise NotImplementedError(f"can'd dot product: A.shape: {A.shape}, B.shape: {B.shape}")

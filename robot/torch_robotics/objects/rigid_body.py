@@ -29,7 +29,7 @@ class RigidBody(PhysicalObject):
     def G(self):
         out = self.inertia.new_zeros(*self.mass.shape, 6, 6)
         out[..., :3, :3] = self.inertia
-        out[..., [3,4,5], [3,4,5]] = self.mass[:, None]
+        out[..., [3,4,5], [3,4,5]] = self.mass[..., None]
         return out
 
     def dynamics(self,  gravity=None, wrench=None):

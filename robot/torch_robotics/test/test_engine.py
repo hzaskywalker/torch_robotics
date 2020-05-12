@@ -49,7 +49,7 @@ def test_collision():
     engine = Engine(dt=0.01, frameskip=10, contact_model=model)
     ground = engine.ground()
 
-    center = tr.togpu([0, 1, 3])[None, :]
+    center = tr.togpu([0, 0, 1])[None, :]
     inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
     mass = tr.togpu([1])
     radius = tr.togpu([1])
@@ -60,11 +60,16 @@ def test_collision():
     renderer.set_camera_position(-10, 0, 0)
     renderer.set_camera_rotation(0, 0)
 
-    if False:
+    center2 = tr.togpu([0, 2, 1])[None, :]
+    sphere2 = engine.sphere(center2, inertia, mass, radius, (0, 255, 0), name='sphere2')
+    sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 1, 0])
+
+    if True:
         for i in range(20):
             engine.step()
             engine.render('human')
             print(sphere.obj.energy())
+    exit(0)
 
     if False:
         sphere.obj.cmass[0, :3, 3] = tr.togpu([0, 0, 5])
@@ -88,9 +93,9 @@ def test_collision():
 
 def test_two_sphere():
     from robot.torch_robotics.contact.elastic import StewartAndTrinkle
-    model = StewartAndTrinkle(alpha0=0)
+    model = StewartAndTrinkle(alpha0=0, contact_dof=3, mu=1)
 
-    engine = Engine(dt=0.01, frameskip=10, contact_model=model)
+    engine = Engine(dt=0.01, frameskip=1, contact_model=model)
     ground = engine.ground(ground_size=20)
 
     center = tr.togpu([0, 0, 5])[None, :]
@@ -106,12 +111,12 @@ def test_two_sphere():
     renderer.set_camera_position(-15, 0, 0)
     renderer.set_camera_rotation(0, 0)
 
-    if True:
+    if False:
         for i in range(50):
             engine.step()
             engine.render()
 
-    if True:
+    if False:
         sphere.obj.cmass[:, :3, 3] = tr.togpu([0,-2,1])
         sphere2.obj.cmass[:, :3, 3] = tr.togpu([0,2,1])
         sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 3, 0])
@@ -122,7 +127,7 @@ def test_two_sphere():
             engine.render()
             print(sphere.obj.energy()+sphere2.obj.energy())
 
-    if True:
+    if False:
         sphere.obj.cmass[:, :3, 3] = tr.togpu([0,-2,1])
         sphere2.obj.cmass[:, :3, 3] = tr.togpu([0,2,1])
         sphere.obj.velocity[:] = tr.togpu([0, 0, 0, 0, 3, 0])
@@ -149,14 +154,15 @@ def test_two_sphere():
 
     print('newton ball')
     print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
-    for i in range(20):
+    import tqdm
+    for i in tqdm.trange(1000):
         engine.step()
-        print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
+        #print(sphere.obj.energy() + sphere2.obj.energy() + sphere3.obj.energy())
         #exit(0)
         #img = engine.render(mode='rgb_array')
         #cv2.imshow('x', img)
         #cv2.waitKey(1)
-        img = engine.render(mode='human')
+        #img = engine.render(mode='human')
 
 
 

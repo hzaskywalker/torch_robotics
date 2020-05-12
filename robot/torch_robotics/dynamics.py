@@ -3,12 +3,14 @@ import torch
 import numpy as np
 from .objects import RigidBody, Articulation
 from . import arith as tr
+from ..utils import Timer
 
 
 class Collision:
-    def __init__(self, shapes, collision_checker):
+    def __init__(self, shapes, shape_idx, collision_checker):
         # each shape has an object id
         self.shapes = shapes
+        self.shape_idx = shape_idx
         self.collision_checker = collision_checker
 
         self.max_nc = 0
@@ -25,28 +27,29 @@ class Collision:
         self.contact_objects = []
 
     def update(self):
-        values = list(self.shapes.values())
-        assert len(values) > 0
-        batch_size = values[0].pose.shape[0]
+        shapes = self.shapes
+        for i in shapes:
+            if i.pose is not None:
+                batch_size = i.pose.shape[0]
+                break
 
         # count the number of contacts per batch
         batch_nc = np.zeros((batch_size,), dtype=np.int32) # contact id in batch
         self.batch_id, self.contact_id, self.dist, self.pose, self.contact_objects = [], [], [], [], []
 
-        for i in range(len(values)):
-            a_id = values[i].index
-            for j in range(i+1, len(values)):
-                b_id = values[i].index
+        for i in range(len(self.shapes)):
+            a_id = self.shape_idx[i]
+            for j in range(i+1, len(shapes)):
+                b_id = self.shape_idx[j]
 
-                batch_id, dists, poses = self.collision_checker(values[i], values[j])
+                batch_id, dists, poses = self.collision_checker(shapes[i], shapes[j])
 
                 if batch_id.shape[0] > 0:
                     # number of contacts
-                    _batch_id = batch_id.detach().cpu().numpy()
-                    _contact_id = np.zeros(len(batch_id))
-                    for b in _batch_id:
+                    _contact_id = np.zeros(len(batch_id), dtype=np.int32)
+                    for idx, b in enumerate(batch_id.detach().cpu().numpy()):
+                        _contact_id[idx] = batch_nc[b]
                         batch_nc[b] += 1
-
                     # currently a tensor
                     self.batch_id.append(batch_id)
                     self.dist.append(dists)
@@ -69,16 +72,16 @@ class Collision:
 
     def filter(self, fn):
         object_mask = fn(self.contact_objects)
-        batch_id, contact_id, dist, pose, obj_id = [], [], [], [], []
+        batch_id, contact_id, sign, pose, obj_id = [], [], [], [], []
         for i in range(2):
-            mask = object_mask[:, 0]
+            mask = object_mask[:, i]
             if mask.any():
                 batch_id.append(self.batch_id[mask])
                 contact_id.append(self.contact_id[mask])
-                dist.append(self.dist[mask])
+                sign.append(torch.zeros_like(self.dist[mask]) * 0 + (1 - i * 2))
                 pose.append(self.pose[mask])
                 obj_id.append(self.contact_objects[:, i][mask])
-        return torch.cat(batch_id), torch.cat(contact_id), torch.cat(pose), torch.cat(obj_id)
+        return torch.cat(batch_id), torch.cat(contact_id), torch.cat(pose), torch.cat(obj_id), torch.cat(sign)
 
 
 class Mechanism:
@@ -86,11 +89,14 @@ class Mechanism:
     # the return is the hidden dynamic functions
     vdof = 6
 
-    def __init__(self, rigid_body, articulation=None, contact_dof=3, contact_method=None):
-        assert self.rigid_body is not None
-        self.rigid_body = rigid_body
-        self.articulation = articulation
-        self.batch_size, self.n_obj = self.rigid_body.shape
+    def __init__(self, rigid_body=None, articulation=None, contact_dof=3, contact_method=None):
+        assert rigid_body is not None or articulation is not None
+        self.rigid_body: RigidBody = rigid_body
+        self.articulation: Articulation = articulation
+        if self.rigid_body is not None:
+            self.batch_size, self.n_obj = rigid_body.shape
+        else:
+            self.batch_size, self.n_obj = articulation.shape[0], 0
         self.contact_method = contact_method
 
         self.invM_obj, self.c_obj = None, None
@@ -111,7 +117,7 @@ class Mechanism:
         else:
             self.invM_art = self.c_art = None
 
-        if collision is not None:
+        if collision is not None and collision.max_nc > 0:
             self.build_contact_dynamics(collision)
         else:
             self.A = self.v0 = self.a0 = self.d0 = self.Jac = None
@@ -133,31 +139,34 @@ class Mechanism:
         if self.invM_art is not None:
             invM[:, -dim_art:, -dim_art:] = self.invM_art
 
-
         # --------------------------- get the jacobian matrix ----------------------------------- #
         J = invM.new_zeros(batch_size * max_nc * contact_dof * dimq)
         # object jacobian
-        _contact_dof_index = torch.arange(contact_dof, device=device)
 
         def assign_jac(J, batch_id, contact_id, obj_id, jac):
             obj_id = obj_id.clamp(0, self.n_obj)
+
+            # hack
+            _contact_dof_index = torch.arange(contact_dof, device=device)
+
             _jac = jac[:, 3:4] if contact_dof == 1 else (jac[:, 3:] if contact_dof == 3 else jac[:, [3, 0, 1, 2, 4, 5]])
             # Jac (0:contact_dof, l:l+p)
-            index = ((batch_id * max_nc + contact_id) * contact_dof)[:, None] + _contact_dof_index[None, :]
-            index = index[:, :, None] * dimq + (obj_id[:, None] * vdof +
+            index = ((batch_id * int(max_nc) + contact_id) * contact_dof)[:, None] + _contact_dof_index[None, :]
+            index = index[:, :, None] * int(dimq) + (obj_id[:, None] * int(vdof) +
                                                 torch.arange(_jac.shape[-1], device=device)[None, :])[:, None]
+            assert index.shape == _jac.shape
             # the 3d index... of each _jac's element
             J = J.scatter(dim=0, index=index.reshape(-1), src=_jac.reshape(-1))
             return J
 
         if self.invM_obj is not None:
-            batch_id, contact_id, pose, obj_id = collisions.filter(lambda x: x < self.n_obj)
-            bodyJac = self.rigid_body[batch_id, obj_id].compute_jacobian(pose)
+            batch_id, contact_id, pose, obj_id, sign = collisions.filter(lambda x: (x < self.n_obj) & (x >=0))
+            bodyJac = self.rigid_body[batch_id, obj_id].compute_jacobian(pose) * sign[..., None, None]
             J = assign_jac(J, batch_id, contact_id, obj_id, bodyJac)
 
         if self.invM_art is not None:
-            batch_id, contact_id, pose, obj_id = collisions.filter(lambda x: x >= self.n_obj)
-            artJac = self.articulation[batch_id].compute_jacobian(obj_id-self.n_obj, pose) # get the link id
+            batch_id, contact_id, pose, obj_id, sign = collisions.filter(lambda x: x >= self.n_obj)
+            artJac = self.articulation[batch_id].compute_jacobian(obj_id-self.n_obj, pose) * sign[..., None, None]
             J = assign_jac(J, batch_id, contact_id, obj_id, artJac)
 
         # assign result
@@ -175,13 +184,17 @@ class Mechanism:
         self.v0 = tr.dot(J, velocity)
         self.a0 = tr.dot(JinvM, tau)
 
-        index = collisions.batch_id * max_nc + collisions.contact_id
+        index = collisions.batch_id * int(max_nc) + collisions.contact_id
         self.d0 = J.new_zeros(batch_size * max_nc).scatter(
             dim=0, index=index, src=collisions.dist).reshape(batch_size, max_nc)
+        #print(self.A, self.v0, self.a0, self.d0)
+        #print(self.Jac)
+        #exit(0)
+
 
     def solve(self, dt):
         if self.A is not None:
-            f = self.contact_method.solve(self)
+            f = self.contact_method.solve(self, dt)
             f = tr.dot(tr.transpose(self.Jac), f)
             f = f.reshape(self.batch_size, self.dimq, -1)
             f_obj, f_art = f[:,:self.n_obj * self.vdof], f[:,self.n_obj *self.vdof:]
