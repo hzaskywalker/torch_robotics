@@ -463,10 +463,9 @@ class Renderer:
         return np.eye(4)
 
     def x2y(self):
-        raise NotImplementedError("I think the third column should be (0, 0, -1) to make it to be right-hand, but I do not have the time to check it")
         return np.array([[0, 1, 0, 0],
                          [1, 0, 0, 0],
-                         [0, 0, 1, 0],
+                         [0, 0, -1, 0],
                          [0, 0, 0, 1],], dtype=np.float32)
 
     def x2z(self):

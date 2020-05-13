@@ -67,20 +67,7 @@ def coulomb_friction(contact_dof, A, a0, v0, d0, alpha0, mu, h, solver=None):
         X[:, -nc:] = mu * e1[:, :nc]  # extract f1
         X[:, -nc:, nc:-nc] = -eye_nc[:, None, :].repeat(1, contact_dof * 2 - 2, 1).reshape(nc, -1)
 
-    sol = solver(X/h/h, Y/h/h) # /h is important for numerical issue, especially for lemke
-    """
-    print('sol', sol.shape)
-    print(sol.reshape(contact_dof*2, nc))
-    print(X.shape, f.shape)
-    print((dot(X, sol)+Y) * sol)
-    F = dot(f, sol)
-    V = dot(VX, sol) + VY
-    d_normal = dot(X[:, :nc], sol) + Y[:, :nc]
-    print('FORCE', F.reshape(contact_dof, nc))
-    print('VELOCITY', V.reshape(contact_dof, nc))
-    print(d_normal * sol[0,:nc])
-    exit(0)
-    """
+    sol = solver(X/h, Y/h) # /h is important for numerical issue, especially for lemke
     return dot(f, sol)
 
 
@@ -91,6 +78,7 @@ class StewartAndTrinkle:
         self.restitution = restitution
         self.mu = mu
         self.solver = lemke
+        #self.solver = LCPPhysics()
 
     def solve(self, mechanism: Mechanism, dt):
         A, a0, v0, d0, h = mechanism.A, mechanism.a0, mechanism.v0, mechanism.d0, dt

@@ -99,7 +99,7 @@ class Mechanism:
         if self.rigid_body is not None:
             self.batch_size, self.n_obj = rigid_body.shape
         else:
-            self.batch_size, self.n_obj = articulation.shape[0], 0
+            self.batch_size, self.n_obj = articulation.A.shape[0], 0
         self.contact_method = contact_method
 
         self.invM_obj, self.c_obj = None, None
@@ -128,15 +128,16 @@ class Mechanism:
 
     def build_contact_dynamics(self, collisions: Collision):
         # some constant..
+        base_object = self.invM_obj if self.rigid_body is not None else self.invM_art
         max_nc = collisions.max_nc
         batch_size = self.batch_size
         contact_dof = self.contact_dof
-        device = self.invM_obj.device
+        device = base_object.device
         vdof = self.vdof
         dim_art = self.invM_art.shape[-1] if self.invM_art is not None else 0
         self.dimq = dimq = self.n_obj * self.vdof + dim_art
 
-        invM = self.invM_obj.new_zeros(batch_size, dimq, dimq)
+        invM = base_object.new_zeros(batch_size, dimq, dimq)
         for i in range(self.n_obj):
             invM[:, i * vdof:(i + 1) * vdof, i * vdof:(i + 1) * vdof] = self.invM_obj[:, i]
         if self.invM_art is not None:
@@ -177,13 +178,16 @@ class Mechanism:
         JinvM = tr.dot(J, invM)
         self.A = tr.dot(JinvM, tr.transpose(J))
 
-        velocity = self.rigid_body.velocity.reshape(batch_size, -1)
-        tau = self.c_obj.reshape(batch_size, -1)
+        velocity = []
+        tau = []
+        if self.rigid_body is not None:
+            velocity.append(self.rigid_body.velocity.reshape(batch_size, -1))
+            tau.append(self.c_obj.reshape(batch_size, -1))
         if self.articulation is not None:
-            velocity = torch.cat((velocity, self.articulation.qvel), dim=-1)
-            tau = torch.cat((tau, self.c_art), dim=-1)
-        self.v0 = tr.dot(J, velocity)
-        self.a0 = tr.dot(JinvM, tau)
+            velocity.append(self.articulation.qvel)
+            tau.append(self.c_art)
+        self.v0 = tr.dot(J, torch.cat(velocity, dim=-1))
+        self.a0 = tr.dot(JinvM, torch.cat(tau, dim=-1))
 
         index = collisions.batch_id * int(max_nc) + collisions.contact_id
         self.d0 = J.new_zeros(batch_size * max_nc).scatter(

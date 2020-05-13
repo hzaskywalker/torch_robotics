@@ -28,7 +28,7 @@ def test_collision():
 
 
 def test_box():
-    engine = Engine2(dt=0.001, frameskip=10, collision_threshold=1e-3, mu=0.5, contact_dof=3, restitution=1)
+    engine = Engine2(dt=0.001, frameskip=10, collision_threshold=1e-3, mu=1., contact_dof=3, restitution=1)
     ground = engine.ground(10)
 
     center = tr.togpu([[1, 0, 0, 0],
@@ -40,7 +40,7 @@ def test_box():
     size = tr.togpu([1, 1, 1])[None, :]
 
     box = engine.box(center, inertia, mass, size, (255, 0, 0, 180), 'box1')
-    box[0].velocity = tr.togpu([0, 0, 0, 0, 1, 0])[None, :]
+    box[0].velocity = tr.togpu([0, 0, 0, 0, 5, 0])[None, :]
     engine.add(*box).add(*ground).reset()
     # N=mg, f = \mu mg
     # v^2 - v_0^2 = 2ax => x = v_0^2/2a
@@ -53,7 +53,7 @@ def test_box():
 
 
 def test_sphere_box():
-    engine = Engine2(dt=0.005, frameskip=10, contact_dof=3, mu=1.0, restitution=0)
+    engine = Engine2(dt=0.005, frameskip=10, contact_dof=3, mu=1., restitution=0)
     ground = engine.ground(10)
 
     center = tr.togpu([[1, 0, 0, 0],
@@ -61,7 +61,7 @@ def test_sphere_box():
                        [0, 0, 1, 0.5],
                        [0, 0, 0, 1]])[None, :]
     inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
-    mass = tr.togpu([5])
+    mass = tr.togpu([0.1])
     size = tr.togpu([1, 1, 1])[None, :]
 
     box = engine.box(center, inertia, mass, size, (255, 0, 0, 180), 'box1')
@@ -69,15 +69,18 @@ def test_sphere_box():
     engine.add(*box)
 
 
-    center = tr.togpu([0, 0, 1.2])[None, :]
+    center = tr.togpu([0, 0.3, 1.2])[None, :]
     inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
     mass = tr.togpu([5])
     radius = tr.togpu([0.2])
     sphere = engine.sphere(center, inertia, mass, radius, (0, 255, 0), name='sphere')
-
     sphere[0].velocity[:] = tr.togpu([0, 0, 0, 0, 1, 0])
 
-    engine.add(*ground).add(*sphere).reset()
+    center2 = tr.togpu([0, -0.3, 1.2])[None, :]
+    sphere2 = engine.sphere(center2, inertia, mass, radius, (0, 255, 0), name='sphere2')
+    sphere2[0].velocity[:] = tr.togpu([0, 0, 0, 0, 1, 0])
+
+    engine.add(*ground).add(*sphere).add(*sphere2).reset()
 
     for i in tqdm.trange(100):
         engine.render()
@@ -105,7 +108,15 @@ def test_two_sphere():
         engine.render()
 
 def test_articulation():
-    pass
+    engine = Engine2(contact_dof=3, frameskip=10, dt=0.01, mu=1)
+
+    articulation = engine.robot('xxx')
+    ground = engine.ground(10)
+    #engine.add(*ground).add(*articulation).reset()
+    engine.add(*articulation).reset()
+    for i in range(30):
+        engine.render('interactive')
+        engine.step()
 
 
 if __name__ == '__main__':

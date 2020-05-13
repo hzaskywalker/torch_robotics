@@ -6,6 +6,7 @@ from .physical_object import PhysicalObject
 from .. import arith as tr
 from robot.utils import batched_index_select
 
+
 class Articulation(PhysicalObject):
     # description of the articulation
     # Articulation is in general in the form form of (batch_size, n_links+1)
@@ -25,7 +26,7 @@ class Articulation(PhysicalObject):
 
     def fk(self):
         # return the pose that can be used for the render and the articulation
-        return self.qpos
+        return tr.fk_in_space(self.qpos, self.M, self.A)
 
     def euler_(self, qacc, dt, inplace=True):
         assert inplace
@@ -57,19 +58,23 @@ class Articulation(PhysicalObject):
         T = tr.eyes_like(self.M[:, 0, :, :], 4)
 
         outs, Ts = [Js], []
-        for i in range(1, self.qpos.shape[-1]):
+        for i in range(1, self.qpos.shape[-1]+1):
             T = tr.dot(T, tr.expse3(tr.vec_to_se3(S[:, i - 1]) * self.qpos[:, i - 1][:, None, None]))
             Ts.append(T)
 
-            Js[:, :, i] = tr.dot(tr.Adjoint(T), S[:, i])
+            if i != self.qpos.shape[-1]:
+                Js[:, :, i] = tr.dot(tr.Adjoint(T), S[:, i])
+            else:
+                Js = tr.dot(tr.Adjoint(self.M[..., -1]), Js)
             outs.append(Js)
 
-        Ts.append(tr.dot(T, self.M[..., -1, None, None]))
-        outs = torch.stack(outs)
-        Ts = torch.stack(Ts)
+        Ts.append(tr.dot(T, self.M[..., -1, :, :]))
 
-        J = batched_index_select(outs, 0, link_id)
-        T = batched_index_select(Ts, 0, link_id)
+        outs = torch.stack(outs, dim=1)
+        Ts = torch.stack(Ts, dim=1)
+
+        J = batched_index_select(outs, 1, link_id)[:, 0]
+        T = batched_index_select(Ts, 1, link_id)[:, 0]
 
         # Ad_{T_{link, pose}} J\dot q =
         T_cb = tr.dot(tr.inv_trans(pose), T)

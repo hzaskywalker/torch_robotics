@@ -60,6 +60,10 @@ class Builder:
                                    self.renderer.translate((0, 0, -0.5)))
         return Imortal(), ground, visual
 
+    def robot(self, robot_name):
+        from .robots import make_robots
+        return make_robots(self.geometry, self.renderer)
+
 
 class Engine2(Builder):
     # We write it into a functional
@@ -129,11 +133,11 @@ class Engine2(Builder):
             collision_shape_index.append(index)
         if articulation_shape is not None:
             idx = len(rigid_bodies)
-            for i in articulation_shape:
-                collision_shape_index.append(idx)
+            for link_id, i in articulation_shape:
+                collision_shape_index.append(link_id + idx)
                 collision_shape.append(i)
-                idx += 1
-        self.rigid_body = rigid_bodies[0].stack(rigid_bodies, 1)
+        if len(rigid_bodies) > 0:
+            self.rigid_body = rigid_bodies[0].stack(rigid_bodies, 1)
         self.collision = Collision(collision_shape, collision_shape_index, self.collision_detector)
         self.mechanism = Mechanism(self.rigid_body, self.articulation, self.contact_dof,
                                    contact_method=self.contact_model)
@@ -143,7 +147,8 @@ class Engine2(Builder):
         # The goal is to compute the pose to update the shape and the render
         # However for
         idx = 0
-        rigid_body_pose = self.rigid_body.fk()
+        if self.rigid_body is not None:
+            rigid_body_pose = self.rigid_body.fk()
         for obj, shape, visual in zip(self.init_objects, self.shapes, self.visuals):
             if not isinstance(obj, RigidBody):
                 pose = obj.fk()
@@ -165,6 +170,7 @@ class Engine2(Builder):
         self.collision.update()
         # update
         self.mechanism(self.gravity, self.collision, tau=None, wrench=None)
+        exit(0)
 
         # we may need to add toi
         qacc_obj, qacc_art = self.mechanism.solve(self.dt)
@@ -175,7 +181,8 @@ class Engine2(Builder):
             self.articulation.euler_(qacc_art, self.dt)
 
     def step(self):
-        assert self.rigid_body is not None, "please add at least one object and then reset before running"
+        assert self.rigid_body is not None or self.articulation is not None,\
+            "please add at least one object or reset before running"
         # perhaps we have to apply force
         for i in range(self.frameskip):
             self.do_simulation()

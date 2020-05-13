@@ -101,6 +101,7 @@ class SimpleCollisionDetector:
         self.shapes.append(shape)
 
     def sphere(self, center, radius):
+        assert len(radius.shape) == 1, "radius must be a 1-d vector"
         return Sphere(center, radius)
 
     def box(self, pose, size):
