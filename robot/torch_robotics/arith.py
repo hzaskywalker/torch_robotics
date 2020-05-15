@@ -94,6 +94,14 @@ def vec_to_se3(V):
     ))
 
 
+def se3_to_vec(se3mat):
+    """Converts an so(3) representation to a 3-vector
+    :param so3mat: A 3x3 skew-symmetric matrix
+    :return: The 3-vector corresponding to so3mat
+    """
+    return se3mat[..., [2, 0, 1, 0, 1, 2], [1, 2, 0, 3, 3, 3]]
+
+
 def safe_div(a, b):
     b = b + (torch.abs(b) < 1e-15).float() * 1e-14 # make sure it's not zero
     return a / b

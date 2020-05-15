@@ -469,8 +469,7 @@ class Renderer:
                          [0, 0, 0, 1],], dtype=np.float32)
 
     def x2z(self):
-        raise NotImplementedError("I think the third column should be (-1, 0, 0) to make it to be right-hand, but I do not have the time to check it")
-        return np.array([[0, 0, 1, 0],
+        return np.array([[0, 0, -1, 0],
                          [0, 1, 0, 0],
                          [1, 0, 0, 0],
                          [0, 0, 0, 1],], dtype=np.float32)

@@ -163,6 +163,7 @@ class RigidBody(PhysicalObject):
 
     def euler_(self, qacc, dt, inplace=True):
         # one-step euler integral..
+        # in it's in the body frame ...
         if inplace:
             if isinstance(dt, torch.Tensor):
                 dt = dt[..., None]

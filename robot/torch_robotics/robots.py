@@ -29,19 +29,19 @@ def make_robots(geometry, renderer: Renderer):
     M = tr.togpu([[
         [
             [1, 0, 0, 0],
-            [0, 1, 0, -0.5],
-            [0, 0, 1, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, -0.5],
             [0, 0, 0, 1],
         ],
         [
             [1, 0, 0, 0],
-            [0, 1, 0, -1.0],
-            [0, 0, 1, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, -1.0],
             [0, 0, 0, 1],
         ],
         [[1, 0, 0, 0],
-        [0, 1, 0, -0.5],
-        [0, 0, 1, 0.],
+        [0, 1, 0, 0.],
+        [0, 0, 1, -0.5],
         [0, 0, 0, 1.],]
     ]])
 
@@ -49,7 +49,7 @@ def make_robots(geometry, renderer: Renderer):
        [np.diag([1, 1, 1, 1, 1, 1]), np.diag([1, 1, 1, 1, 1, 1])]
     ])
 
-    w, q = [0, 0, 1], [0, 0.5, 0]
+    w, q = [1, 0, 0], [0, 0, 0.5]
     screw1 = w + (-np.cross(w, q)).tolist()
     A = tr.togpu([[screw1, screw1]])
 
@@ -59,15 +59,14 @@ def make_robots(geometry, renderer: Renderer):
 
     shapes = []
     for i in range(len(M[0])-1):
-        length = abs(A[0, i].detach().cpu().numpy()[3]) * 2
-        capsule = renderer.capsule(length, 0.1, (255, 255, 255, 127), renderer.x2y())
-        shapes.append(renderer.compose(capsule, renderer.sphere((0, -length/2, 0), 0.1, (255, 0, 0))))
+        length = abs(A[0, i].detach().cpu().numpy()[4]) * 2
+        capsule = renderer.capsule(length, 0.1, (255, 255, 255, 127), renderer.x2z())
+        shapes.append(renderer.compose(capsule, renderer.sphere((0, 0, -length/2), 0.1, (255, 0, 0))))
 
-    shapes.append(renderer.sphere(np.array([0, 0, 0]), 0.1, (0, 255, 0)))
+    shapes.append(renderer.sphere(np.array([0, 0, 0]), 0.12, (0, 0, 255)))
     visual = ArmShapes(shapes)
 
     articulation = Articulation(qpos, qvel, M, A, G)
 
-
-    ball = geometry.sphere(tr.togpu([[0, 0, 0]]), tr.togpu([0.1]))
+    ball = geometry.sphere(tr.togpu([[0, 0, 0]]), tr.togpu([0.12]))
     return articulation, EndEffectorShape(len(M[0])-1, ball), visual

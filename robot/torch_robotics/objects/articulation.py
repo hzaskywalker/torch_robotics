@@ -51,31 +51,9 @@ class Articulation(PhysicalObject):
         return torch.inverse(mass), tau-c-g-f
 
     def compute_jacobian(self, link_id, pose):
-        # T(q) = (\prod e^{[S_i\theta_i]})M
-        S = tr.A_to_S(self.A, self.M) # spatial coordinate
-        Js = tr.transpose(S.clone())
-        Js[..., 1:] = 0
-        T = tr.eyes_like(self.M[:, 0, :, :], 4)
-
-        outs, Ts = [Js], []
-        for i in range(1, self.qpos.shape[-1]+1):
-            T = tr.dot(T, tr.expse3(tr.vec_to_se3(S[:, i - 1]) * self.qpos[:, i - 1][:, None, None]))
-            Ts.append(T)
-
-            if i != self.qpos.shape[-1]:
-                Js[:, :, i] = tr.dot(tr.Adjoint(T), S[:, i])
-            else:
-                Js = tr.dot(tr.Adjoint(self.M[..., -1]), Js)
-            outs.append(Js)
-
-        Ts.append(tr.dot(T, self.M[..., -1, :, :]))
-
-        outs = torch.stack(outs, dim=1)
-        Ts = torch.stack(Ts, dim=1)
-
-        J = batched_index_select(outs, 1, link_id)[:, 0]
-        T = batched_index_select(Ts, 1, link_id)[:, 0]
-
-        # Ad_{T_{link, pose}} J\dot q =
-        T_cb = tr.dot(tr.inv_trans(pose), T)
-        return tr.dot(tr.Adjoint(T_cb), J)
+        J = tr.jacobian_space(self.qpos, self.M, self.A)
+        index = torch.arange(self.qpos.shape[1], device=self.M.device)[None, :].expand(link_id.shape[0], -1)
+        mask = (index <= link_id[:, None]).float()
+        J = J * mask[:, None]
+        T_cs = tr.inv_trans(pose)
+        return tr.dot(tr.Adjoint(T_cs), J)

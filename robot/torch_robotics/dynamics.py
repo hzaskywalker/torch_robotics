@@ -205,9 +205,14 @@ class Mechanism:
         else:
             f_obj, f_art = 0, 0
 
-        qacc_obj = tr.dot(self.invM_obj, self.c_obj + f_obj)
+        if self.invM_obj is not None:
+            qacc_obj = tr.dot(self.invM_obj, self.c_obj + f_obj)
+        else:
+            qacc_obj = None
+
         if self.invM_art is not None:
             qacc_art = tr.dot(self.invM_art, self.c_art + f_art)
         else:
             qacc_art = None
+
         return qacc_obj, qacc_art

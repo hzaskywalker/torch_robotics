@@ -1,4 +1,5 @@
 from robot import tr
+import numpy as np
 from robot.torch_robotics.engine2 import Engine2
 import tqdm
 
@@ -112,10 +113,12 @@ def test_articulation():
 
     articulation = engine.robot('xxx')
     ground = engine.ground(10)
-    #engine.add(*ground).add(*articulation).reset()
+    engine.add(*ground).add(*articulation).reset()
+
+    articulation[0].qpos[:] = tr.togpu([np.pi/2, 0])
     engine.add(*articulation).reset()
     for i in range(30):
-        engine.render('interactive')
+        engine.render('human')
         engine.step()
 
 

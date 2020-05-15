@@ -170,13 +170,12 @@ class Engine2(Builder):
         self.collision.update()
         # update
         self.mechanism(self.gravity, self.collision, tau=None, wrench=None)
-        exit(0)
-
         # we may need to add toi
         qacc_obj, qacc_art = self.mechanism.solve(self.dt)
 
         if self.rigid_body is not None:
             self.rigid_body.euler_(qacc_obj, self.dt)
+
         if self.articulation is not None:
             self.articulation.euler_(qacc_art, self.dt)
 
