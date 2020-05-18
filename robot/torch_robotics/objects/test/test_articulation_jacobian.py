@@ -43,7 +43,7 @@ def test():
     robot = sim.robot(None)[0]
     M, A = robot.M, robot.A
 
-    link_id = 2
+    link_id = 0
     robot.qpos[:] = tr.togpu([np.pi/4, np.pi/3])
     pose = robot.fk()[:, -1]
     pose = tr.togpu([
