@@ -142,20 +142,24 @@ class Solver:
             lmbda = W['lambda']
             dx_aff, dz_aff, ds_aff = self.affine_direction(rx, rz, lmbda, W)
 
-            # step 3: Step size and centering paramter
-            # \alpha = sup a \in [0, 1], s+a * ds_aff >=0 and z + a * dz_aff >= 0
             def inv(inv_alpha, STEP=1.):
+                # get the inverse alpha, find its inverse ... and bound it into [0, 1]
                 mask = (inv_alpha == 0).float()
                 alpha = mask + (1 - mask) * STEP / inv_alpha.clamp(1e-15, np.inf)
                 return alpha
+
+            # step 3: Step size and centering paramter
+            # \alpha = sup a \in [0, 1], s+a * ds_aff >=0 and z + a * dz_aff >= 0
 
             inv_alpha = torch.relu(torch.max(cone.max_step2(z, dz_aff), cone.max_step2(s, ds_aff)))
             alpha = inv(inv_alpha, 1)
             sigma = (cone.sdot(s+alpha * ds_aff, z+alpha * dz_aff)/gap).clamp(0, 1) ** self.EXPON
 
+            # step4: combined direction
             mu = gap/cone.m
             dx, dz, ds = self.combined_direction(rx, rz, lmbda, ds_aff, dz_aff, sigma, mu, W)
 
+            # step5: update iterates and scaling matrices
             WinvTds, Wdz = cone.scale(W, ds, inverse=True, trans=True), cone.scale(W, dz)
             inv_alpha = torch.max(cone.max_step2(lmbda, WinvTds), cone.max_step2(lmbda, Wdz))
             alpha = inv(inv_alpha, self.STEP)
