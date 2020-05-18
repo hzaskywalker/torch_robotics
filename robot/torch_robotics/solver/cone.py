@@ -56,6 +56,8 @@ class Cone:
             x := H(lambda^{1/2}) * x   (inverse is 'N')
             x := H(lambda^{-1/2}) * x  (inverse is 'I').
 
+            Notice that if lambda = w, then W = H(lambda^{-1/2})
+
         H is the Hessian of the logarithmic barrier.
         """
         raise NotImplementedError
@@ -94,20 +96,21 @@ class Orthant(Cone):
         # u o v = (u_1v_1,\dots, u_pv_p)
         return a * b
 
-    def sinv(self, a, b):
+    def sinv(self, x, y):
         # For the nonlinear and 'l' blocks:
         #
-        #     yk o\ xk = yk .\ xk.
-        return a / b
+        #     xk <> yk = yk o\ xk = yk .\ xk.
+        return y / x
 
     def compute_scaling(self, s, z):
+        assert s.shape[-1] == self._m
         a = torch.sqrt(s)
         b = torch.sqrt(z)
         w = a/b
         return {'w': w, 'wi': 1/w, 'lambda': self.sprod(a, b)}
 
     def as_matrix(self, W, trans=False, inverse=False):
-        w = W[0] if not inverse else W[1]
+        w = W['w'] if not inverse else W['wi']
         W = w.new_zeros((w.shape[0], w.shape[1], w.shape[1]))
         W[:, self._list, self._list] = w
         return W
@@ -123,13 +126,13 @@ class Orthant(Cone):
         #     xk := xk .* l   (inverse is 'I')
         #
         # where l is lmbda.
-        if inverse:
+        if not inverse:
             return x / lmbda
         else:
             return x * lmbda
 
     def max_step(self, x):
-        return x.min(dim=-1)[0]
+        return -x.min(dim=-1)[0]
 
     def inside(self, x):
         return (x>=0).all(dim=-1)
@@ -152,8 +155,9 @@ class SecondOrder(Cone):
         return torch.cat(((x*y).sum(dim=-1, keepdims=True),
                           x[..., 0:1] * y[..., 1:] + y[..., 0:1] * x[..., 0:1]), dim=-1).reshape(-1, self.n * self.dim)
 
-    def sinv(self, y, x):
-        # y o (y<>x) = x for all x
+    def sinv(self, x, y):
+        # x <> y = y o\ x
+        # x o (x<>y) = y for all x
         # For the 'q' blocks:
         #
         #                        [ l0   -l1'              ]
