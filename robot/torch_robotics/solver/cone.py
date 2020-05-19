@@ -146,14 +146,14 @@ class SecondOrder(Cone):
         self.n = n
         self.dim = dim
         self._m = self.n
-        self._identity = torch.zeros((self.n * self.m), device=device, dtype=dtype)
+        self._identity = torch.zeros((self.n * self.dim), device=device, dtype=dtype)
         self._identity[0::self.dim] = 1
 
     def sprod(self, x, y):
         x = x.reshape(-1, self.dim)
-        y = x.reshape(-1, self.dim)
+        y = y.reshape(-1, self.dim)
         return torch.cat(((x*y).sum(dim=-1, keepdims=True),
-                          x[..., 0:1] * y[..., 1:] + y[..., 0:1] * x[..., 0:1]), dim=-1).reshape(-1, self.n * self.dim)
+                          x[..., 0:1] * y[..., 1:] + y[..., 0:1] * x[..., 1:]), dim=-1).reshape(-1, self.n * self.dim)
 
     def sinv(self, x, y):
         # x <> y = y o\ x
@@ -169,7 +169,7 @@ class SecondOrder(Cone):
         y = x.reshape(-1, self.dim)
         l0 = y[..., 0]
         l1 = y[..., 1:]
-        l1_sum = l1.sum(dim=-1)
+        l1_sum = l1.norm(dim=-1)
         aa = (l0 + l1_sum) * (l0 - l1_sum) # jnrm2
 
         # out[0] = l0 * xk[0] - l1 * xk[1:]
@@ -185,9 +185,21 @@ class SecondOrder(Cone):
         out[..., 1:] = ((dd/l0)[..., None] - cc) * l1 + aa/l0 * ee
         return out.reshape(-1, self.n * self.dim)
 
-    def jnrm2(self, x):
+    def inside(self, x):
+        # definition of the cone
+        assert x.shape[-1] == self.n * self.dim
+        x = x.reshape(-1, self.dim)
         l0 = x[..., 0]
-        l1 = x[..., 1:].sum(dim=-1)
+        l1 = x[..., 1:].norm(dim=-1)
+        return (l0 >= l1).reshape(-1, self.n).all(dim=-1)
+
+    def jnrm2(self, x):
+        """
+        Returns sqrt(x' * J * x) where J = [1, 0; 0, -I], for a vector
+        x in a second order cone.
+        """
+        l0 = x[..., 0]
+        l1 = x[..., 1:].norm(dim=-1)
         return torch.sqrt(torch.relu((l0 + l1) * (l0 - l1)))
 
     def compute_scaling(self, s, z):
@@ -208,20 +220,21 @@ class SecondOrder(Cone):
 
         W = {}
         s, z = s.reshape(-1, self.dim), z.reshape(-1, self.dim)
-        aa = self.jnrm2(s)
-        bb = self.jnrm2(z)
+        aa = self.jnrm2(s)[:, None]
+        bb = self.jnrm2(z)[:, None]
         # w_k^TJw_k
         W['beta'] = torch.sqrt(aa/bb)
         # w_ is the \bar{w_k} in the book
         s_ = s/aa
         z_ = z/bb
-        cc = torch.sqrt((1 + self.sdot(z_, s_))/2) # gamma in the book
-        z_[..., 0] = -z_[..., 0] # -Jz
-        w_ = (s_ - z_)/cc/2.
+        cc = torch.sqrt((1 + self.sdot(z_, s_))/2)[:, None] # gamma in the book
+        Jz_ = z_.clone()
+        Jz_[..., 0] = -Jz_[..., 0] # -Jz
+        w_ = (s_ - Jz_)/cc/2.
 
         # v is w_^{1/2} = 1/(2(w_0+1))**0.5 * (w_+e)
         w_[:, 0] += 1.
-        W['v'] = w_/torch.sqrt(2.0 * w_[:, 0])
+        W['v'] = w_/torch.sqrt(2.0 * w_[:, 0:1])
 
         # To get the scaled variable lambda_k
         #
@@ -232,12 +245,12 @@ class SecondOrder(Cone):
         # by the book, the noramlized
         #   lambda_0 = gamma
         #   lambda_1 = 1/d * ((gamma + z_0) * s_1+(gamma+z_1) * z_1)
-        dd = 2*cc + s_[:, 0] + z_[:, 0]
+        dd = 2 * cc + s_[:, 0:1] + z_[:, 0:1]
         lmbda = torch.zeros_like(s_)
-        lmbda[:, 0] = cc
-        lmbda[:, 1:] = ((cc+z_[:, 0])[:, None] * s_[:, 1:] + (cc+s_[:, 0])[:, None] * z_[:, 1:])/dd
+        lmbda[:, 0] = cc[:, 0]
+        lmbda[:, 1:] = ((cc+z_[:, 0:1]) * s_[:, 1:] + (cc+s_[:, 0:1]) * z_[:, 1:])/dd
 
-        W['lambda'] = lmbda
+        W['lambda'] = (lmbda * torch.sqrt(aa*bb)).reshape(-1, self.n * self.dim)
         return W
 
     def scale(self, W, x, trans=False, inverse=False):
@@ -269,7 +282,8 @@ class SecondOrder(Cone):
         else:
             out = 2 * v * self.sdot(-Jx, v)[:, None] + x
             out[:, 0] *= -1
-        return out / beta
+            out = out/beta
+        return out.reshape(-1, self.n * self.dim)
 
     def as_matrix(self, W, trans=False, inverse=False):
         def out_product(x):
@@ -277,26 +291,64 @@ class SecondOrder(Cone):
             return x[:, :, None] @ x[:, None, :]
         v = W['v']
         J = torch.eye(self.dim, device=v.device, dtype=v.dtype)
-        J[:, 1:] *= -1
+        J[1:, 1:] *= -1
         if inverse:
             Jv = v.clone()
-            Jv[:, 1] *= -1
-            out = 2 * out_product(Jv) - J
+            Jv[:, 1:] *= -1
+            out = (2 * out_product(Jv) - J)/W['beta'][:, None]
         else:
             out = 2 * out_product(v) - J
-        out = out/W['beta']
+            out = out * W['beta'][:, None]
+
         out = out.reshape(-1, self.n, self.dim, self.dim)
         if self.n == 1:
             return out[:, 0]
         else:
             out2 = out.new_zeros(out.shape[0], self.n * self.dim, self.n * self.dim)
             for i in range(self.n):
-                sl = slice(i*self.dim, i*self.dim+self.dim)
+                sl = slice(i*self.dim, (i+1)*self.dim)
                 out2[:, sl, sl] = out[:, i]
             return out2
 
+    def max_step(self, x):
+        assert x.shape[-1] == self.n * self.dim
+        x = x.reshape(-1, self.dim)
+        alpha = x[:, 1:].norm(dim=-1) - x[:, 0]
+        return alpha.reshape(-1, self.n).max(dim=-1)[0]
+
+
     def scale2(self, lmbda, x, inverse=False):
-        raise NotImplementedError
+        # For 'q' blocks, if inverse is 'N',
+        #
+        #     xk := 1/a * [ l'*J*xk;
+        #         xk[1:] - (xk[0] + l'*J*xk) / (l[0] + 1) * l[1:] ].
+        #
+        # If inverse is 'I',
+        #
+        #     xk := a * [ l'*xk;
+        #         xk[1:] + (xk[0] + l'*xk) / (l[0] + 1) * l[1:] ].
+        #
+        # a = sqrt(lambda_k' * J * lambda_k), l = lambda_k / a.
+        lmbda = lmbda.reshape(-1, self.dim)
+        x = x.reshape(-1, self.dim)
+
+        a = self.jnrm2(lmbda)[:, None]
+        l = lmbda/a
+
+        if not inverse:
+            tmp = l[:, 0] * x[:, 0] - (l[:, 1:] * x[:, 1:]).sum(dim=-1) #l'Jx
+        else:
+            tmp = self.sdot(l, x)
+        other = ((x[:, 0] + tmp)/(l[:, 0] + 1))[:, None] * l[:, 1:]
+        out = torch.zeros_like(x)
+        out[:, 0] = tmp
+        if not inverse:
+            out[:, 1:] = x[:, 1:] - other
+            out = out / a
+        else:
+            out[:, 1:] = x[:, 1:] + other
+            out = out * a
+        return out.reshape(-1, self.n * self.dim)
 
 
 class CartesianCone:
