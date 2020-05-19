@@ -42,7 +42,8 @@ class Solver:
         #  [ G  -W'W] [ uz ]   [ bz ]
         M = self.matrix.clone()
         M[:, self.w_slice, self.w_slice] = - dot(W, transpose(W))
-        out = torch.solve(W, torch.cat((bx, bz), dim=-1)[:, None])[:, 0]
+        B = torch.cat((bx, bz), dim=-1)
+        out = torch.solve(B[:, :, None], M)[0][:, :, 0]
         return out[:, :self.n], out[:, self.n:]
 
     def initialize(self):
@@ -133,7 +134,10 @@ class Solver:
         for i in range(niter):
             # step 1:
             # maybe we need to write it into a recursive form ...
+            #print(x, s, z)
             f0, rx, rz, gap, terminate = self.evaluate(x, s, z)
+            #print('rx', rx)
+            #print('rz', rz)
             if terminate.all():
                 break
 
@@ -141,9 +145,12 @@ class Solver:
             W = cone.compute_scaling(s, z) # recompute, I think we don't need to speed it up for now
             lmbda = W['lambda']
             dx_aff, dz_aff, ds_aff = self.affine_direction(rx, rz, lmbda, W)
+            #print(dx_aff, dz_aff, ds_aff)
+            #exit(0)
 
             def inv(inv_alpha, STEP=1.):
                 # get the inverse alpha, find its inverse ... and bound it into [0, 1]
+                inv_alpha = torch.relu(inv_alpha)
                 mask = (inv_alpha == 0).float()
                 alpha = mask + (1 - mask) * STEP / inv_alpha.clamp(1e-15, np.inf)
                 return alpha
@@ -152,7 +159,7 @@ class Solver:
             # \alpha = sup a \in [0, 1], s+a * ds_aff >=0 and z + a * dz_aff >= 0
 
             inv_alpha = torch.relu(torch.max(cone.max_step2(z, dz_aff), cone.max_step2(s, ds_aff)))
-            alpha = inv(inv_alpha, 1)
+            alpha = inv(inv_alpha, 1).clamp(0, 1)
             sigma = (cone.sdot(s+alpha * ds_aff, z+alpha * dz_aff)/gap).clamp(0, 1) ** self.EXPON
 
             # step4: combined direction
@@ -162,15 +169,19 @@ class Solver:
             # step5: update iterates and scaling matrices
             WinvTds, Wdz = cone.scale(W, ds, inverse=True, trans=True), cone.scale(W, dz)
             inv_alpha = torch.max(cone.max_step2(lmbda, WinvTds), cone.max_step2(lmbda, Wdz))
-            alpha = inv(inv_alpha, self.STEP)
+            alpha = inv(inv_alpha, self.STEP).clamp(0, 1)
 
             x, z, s = x + alpha * dx, z + alpha * dz, s + alpha * ds
+            #print(x, z, s)
+            #exit(0)
 
         return x
 
 
     def evaluate(self, x, s, z):
         cone = self.cone
+        vdot = cone.sdot
+
         # TODO: coneqp matains the gap and calculate it with lambda' * lambda
         gap = cone.sdot(s, z)
 
@@ -180,11 +191,11 @@ class Solver:
         # mu = (s^Tz)/m, notice m is the degree of the cone
 
         rx = self.q + dot(self.P, x)
-        f0 = 0.5 * (dot(x, rx) + dot(x, self.q))
+        f0 = 0.5 * (vdot(x, rx) + vdot(x, self.q))
         rx = rx + dot(self.GT, z)
         resx = rx.norm(dim=-1)
 
-        rz = s + dot(self.G, z) - self.h
+        rz = s + dot(self.G, x) - self.h
         resz = cone.snrm2(rz)
 
         # pcost = (1/2)*x'*P*x + q'*x

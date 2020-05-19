@@ -6,22 +6,23 @@ def main():
     solver = Solver()
 
     P = tr.togpu([[
-        [1, 0],
-        [0, 1]
+        [1, 0.1],
+        [0.1, 1]
     ]])
     q = tr.togpu([[
         -1, -1,
     ]])
     G = tr.togpu([[
-        [1, 0],
+        [1, 0.2],
         [0, 1]
     ]])
 
     h = tr.togpu([[
-        0, 0
+        -1, -1
     ]])
 
-    solver(P, q, G, h, 2, 0, 0)
+    sol = solver(P, q, G, h, 2, 0, 0)
+    print(sol)
 
 if __name__ == '__main__':
     main()
