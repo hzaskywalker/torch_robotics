@@ -96,6 +96,8 @@ def test_second_order_cone():
     out = tr.togpu(np.array(a_c)[:, 0]).reshape(-1, m)
     check(out, cone.sprod(a, b))
 
+    check(cone.sprod(a, cone.sinv(a, b)), b, "second order sinv")
+
     s, z = a, b
     W = cone.compute_scaling(s, z)
 

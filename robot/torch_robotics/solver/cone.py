@@ -155,18 +155,17 @@ class SecondOrder(Cone):
         return torch.cat(((x*y).sum(dim=-1, keepdims=True),
                           x[..., 0:1] * y[..., 1:] + y[..., 0:1] * x[..., 1:]), dim=-1).reshape(-1, self.n * self.dim)
 
-    def sinv(self, x, y):
-        # x <> y = y o\ x
+    def sinv(self, y, x):
+        # x <> y = x o\ y
         # x o (x<>y) = y for all x
         # For the 'q' blocks:
         #
         #                        [ l0   -l1'              ]
-        #     yk o\ xk = 1/a *   [                        ] * xk
+        #     yk <> xk = 1/a *   [                        ] * xk
         #                        [ -l1  (a*I + l1*l1')/l0 ]
         #
         # where yk = (l0, l1) and a = l0^2 - l1'*l1.
-        x = x.reshape(-1, self.dim)
-        y = x.reshape(-1, self.dim)
+        x, y = x.reshape(-1, self.dim), y.reshape(-1, self.dim)
         l0 = y[..., 0]
         l1 = y[..., 1:]
         l1_sum = l1.norm(dim=-1)
@@ -182,8 +181,10 @@ class SecondOrder(Cone):
         # out[i] = -l1[i] * xk[0] + (a * xk[i] + l1[i] * (l1' * x[1:])) / l0
         # out[i] = -l1[i] * xk[0] + xk[i] * a/l0 + l1[i] * dd/l0
         # out = a/l0  * xk + l1[i] * (dd/l0 - cc)
-        out[..., 1:] = ((dd/l0)[..., None] - cc) * l1 + aa/l0 * ee
-        return out.reshape(-1, self.n * self.dim)
+        out[..., 1:] = (((dd/l0) - cc)[..., None] * l1 + (aa/l0)[..., None] * ee)
+
+        # 1/a
+        return (out/aa[..., None]).reshape(-1, self.n * self.dim)
 
     def inside(self, x):
         # definition of the cone

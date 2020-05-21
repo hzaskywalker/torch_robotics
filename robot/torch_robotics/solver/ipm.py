@@ -1,7 +1,7 @@
 # slow version of PDIPM with second order cone
 import numpy as np
 import torch
-from .cone import Orthant
+from .cone import Orthant, SecondOrder
 from ..arith import dot, transpose
 
 class Solver:
@@ -80,6 +80,9 @@ class Solver:
         tmp = cone.scale(W, cone.sinv(lmbda, ds), trans=True)
 
         W_mat = cone.as_matrix(W)
+        #print('s', ds, 'lmbda', lmbda)
+        #print('sinv', cone.sinv(lmbda, ds))
+        #print('dz-tmp', dz-tmp)
         Dx, Dz = self.solve_kkt(W_mat, dx, dz - tmp)
 
         # Ds = W'(lambda <> ds - W Dz )
@@ -118,11 +121,13 @@ class Solver:
         :return:
         """
         assert n_l + n_Q * dim_Q == h.shape[-1] == G.shape[1]
-        assert P.shape[1] == P.shape[2] == q.shape[1] == G.shape[2]
+        assert P.shape[1] == P.shape[2] == q.shape[1] == G.shape[2], f"{P.shape}, {q.shape}, {G.shape}"
         # we ignore A, b here
         # we require the second order cone to be the same..
         if n_Q == 0:
             cone = self.cone = Orthant(n_l)
+        elif n_l == 0:
+            cone = self.cone = SecondOrder(n_Q, dim_Q)
         else:
             raise NotImplementedError
 
@@ -137,6 +142,8 @@ class Solver:
             # maybe we need to write it into a recursive form ...
             #print(x, s, z)
             f0, rx, rz, gap, terminate = self.evaluate(x, s, z)
+            #print(x, s, z)
+            #print(f0, rx, rz, gap)
             #print('rx', rx)
             #print('rz', rz)
             if terminate.all():
@@ -146,6 +153,13 @@ class Solver:
             W = cone.compute_scaling(s, z) # recompute, I think we don't need to speed it up for now
             lmbda = W['lambda']
             dx_aff, dz_aff, ds_aff = self.affine_direction(rx, rz, lmbda, W)
+            """
+            print('dx', dx_aff)
+            print('dz', dz_aff)
+            print('ds', ds_aff)
+            print('lmbda', lmbda)
+            return
+            """
             #print(dx_aff, dz_aff, ds_aff)
             #exit(0)
 
@@ -216,8 +230,8 @@ class Solver:
 class ConeQP:
     def __call__(self, P, q, G, h, n_l, n_Q, dim_Q, niter=None):
         from cvxopt import matrix
-        from cvxopt.coneprog import coneqp
-        #from robot.torch_robotics.solver.coneqp_python import coneqp
+        #from cvxopt.coneprog import coneqp
+        from robot.torch_robotics.solver.coneqp_python import coneqp
 
         device, dtype = P.device, P.dtype
         output = []

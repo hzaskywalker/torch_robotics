@@ -3,7 +3,6 @@ from inspect import isfunction
 import torch
 import numpy as np
 import torch.multiprocessing as multip
-from typing import List
 
 
 class Worker(multip.Process):
@@ -16,6 +15,7 @@ class Worker(multip.Process):
         self.args = args
         self.kwargs = kwargs
         self.pipe, self.worker_pipe = multip.Pipe()
+        self.daemon = True
         self.start()
 
     def run(self):
@@ -98,6 +98,7 @@ class DataParallel:
         for i in self.workers:
             i.close()
 
+
 def test1():
     func = DataParallel(24, lambda x: (x+1, x+2))
     print(func(torch.arange(12)))
@@ -113,4 +114,4 @@ def test2():
     print(func(torch.arange(12)))
 
 if __name__ == '__main__':
-    test1()
+    test2()
