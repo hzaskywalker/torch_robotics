@@ -1,28 +1,27 @@
 import torch
+import numpy as np
 from robot import tr
-from robot.torch_robotics.solver.slow import Solver
+from robot.torch_robotics.solver.ipm import Solver, ConeQP
+
+def check(a, b):
+    assert ((a-b).abs().max() < 1e-6), f"{a} {b}"
 
 def main():
     solver = Solver()
+    solver2 = ConeQP()
 
-    P = tr.togpu([[
-        [1, 0.1],
-        [0.1, 1]
-    ]])
-    q = tr.togpu([[
-        -1, -1,
-    ]])
-    G = tr.togpu([[
-        [1, 0.2],
-        [0, 1]
-    ]])
+    n, m = 5, 4
 
-    h = tr.togpu([[
-        -1, -1
-    ]])
+    A = np.random.randn(n, n)
+    P = tr.togpu([A@A.T])
+    q = tr.togpu([np.random.randn(n,)])
+    G = tr.togpu([np.random.randn(m, n)])
 
-    sol = solver(P, q, G, h, 2, 0, 0)
-    print(sol)
+    h = tr.togpu([np.random.randn(m,)])
+
+    sol1 = solver(P, q, G, h, m, 0, 0)
+    sol2 = solver2(P, q, G, h, m, 0, 0)
+    check(sol1, sol2)
 
 if __name__ == '__main__':
     main()

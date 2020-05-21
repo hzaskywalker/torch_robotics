@@ -117,7 +117,8 @@ class Solver:
         :param dim_Q: number of second
         :return:
         """
-        assert n_l + n_Q * dim_Q == P.shape[-1]
+        assert n_l + n_Q * dim_Q == h.shape[-1] == G.shape[1]
+        assert P.shape[1] == P.shape[2] == q.shape[1] == G.shape[2]
         # we ignore A, b here
         # we require the second order cone to be the same..
         if n_Q == 0:
@@ -172,8 +173,6 @@ class Solver:
             alpha = inv(inv_alpha, self.STEP).clamp(0, 1)
 
             x, z, s = x + alpha * dx, z + alpha * dz, s + alpha * ds
-            #print(x, z, s)
-            #exit(0)
 
         return x
 
@@ -211,3 +210,24 @@ class Solver:
         dres = resx/self.resx0
         terminate = (pres <= self.feastol) & (dres <= self.feastol) & (relgap<=self.reltol)
         return f0, rx, rz, gap, terminate
+
+
+
+class ConeQP:
+    def __call__(self, P, q, G, h, n_l, n_Q, dim_Q, niter=None):
+        from cvxopt import matrix
+        from cvxopt.coneprog import coneqp
+        #from robot.torch_robotics.solver.coneqp_python import coneqp
+
+        device, dtype = P.device, P.dtype
+        output = []
+        for p, q, g, h in zip(P, q, G, h):
+            # for numpy we don't need to transpose ...
+            P = matrix(p.detach().cpu().numpy())
+            q = matrix(q.detach().cpu().numpy())
+            G = matrix(g.detach().cpu().numpy())
+            h = matrix(h.detach().cpu().numpy())
+            dims = {'l': n_l, 'q': [dim_Q for i in range(n_Q)], 's': []}
+            x = coneqp(P, q, G, h, dims)['x']
+            output.append(np.array(x)[:, 0])
+        return torch.tensor(np.array(output), device=device, dtype=dtype)
