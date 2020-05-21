@@ -26,28 +26,20 @@ def test_nonnegative_orthant():
 
 
 def test_second_order_cone():
-    solver = Solver()
+    while True:
+        n = np.random.randint(2, 5)
+        n_Q, dim_Q = np.random.randint(1, n), np.random.randint(1, n)
+        m = n_Q * dim_Q
 
-    n, m = 2, 2
+        A = np.random.randn(n, n) + np.eye(n) * 0.001
+        P = tr.togpu([A@A.T])
+        q = tr.togpu([np.random.randn(n,)])
+        G = tr.togpu([np.random.randn(m, n)])
+        h = tr.togpu([np.random.randn(m,)])
 
-    P = tr.togpu([[
-        [1, 0],
-        [0, 1],
-    ]])
-    q = tr.togpu([[
-        0, -3
-    ]])
-    G = tr.togpu([[
-        [1, 0],
-        [0, 1]
-    ]])
-    h = tr.togpu([[0, 0]])
-
-    n_Q, dim_Q = 1, 2
-    sol = solver(P, q, G, h, 0, n_Q, dim_Q)
-    print(sol)
-    sol2 = solver2(P, q, G, h, 0, n_Q, dim_Q)
-    print(sol2)
+        sol = solver(P, q, G, h, 0, n_Q, dim_Q)
+        sol2 = solver2(P, q, G, h, 0, n_Q, dim_Q)
+        check(sol, sol2)
 
 
 if __name__ == '__main__':

@@ -8,7 +8,7 @@ class Solver:
     # coneqp, without equality constraints ...
     # one can always eliminate teh equality constraints by simple mathematics
 
-    def __init__(self, MAXITERS=30, feastol=1e-7, abstol=1e-7, reltol=1e-6, STEP=0.99, EXPON=3):
+    def __init__(self, MAXITERS=100, feastol=1e-7, abstol=1e-7, reltol=1e-6, STEP=0.99, EXPON=3):
         self.MAXITERS = MAXITERS
         self.feastol = feastol
         self.abstol = abstol
