@@ -1,7 +1,7 @@
 # slow version of PDIPM with second order cone
 import numpy as np
 import torch
-from .cone import Orthant, SecondOrder
+from .cone import Orthant, SecondOrder, CartesianCone
 from ..arith import dot, transpose
 
 class Solver:
@@ -40,6 +40,7 @@ class Solver:
     def solve_kkt(self, W, bx, bz):
         #  [ P  G'  ] [ ux ]   [ bx ]
         #  [ G  -W'W] [ uz ]   [ bz ]
+        # TODO: we can avoid one matrix inverse by LU factorizing the
         M = self.matrix.clone()
         M[:, self.w_slice, self.w_slice] = - dot(W, transpose(W))
         B = torch.cat((bx, bz), dim=-1)
@@ -129,7 +130,7 @@ class Solver:
         elif n_l == 0:
             cone = self.cone = SecondOrder(n_Q, dim_Q)
         else:
-            raise NotImplementedError
+            cone = self.cone = CartesianCone(n_l, n_Q, dim_Q)
 
         self.factor_kkt(P, q, G, h)
 
@@ -140,12 +141,7 @@ class Solver:
         for i in range(niter):
             # step 1:
             # maybe we need to write it into a recursive form ...
-            #print(x, s, z)
             f0, rx, rz, gap, terminate = self.evaluate(x, s, z)
-            #print(x, s, z)
-            #print(f0, rx, rz, gap)
-            #print('rx', rx)
-            #print('rz', rz)
             if terminate.all():
                 break
 
@@ -153,15 +149,6 @@ class Solver:
             W = cone.compute_scaling(s, z) # recompute, I think we don't need to speed it up for now
             lmbda = W['lambda']
             dx_aff, dz_aff, ds_aff = self.affine_direction(rx, rz, lmbda, W)
-            """
-            print('dx', dx_aff)
-            print('dz', dz_aff)
-            print('ds', ds_aff)
-            print('lmbda', lmbda)
-            return
-            """
-            #print(dx_aff, dz_aff, ds_aff)
-            #exit(0)
 
             def inv(inv_alpha, STEP=1.):
                 # get the inverse alpha, find its inverse ... and bound it into [0, 1]

@@ -12,9 +12,6 @@ class Cone:
     def m(self):
         return self._m
 
-    def positive(self, x):
-        raise NotImplementedError
-
     def inside(self, x):
         raise NotImplementedError
 
@@ -87,8 +84,8 @@ class Cone:
 
 
 class Orthant(Cone):
-    def __init__(self, n, device='cuda:0'):
-        self._identity = torch.ones((n,), device=device)
+    def __init__(self, n, device='cuda:0', dtype=torch.float64):
+        self._identity = torch.ones((n,), device=device, dtype=dtype)
         self._list = torch.arange(n, device=device)
         self._m = n
 
@@ -352,6 +349,73 @@ class SecondOrder(Cone):
         return out.reshape(-1, self.n * self.dim)
 
 
-class CartesianCone:
+class CartesianCone(Cone):
     def __init__(self, n_l, n_Q, dim_Q):
-        raise NotImplementedError
+        self.n_l = n_l
+        self.n_Q = n_Q
+        self.dim_Q = dim_Q
+        self.orthant = Orthant(self.n_l)
+        self.secondorder = SecondOrder(self.n_Q, self.dim_Q)
+
+    @property
+    def identity(self):
+        return torch.cat((self.orthant.identity, self.secondorder.identity), dim=-1)
+
+    @property
+    def m(self):
+        return self.orthant.m + self.secondorder.m
+
+    def split_one(self, inp):
+        return inp[..., :self.n_l], inp[..., self.n_l:]
+
+    def split_two(self, a, b):
+        a1, a2 = self.split_one(a)
+        b1, b2 = self.split_one(b)
+        return (a1, b1), (a2, b2)
+
+    def max_step(self, a):
+        a, b = self.split_one(a)
+        return torch.max(self.orthant.max_step(a), self.secondorder.max_step(b))
+
+    def sprod(self, x, y):
+        #print(x.shape, y.shape)
+        a, b = self.split_two(x, y)
+        #print(self.n_l, self.n_Q, self.dim_Q)
+        #print(a[0].shape, a[1].shape)
+        #print(b[0].shape, b[1].shape)
+        return torch.cat((self.orthant.sprod(*a), self.secondorder.sprod(*b)), dim=-1)
+
+    def sinv(self, x, y):
+        # Return x o\ y or x <> y in the book
+        a, b = self.split_two(x, y)
+        return torch.cat((self.orthant.sinv(*a), self.secondorder.sinv(*b)), dim=-1)
+
+    # sdot, snrm2 is the same
+
+    def scale2(self, x, y):
+        # Return x o\ y or x <> y in the book
+        a, b = self.split_two(x, y)
+        return torch.cat((self.orthant.scale2(*a), self.secondorder.scale2(*b)), dim=-1)
+
+    def compute_scaling(self, s, z):
+        a, b = self.split_two(s, z)
+        W1 = self.orthant.compute_scaling(*a)
+        W2 = self.secondorder.compute_scaling(*b)
+        lmbda = torch.cat((W1['lambda'], W2['lambda']), dim=-1)
+        out  = {**W1, **W2}
+        out['lambda'] = lmbda
+        return out
+
+    def as_matrix(self, W, trans=False, inverse=False):
+        M1 = self.orthant.as_matrix(W, trans, inverse)
+        M2 = self.secondorder.as_matrix(W, trans, inverse)
+        n = M1.shape[1] + M2.shape[1]
+        out = M1.new_zeros((M1.shape[0], n, n))
+        out[:,:M1.shape[1], :M1.shape[1]] = M1
+        out[:,M1.shape[1]:, M1.shape[1]:] = M2
+        return out
+
+    def scale(self, W, x, trans=False, inverse=False):
+        a, b = self.split_one(x)
+        return torch.cat((self.orthant.scale(W, a, trans, inverse),
+                          self.secondorder.scale(W, b, trans, inverse)), dim=-1)
