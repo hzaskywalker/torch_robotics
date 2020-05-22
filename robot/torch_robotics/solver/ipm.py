@@ -63,7 +63,7 @@ class Solver:
             nrms = cone.snrm2(s)
             ts = cone.max_step(s)
             cond = ts >= -1e-8 * nrms.clamp(1.0, np.inf)
-            return s + cond.float() * (1+ts) * cone.identity[None, :]
+            return s + (cond.float() * (1+ts))[:, None] * cone.identity[None, :]
 
         s = project(-z) # make s >= 0 in the cone
         z = project(z)
@@ -107,7 +107,7 @@ class Solver:
         # lambda o (Wdz + W^{-T}ds) = -lambda o lambda - (W^{-T}ds_affine) o (W dz_affine) + sigma mu e
         cone = self.cone
         ds = - cone.sprod(lmbda, lmbda) - cone.sprod(cone.scale(W, ds_aff, trans=True, inverse=True),
-                          cone.scale(W, dz_aff, trans=False, inverse=False)) + sigma * mu * cone.identity[None,:]
+                          cone.scale(W, dz_aff, trans=False, inverse=False)) + (sigma * mu)[:, None] * cone.identity[None,:]
         return self.Newton(W, -rx, -rz, ds, lmbda)
 
     def __call__(self, P, q, G, h, n_l, n_Q, dim_Q, niter=None):
@@ -161,7 +161,7 @@ class Solver:
             # \alpha = sup a \in [0, 1], s+a * ds_aff >=0 and z + a * dz_aff >= 0
 
             inv_alpha = torch.relu(torch.max(cone.max_step2(z, dz_aff), cone.max_step2(s, ds_aff)))
-            alpha = inv(inv_alpha, 1).clamp(0, 1)
+            alpha = inv(inv_alpha, 1).clamp(0, 1)[:, None]
             sigma = (cone.sdot(s+alpha * ds_aff, z+alpha * dz_aff)/gap).clamp(0, 1) ** self.EXPON
 
             # step4: combined direction
@@ -173,6 +173,7 @@ class Solver:
             inv_alpha = torch.max(cone.max_step2(lmbda, WinvTds), cone.max_step2(lmbda, Wdz))
             alpha = inv(inv_alpha, self.STEP).clamp(0, 1)
 
+            alpha = alpha[:, None]
             x, z, s = x + alpha * dx, z + alpha * dz, s + alpha * ds
 
         return x
