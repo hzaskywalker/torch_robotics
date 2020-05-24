@@ -91,7 +91,7 @@ class Cylinder(RigidBody):
 class Capsule(RigidBody):
     def __init__(self, scene, height, radius, color=None, pose=np.eye(4), sections=32):
         mesh = trimesh.primitives.Capsule(height=height, radius=radius, sections=sections, transform=np.array(
-            [[0, 0, 1, -height/2],
+            [[0, 0, -1, -height/2],
              [0, 1, 0, 0],
              [1, 0, 0, 0],
              [0, 0, 0, 1]]

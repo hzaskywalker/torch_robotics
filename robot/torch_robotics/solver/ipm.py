@@ -4,6 +4,7 @@ import torch
 from .cone import Orthant, SecondOrder, CartesianCone
 from ..arith import dot, transpose
 
+
 class Solver:
     # coneqp, without equality constraints ...
     # one can always eliminate teh equality constraints by simple mathematics
