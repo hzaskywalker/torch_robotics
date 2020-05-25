@@ -35,8 +35,6 @@ def backward(M, q, u, grad_u):
         to_inv = (grad_u.abs() > 1e-15).any(dim=-1)
         d_u = torch.zeros_like(grad_u)
 
-        #print(P[to_inv][5], grad_u[to_inv][5], u[to_inv][0])
-        #print(P[to_inv][0])
         P = P[to_inv]
         P = P + eyes_like(P) * 1e-10 # TODO: small hack to make it not singular ...
         d_u[to_inv] = -bmv(torch.inverse(P)[:, :n, :n], grad_u[to_inv])

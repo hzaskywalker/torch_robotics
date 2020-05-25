@@ -77,7 +77,7 @@ class Sphere(RigidBody):
 class Cylinder(RigidBody):
     def __init__(self, scene, height, radius, color, pose, sections=30):
         x2z = np.array([[0, 0, 1, 0],
-         [0, 1, 0, 0],
+         [0, -1, 0, 0],
          [1, 0, 0, 0],
          [0, 0, 0, 1]])
         mesh = trimesh.primitives.Cylinder(height=height,
@@ -91,8 +91,8 @@ class Cylinder(RigidBody):
 class Capsule(RigidBody):
     def __init__(self, scene, height, radius, color=None, pose=np.eye(4), sections=32):
         mesh = trimesh.primitives.Capsule(height=height, radius=radius, sections=sections, transform=np.array(
-            [[0, 0, -1, -height/2],
-             [0, 1, 0, 0],
+            [[0, 0, 1, -height/2],
+             [0, -1, 0, 0],
              [1, 0, 0, 0],
              [0, 0, 0, 1]]
         ))
@@ -466,16 +466,16 @@ class Renderer:
         return np.array([[0, 1, 0, 0],
                          [1, 0, 0, 0],
                          [0, 0, -1, 0],
-                         [0, 0, 0, 1],], dtype=np.float32)
+                         [0, 0, 0, 1]], dtype=np.float32)
 
     def x2z(self):
-        return np.array([[0, 0, -1, 0],
-                         [0, 1, 0, 0],
+        return np.array([[0, 0, 1, 0],
+                         [0, -1, 0, 0],
                          [1, 0, 0, 0],
                          [0, 0, 0, 1],], dtype=np.float32)
 
     def y2z(self):
-        return np.array([[1, 0, 0, 0],
+        return np.array([[-1, 0, 0, 0],
                          [0, 0, 1, 0],
                          [0, 1, 0, 0],
                          [0, 0, 0, 1],], dtype=np.float32)
@@ -486,8 +486,6 @@ class Renderer:
         return pose
 
     def save(self, path):
-        #for k in self._viewers.values():
-            # destroy _viewers for pickle
         tmp = self._viewers
 
         self._viewers = OrderedDict()

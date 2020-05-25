@@ -6,87 +6,6 @@ from . import arith as tr
 from ..utils import Timer
 
 
-class Collision:
-    def __init__(self, shapes, shape_idx, collision_checker):
-        # each shape has an object id
-        self.shapes = shapes
-        self.shape_idx = shape_idx
-        self.collision_checker = collision_checker
-
-        self.max_nc = 0
-        # in the form of (num_contacts,)
-        self.batch_id = []
-        self.contact_id = []
-        self.dist = []
-        self.pose = []
-
-        # list of object_id and contact_id
-        # (num_contact, 2)
-        # represent the two object id of contact
-        # num_of_objects + num of links in articulation
-        self.contact_objects = []
-
-    def update(self):
-        shapes = self.shapes
-        for i in shapes:
-            if i.pose is not None:
-                batch_size = i.pose.shape[0]
-                break
-
-        # count the number of contacts per batch
-        batch_nc = np.zeros((batch_size,), dtype=np.int32) # contact id in batch
-        self.batch_id, self.contact_id, self.dist, self.pose, self.contact_objects = [], [], [], [], []
-
-        for i in range(len(self.shapes)):
-            a_id = self.shape_idx[i]
-            for j in range(i+1, len(shapes)):
-                b_id = self.shape_idx[j]
-
-                batch_id, dists, poses, swap = self.collision_checker(shapes[i], shapes[j])
-
-                if batch_id.shape[0] > 0:
-                    # number of contacts
-                    _contact_id = np.zeros(len(batch_id), dtype=np.int32)
-                    for idx, b in enumerate(batch_id.detach().cpu().numpy()):
-                        _contact_id[idx] = batch_nc[b]
-                        batch_nc[b] += 1
-                    # currently a tensor
-                    self.batch_id.append(batch_id)
-                    self.dist.append(dists)
-                    self.pose.append(poses)
-
-                    # current a np array
-                    self.contact_id.append(_contact_id)
-                    tmp = a_id, b_id
-                    if swap:
-                        tmp = b_id, a_id
-                    self.contact_objects.append(np.array(tmp)[None,:].repeat(len(batch_id), 0))
-
-        self.max_nc = 0
-        if len(self.batch_id)>0:
-            self.max_nc = batch_nc.max()
-            self.batch_id = torch.cat(self.batch_id, dim=0)
-            self.dist = torch.cat(self.dist, dim=0)
-            self.pose = torch.cat(self.pose, dim=0)
-            device = self.batch_id.device
-            self.contact_id = torch.tensor(np.concatenate(self.contact_id), dtype=torch.long, device=device)
-            self.contact_objects = torch.tensor(np.concatenate(self.contact_objects), dtype=torch.long, device=device)
-        return self
-
-    def filter(self, fn):
-        object_mask = fn(self.contact_objects)
-        batch_id, contact_id, sign, pose, obj_id = [], [], [], [], []
-        for i in range(2):
-            mask = object_mask[:, i]
-            if mask.any():
-                batch_id.append(self.batch_id[mask])
-                contact_id.append(self.contact_id[mask])
-                sign.append(torch.zeros_like(self.dist[mask]) * 0 + (1 - i * 2))
-                pose.append(self.pose[mask])
-                obj_id.append(self.contact_objects[:, i][mask])
-        return torch.cat(batch_id), torch.cat(contact_id), torch.cat(pose), torch.cat(obj_id), torch.cat(sign)
-
-
 class Mechanism:
     # used to find the parameters for the solver
     # the return is the hidden dynamic functions
@@ -108,7 +27,7 @@ class Mechanism:
 
         self.A, self.v0, self.a0, self.d0, self.Jac = None, None, None, None, None
 
-    def __call__(self, gravity, collision: Collision=None, tau=None, wrench=None):
+    def __call__(self, gravity, collision=None, tau=None, wrench=None):
         # we don't consider the wrench here
         if self.rigid_body is not None:
             self.invM_obj, self.c_obj = self.rigid_body.dynamics(gravity=gravity, wrench=wrench)
@@ -126,7 +45,7 @@ class Mechanism:
             self.A = self.v0 = self.a0 = self.d0 = self.Jac = None
         return self
 
-    def build_contact_dynamics(self, collisions: Collision):
+    def build_contact_dynamics(self, collisions):
         # some constant..
         base_object = self.invM_obj if self.rigid_body is not None else self.invM_art
         max_nc = collisions.max_nc
@@ -199,7 +118,7 @@ class Mechanism:
         if self.A is not None:
             f = self.contact_method.solve(self, dt)
             f = tr.dot(tr.transpose(self.Jac), f)
-            f = f.reshape(self.batch_size, self.dimq, -1)
+            f = f.reshape(self.batch_size, self.dimq)
             f_obj, f_art = f[:,:self.n_obj * self.vdof], f[:,self.n_obj *self.vdof:]
             f_obj = f_obj.reshape(self.batch_size, self.n_obj, self.vdof)
         else:

@@ -26,6 +26,7 @@ class Articulation(PhysicalObject):
 
     def fk(self):
         # return the pose that can be used for the render and the articulation
+        # print('articulation.fk', self.qpos.shape, self.M.shape, self.A.shape)
         return tr.fk_in_space(self.qpos, self.M, self.A)
 
     def euler_(self, qacc, dt, inplace=True):

@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from robot.torch_robotics import arith as tr, engine2
+from robot.torch_robotics import arith as tr, engine
 
 def finite_difference(link_id, pose, qpos, M, A, epsilon=1e-4, type='body'):
     assert M.shape[0] == 1
@@ -38,7 +38,7 @@ def finite_difference(link_id, pose, qpos, M, A, epsilon=1e-4, type='body'):
 
 
 def test():
-    sim = engine2.Engine2()
+    sim = engine.Engine()
 
     robot = sim.robot(None)[0]
     M, A = robot.M, robot.A

@@ -73,7 +73,7 @@ def test_box_ground():
     print(out)
 
 def test_box_point():
-    from robot.torch_robotics.geometry.simplex2 import SimpleCollisionDetector
+    from robot.torch_robotics.geometry.simplex import SimpleCollisionDetector
     geo = SimpleCollisionDetector()
 
     rand_pos = tr.Rp_to_trans(tr.projectSO3(torch.randn((6, 3, 3), device='cuda:0')).double(),
