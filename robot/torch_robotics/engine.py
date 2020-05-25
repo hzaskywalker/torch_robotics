@@ -19,7 +19,6 @@ class Builder:
         self.renderer.set_camera_position(-10, 0, 0)
         self.renderer.set_camera_rotation(0, 0)
 
-
     # --------------------------------- various geometry -----------------------------------------
     def sphere(self, center, inertia, mass, radius, color, name=None):
         # short cut for creating the sphere objects ...

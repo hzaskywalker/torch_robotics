@@ -1,4 +1,5 @@
 # the collision detector based on the gradient, we need some methods to compute the gradient of the contact point...
+# we use a padding schema here ...
 import sys
 import torch
 import numpy as np
@@ -29,11 +30,14 @@ class Ground:
 
 class Simplex:
     def __init__(self, contact_threshold):
-        import logging
-        logging.warning("currently we only support contact threshold == 0")
+        if contact_threshold > 0:
+            import logging
+            logging.warning("currently we only support contact threshold == 0")
+
         sys.path.append('/home/hza/Simplex/src/')
         import simplex_c
-        self.sim = simplex_c.Simplex(contact_threshold)
+        self.sim = simplex_c.Simplex(0)
+        self.contact_threshold = contact_threshold
         self._detected_collisions = False
 
         # result of collision
@@ -45,18 +49,18 @@ class Simplex:
         self.max_nc = None
 
     def box(self, pose, size):
-        rigid_body = RigidBody(self.sim.box(tr.tocpu(size[0])))
+        rigid_body = RigidBody(self.sim.box(tr.tocpu(size[0]) + self.contact_threshold * 2))
         rigid_body.set_pose(pose)
         return rigid_body
 
     def sphere(self, center, radius):
         pose = tr.translate(center)
-        rigid_body = RigidBody(self.sim.sphere(tr.tocpu(radius[0])))
+        rigid_body = RigidBody(self.sim.sphere(tr.tocpu(radius[0]) + self.contact_threshold))
         rigid_body.set_pose(pose)
         return rigid_body
 
     def ground(self, h=0):
-        box = self.sim.box(np.array([200, 200, 1]))
+        box = self.sim.box(np.array([200, 200, 1 + self.contact_threshold * 2]))
         box.set_pose(np.array([[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, h-0.5], [0, 0, 0, 1]]]))
         return Ground(box)
 
@@ -99,7 +103,7 @@ class Simplex:
             self.max_nc = self.contact_id.max() + 1
 
             # NOTE: inverse
-            self.dist = torch.tensor(-self.sim.dist, dtype=self.dtype, device=self.device)
+            self.dist = torch.tensor(-self.sim.dist, dtype=self.dtype, device=self.device) + self.contact_threshold * 2
             self.pose = tr.Rp_to_trans(tr.normal2pose(-normal_pos[:, 0]), normal_pos[:, 1])
         else:
             self.batch_id = self.contact_id = self.contact_objects = self.dist = self.pose = None

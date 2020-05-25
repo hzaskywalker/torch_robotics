@@ -5,7 +5,7 @@ import tqdm
 
 
 def test_collision():
-    engine = Engine(contact_dof=3, frameskip=10, dt=0.01, mu=1)
+    engine = Engine(contact_dof=3, frameskip=10, dt=0.01, mu=1, contact_margine=0.0)
 
     center = tr.togpu([0, 0, 1])[None, :]
     inertia = tr.togpu([0.001, 0.001, 0.001])[None, :]
