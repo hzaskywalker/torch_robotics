@@ -8,4 +8,4 @@
 #   -     we then set pose and ask for the solution
 
 
-from .simplex import SimpleCollisionDetector
+from .simplex import Simplex

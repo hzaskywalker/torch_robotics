@@ -1,6 +1,6 @@
 import torch
 from robot import tr
-from robot.torch_robotics.geometry import simplex
+from robot.torch_robotics.geometry import simplex2
 
 def test_edge_edge():
     s1 = tr.togpu([[0, 0, 0], [0, 0, 0]])
@@ -8,7 +8,7 @@ def test_edge_edge():
 
     s2 = tr.togpu([[0, 0, 0], [0, 0, 0]])
     t2 = tr.togpu([[0, 1, 0], [0, 0, 1]])
-    out = simplex.collide_edge_edge(s1,t1,s2,t2, eps=-1e8)
+    out = simplex2.collide_edge_edge(s1, t1, s2, t2, eps=-1e8)
     print(out)
 
     mid = torch.randn((1000, 3)) * 3
@@ -21,7 +21,7 @@ def test_edge_edge():
     s2 = mid - vec2 * torch.rand((1000, 1))
     t2 = mid + vec2 * torch.rand((1000, 1))
 
-    dist, pose = simplex.collide_edge_edge(s1, t1, s2, t2)
+    dist, pose = simplex2.collide_edge_edge(s1, t1, s2, t2)
     inter = pose[..., :3, 3]
     assert dist.abs().max() < 2e-3, f"{dist.abs().max()}"
     assert (inter - mid).abs().max() < 1e-3, f"{(inter-mid).abs().max()}"
@@ -42,38 +42,38 @@ def test_face_vertics():
         [3., 3., 1.2],
     ])
     face = face.expand(vertices.shape[0], -1, -1)
-    print(simplex.collide_face_vertex(face, vertices, eps=-1e-8))
+    print(simplex2.collide_face_vertex(face, vertices, eps=-1e-8))
 
 def test_box():
     #print(simplex.collide_edge_edge(tr.togpu([[0.5, 0.5, 0]]), tr.togpu([[-0.5, 0.5, 0]]),
     #                                                                      tr.togpu([[0.4, 0.1, 0]]), tr.togpu([[0.4, 0.9, 0]])))
 
-    box = simplex.Box(tr.togpu([[[1, 0, 0, 0],
-                         [0, 1, 0, 0],
-                         [0, 0, 1, 0],
-                         [0, 0, 0, 1]]]), size=tr.togpu([[1, 1, 1]]))
+    box = simplex2.Box(tr.togpu([[[1, 0, 0, 0],
+                                  [0, 1, 0, 0],
+                                  [0, 0, 1, 0],
+                                  [0, 0, 0, 1]]]), size=tr.togpu([[1, 1, 1]]))
 
     #h = 0.99
     h = 1.1
-    box2 = simplex.Box(tr.togpu([[[1, 0, 0, 0],
-                                 [0, 1, 0, 0],
-                                 [0, 0, 1, 0.5+h/2-0.001],
-                                 [0, 0, 0, 1]]]), size=tr.togpu([[h, h, h]]))
+    box2 = simplex2.Box(tr.togpu([[[1, 0, 0, 0],
+                                   [0, 1, 0, 0],
+                                   [0, 0, 1, 0.5+h/2-0.001],
+                                   [0, 0, 0, 1]]]), size=tr.togpu([[h, h, h]]))
 
     print(box.collide_box(box, box2))
 
 def test_box_ground():
-    box = simplex.Box(tr.togpu([[[1, 0, 0, 0],
-                                 [0, 1, 0, 0],
-                                 [0, 0, 1, 0.6],
-                                 [0, 0, 0, 1]]]), size=tr.togpu([[1, 1, 1]]))
+    box = simplex2.Box(tr.togpu([[[1, 0, 0, 0],
+                                  [0, 1, 0, 0],
+                                  [0, 0, 1, 0.6],
+                                  [0, 0, 0, 1]]]), size=tr.togpu([[1, 1, 1]]))
 
     box.index = torch.arange(1)
-    out = simplex.SimpleCollisionDetector().collide_box_ground(box, None)
+    out = simplex2.SimpleCollisionDetector().collide_box_ground(box, None)
     print(out)
 
 def test_box_point():
-    from robot.torch_robotics.geometry.simplex import SimpleCollisionDetector
+    from robot.torch_robotics.geometry.simplex2 import SimpleCollisionDetector
     geo = SimpleCollisionDetector()
 
     rand_pos = tr.Rp_to_trans(tr.projectSO3(torch.randn((6, 3, 3), device='cuda:0')).double(),

@@ -5,13 +5,13 @@ from .dynamics import Mechanism
 from ..renderer import Renderer
 from .objects import RigidBody, Imortal, Articulation
 
-from .geometry.simplex import SimpleCollisionDetector
+from .geometry.simplex import Simplex
 from robot.torch_robotics.contact.elastic import StewartAndTrinkle
 
 
 class Builder:
     def __init__(self, epsilon=None):
-        self.geometry = SimpleCollisionDetector(epsilon)
+        self.geometry = Simplex(epsilon)
         self.renderer = Renderer()
 
         # default renderer
