@@ -7,10 +7,10 @@ from robot.torch_robotics.contact import StewartAndTrinkle, DualMujoco
 import numpy as np
 
 def make_env(batch_size=256, gravity=np.array([0, 0, -9.8]), contact_dof=1, dt=0.001, frameskip=10, use_toi=False):
-    #model = StewartAndTrinkle(alpha0=0, contact_dof=contact_dof, use_toi=use_toi)
-    model = DualMujoco(alpha0=0.01)
+    model = StewartAndTrinkle(alpha0=0)
+    #model = DualMujoco(alpha0=0.01)
 
-    engine = Engine(dt=dt, frameskip=frameskip, gravity=tr.togpu(gravity), contact_model=model, epsilon=0.05)
+    engine = Engine(dt=dt, frameskip=frameskip, gravity=tr.togpu(gravity), contact_model=model, contact_margine=0.0)
     ground = engine.ground()
 
     center = tr.togpu([0, 0, 1])[None, :].expand(batch_size, -1)
