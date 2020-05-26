@@ -12,9 +12,8 @@ class RigidBody:
         self.c_ptr = c_ptr
 
     def set_pose(self, pose):
-        p = tr.Rp_to_trans(tr.projectSO3(pose[:, :3, :3]), pose[:,:3, 3])
-
-        self.pose = p #???? is this ok?
+        p = tr.projectSE3(pose)
+        self.pose = p
         self.c_ptr.set_pose(tr.tocpu(p))
 
     def get_pose(self):
@@ -124,14 +123,13 @@ class Simplex:
                         outs = []
                         for i, pose in zip(SHAPES, ctx.saved_tensors):
                             gradV = torch.tensor(i.c_ptr.grad, dtype=gradient.dtype, device=gradient.device)
-                            #mat = tr.expse3(tr.vec_to_se3(gradV * 0.0000001))
-                            #grad = (tr.dot(pose, mat) - pose)/0.0000001
-                            #assert (grad2 - grad).abs().max() < 1e-6, f"{grad} {grad2}, {(grad2-grad).abs().max()}"
-                            grad2 = tr.vec_to_se3(gradV)
+                            gradV[:,:3]/=2 # NOTE: vecy strange hack...div two as the project will count the grad twice?
+                            grad2 = tr.dot(pose, tr.vec_to_se3(gradV))
                             outs.append(grad2)
                         return tuple(outs)
 
                 func = Grad.apply
+                #self.shapes[0].pose.register_hook(lambda x:print('x', x))
                 normal_pos, dist = func(
                     *[i.pose for i in self.shapes]
                 )
