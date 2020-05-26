@@ -3,30 +3,25 @@ from robot.torch_robotics.geometry.simplex import Simplex
 
 
 def test():
-    sim = Simplex(0)
+    sim = Simplex(0, compute_gradients=True)
     center = tr.togpu([[1, 0, 0, 0],
                        [0, 1, 0, 0],
-                       [0, 0, 1, 0.3],
+                       [0, 0, 1, 0],
                        [0, 0, 0, 1]])[None, :]
     size = tr.togpu([1, 1, 1])[None, :]
 
+    center.requires_grad = True
     box = sim.box(center, size)
-    ground = sim.ground(0)
 
-    #center2 = center.clone()
-    #center2[:,2,3] = 0.95
-    #center2[:,1,3] = 0.3
+    center2 = tr.togpu([0, 0, 1.])[None,:]
+    center2.requires_grad = True
+    sphere = sim.sphere(center2, tr.togpu([0.5]))
 
-    #size = tr.togpu([0.9, 0.9, 0.9])[None, :]
-    #box2 = sim.box(center2, size)
+    shapes = [box, sphere]
+    sim.collide(shapes, update=True)
 
-    shapes = [box, ground]
-    collisions = sim.collide(shapes, update=True)
-
-    sim = collisions.sim
-    print(sim.normal_pos[:, 0])
-    print(sim.normal_pos[:, 1])
-    print(sim.dist)
+    sim.dist.sum().backward()
+    print(center.grad)
 
 
 if __name__ == '__main__':

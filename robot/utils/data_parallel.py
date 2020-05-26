@@ -94,6 +94,10 @@ class DataParallel:
         else:
             return sum(x, [])
 
+    def close(self):
+        for i in self.workers:
+            i.close()
+
     def __del__(self):
         for i in self.workers:
             i.close()
@@ -112,6 +116,8 @@ def test2():
             return x + self.d
     func = DataParallel(24, Func, 12)
     print(func(torch.arange(12)))
+    #func.close()
+    del func
 
 if __name__ == '__main__':
     test2()
