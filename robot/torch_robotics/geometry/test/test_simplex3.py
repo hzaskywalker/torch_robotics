@@ -20,8 +20,9 @@ def test():
     shapes = [box, sphere]
     sim.collide(shapes, update=True)
 
-    sim.dist.sum().backward()
+    (sim.dist.sum()+sim.pose.sum()).backward()
     print(center.grad)
+    print(center2.grad)
 
 
 if __name__ == '__main__':

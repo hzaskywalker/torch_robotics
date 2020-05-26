@@ -124,9 +124,11 @@ class Simplex:
                         outs = []
                         for i, pose in zip(SHAPES, ctx.saved_tensors):
                             gradV = torch.tensor(i.c_ptr.grad, dtype=gradient.dtype, device=gradient.device)
-                            mat = tr.expse3(tr.vec_to_se3(gradV * 0.001))
-                            grad = (tr.dot(pose, mat) - pose)/0.001
-                            outs.append(grad)
+                            #mat = tr.expse3(tr.vec_to_se3(gradV * 0.0000001))
+                            #grad = (tr.dot(pose, mat) - pose)/0.0000001
+                            #assert (grad2 - grad).abs().max() < 1e-6, f"{grad} {grad2}, {(grad2-grad).abs().max()}"
+                            grad2 = tr.vec_to_se3(gradV)
+                            outs.append(grad2)
                         return tuple(outs)
 
                 func = Grad.apply
